@@ -48,6 +48,20 @@ export class SrsService {
         const nextDate = new Date();
         nextDate.setDate(nextDate.getDate() + interval);
 
+        // LOG TO BRAIN DASHBOARD
+        // Ensure this runs only on client or compatible environment if server side is monitored.
+        // Assuming this service runs where it can log.
+        if (typeof window !== 'undefined') {
+            const agentMonitor = require('./agent-monitor').agentMonitor;
+            agentMonitor.log(
+                "Optimizador Tiempo",
+                `Ajuste SRS: ${current.topicId}`,
+                `Input Rating: ${rating}/3 | Current Interval: ${current.interval}d`,
+                `Decisión: Nueva revisión en ${interval} días.`,
+                10 // minimal latency for algo
+            );
+        }
+
         return {
             topicId: current.topicId,
             interval,
