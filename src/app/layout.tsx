@@ -10,6 +10,8 @@ export const metadata: Metadata = {
   description: "Advanced AI Study Platform for Ingeniería Técnica de Obras Públicas",
 };
 
+import { Sidebar } from "@/components/Sidebar";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -19,7 +21,12 @@ export default function RootLayout({
     <html lang="es-ES" className="dark">
       <body className={clsx(inter.className, "bg-background text-foreground antialiased selection:bg-primary/30 selection:text-primary-foreground")}>
         <div className="fixed inset-0 z-[-1] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background"></div>
-        {children}
+
+        <Sidebar />
+
+        <main className="ml-72 min-h-screen relative">
+          {children}
+        </main>
       </body>
     </html>
   );
