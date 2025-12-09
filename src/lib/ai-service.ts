@@ -44,18 +44,41 @@ export class AiService {
         this.fastModel = genAI.getGenerativeModel({ model: AI_MODELS.FAST, systemInstruction: SYSTEM_PROMPT_CORE });
     }
 
-    async simplifyText(complexText: string): Promise<string> {
-        if (!API_KEY) return "⚠️ ERROR: No has configurado la API KEY en .env.local";
+    async analyzeContent(complexText: string): Promise<any> {
+        if (!API_KEY) return { explanation: "⚠️ ERROR: No has configurado la API KEY.", widgets: [] };
 
         const prompt = `
-    TAREA: Traduce este texto legal/técnico a "Lenguaje Humano" comprensible para un opositor cansado.
+    TAREA: Actúa como un "Ingeniero Arquitecto del Conocimiento".
+    1. ANALIZA el siguiente texto.
+    2. EXPLÍCALO en lenguaje sencillo (Markdown). Prioriza la claridad.
+    3. DISEÑA widgets complementarios para reforzar el aprendizaje según el tipo de contenido:
+       - Si hay fechas/plazos ->Widget "timeline"
+       - Si hay jerarquía/procesos -> Widget "diagram"
+       - Si hay listas difíciles -> Widget "mnemonic"
+       - Si es abstracto -> Widget "analogy"
+
     CONTENIDO:
     ${complexText}
-    
-    FORMATO: Markdown limpio. Usa analogías de ingeniería civil.
+
+    FORMATO SALIDA (JSON Puro):
+    {
+      "explanation": "Texto en markdown...",
+      "widgets": [
+         { "type": "mnemonic", "content": { "rule": "PPC", "explanation": "Planifica, Proyecta, Construye" } },
+         { "type": "timeline", "content": { "steps": [{ "time": "1 mes", "action": "Audiencia" }] } },
+         { "type": "analogy", "content": { "story": "Imagina que la carretera es como una tubería..." } },
+         { "type": "diagram", "content": { "structure": "Consejero -> Director -> Servicio" } }
+      ]
+    }
     `;
-        const result = await this.masterModel.generateContent(prompt);
-        return result.response.text();
+
+        const model = genAI.getGenerativeModel({
+            model: AI_MODELS.MASTER,
+            generationConfig: { responseMimeType: "application/json" }
+        });
+
+        const result = await model.generateContent(prompt);
+        return JSON.parse(result.response.text());
     }
 
     async generateQuiz(topic: string, count: number = 5): Promise<string> {

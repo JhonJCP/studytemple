@@ -2,12 +2,12 @@
 
 import { aiService } from "@/lib/ai-service";
 
-export async function simplifyTextAction(text: string) {
+export async function analyzeContentAction(text: string) {
     try {
-        return await aiService.simplifyText(text);
+        return await aiService.analyzeContent(text);
     } catch (error) {
         console.error("AI Error:", error);
-        return "Error comunicando con el Oráculo. Verifica tu API Key.";
+        return { explanation: "Error comunicando con el Oráculo. Verifica tu API Key.", widgets: [] };
     }
 }
 

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Play, FileText, Zap, Brain, MessageSquare, ChevronDown, BookOpen, Layers, Image as ImageIcon, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { simplifyTextAction } from "@/app/actions";
+// import { simplifyTextAction } from "@/app/actions"; // Removed
 
 // Mock Data structure simulating parsed PDF sections
 const MOCK_SECTIONS = [
@@ -182,36 +182,38 @@ function SectionCard({ section, isExpanded, onToggle }: any) {
     );
 }
 
+import { MnemonicWidget, TimelineWidget, AnalogyWidget, DiagramWidget } from "@/components/widgets";
+import { analyzeContentAction } from "@/app/actions";
+
 function ExplanationBlock({ text, title }: any) {
-    const [explanation, setExplanation] = useState<string | null>(null);
+    const [data, setData] = useState<{ explanation: string, widgets: any[] } | null>(null);
     const [loading, setLoading] = useState(false);
 
     const generate = async () => {
         setLoading(true);
-        // If no text, we ask AI to generate based on Title only (Knowledge)
         const prompt = text || `Explica el concepto jurídico: ${title}`;
-        const res = await simplifyTextAction(prompt);
-        setExplanation(res);
+        const res = await analyzeContentAction(prompt);
+        setData(res);
         setLoading(false);
     };
 
-    if (!explanation && !loading) {
+    if (!data && !loading) {
         return (
             <div className="bg-secondary/10 rounded-xl p-6 border border-secondary/20 dashed">
                 <div className="flex items-center justify-between">
                     <div>
                         <h4 className="text-lg font-bold text-primary mb-1 flex items-center gap-2">
-                            <Brain className="w-5 h-5" /> La Explicación del Ingeniero
+                            <Brain className="w-5 h-5" /> Análisis del Arquitecto
                         </h4>
                         <p className="text-sm text-white/50">
-                            {text ? "Traducir este artículo a lenguaje humano." : "Generar explicación basada en conocimiento general (Sin texto base)."}
+                            La IA analizará la estructura y generará widgets visuales personalizados.
                         </p>
                     </div>
                     <button
                         onClick={generate}
                         className="px-4 py-2 bg-secondary text-primary font-bold rounded-lg text-sm hover:bg-secondary/80 transition-colors"
                     >
-                        Generar
+                        Analizar
                     </button>
                 </div>
             </div>
@@ -219,19 +221,33 @@ function ExplanationBlock({ text, title }: any) {
     }
 
     return (
-        <div className="bg-secondary/5 rounded-xl p-6 border border-secondary/20 relative">
-            <h4 className="text-lg font-bold text-primary mb-4 flex items-center gap-2">
-                <Brain className="w-5 h-5" /> La Explicación del Ingeniero
-            </h4>
-            {loading ? (
-                <div className="space-y-2 animate-pulse">
-                    <div className="h-4 bg-primary/20 rounded w-3/4"></div>
-                    <div className="h-4 bg-primary/10 rounded w-full"></div>
-                    <div className="h-4 bg-primary/10 rounded w-5/6"></div>
-                </div>
-            ) : (
-                <div className="prose prose-invert prose-sm max-w-none">
-                    <div className="whitespace-pre-wrap">{explanation}</div>
+        <div className="space-y-6">
+            <div className="bg-secondary/5 rounded-xl p-6 border border-secondary/20 relative">
+                <h4 className="text-lg font-bold text-primary mb-4 flex items-center gap-2">
+                    <Brain className="w-5 h-5" /> La Explicación del Ingeniero
+                </h4>
+                {loading ? (
+                    <div className="space-y-2 animate-pulse">
+                        <div className="h-4 bg-primary/20 rounded w-3/4"></div>
+                        <div className="h-4 bg-primary/10 rounded w-full"></div>
+                    </div>
+                ) : (
+                    <div className="prose prose-invert prose-sm max-w-none">
+                        <div className="whitespace-pre-wrap">{data?.explanation}</div>
+                    </div>
+                )}
+            </div>
+
+            {/* Dynamic Widgets Area */}
+            {data?.widgets && data.widgets.length > 0 && (
+                <div className="grid grid-cols-1 gap-4">
+                    {data.widgets.map((widget: any, i: number) => {
+                        if (widget.type === 'mnemonic') return <MnemonicWidget key={i} content={widget.content} />;
+                        if (widget.type === 'timeline') return <TimelineWidget key={i} content={widget.content} />;
+                        if (widget.type === 'analogy') return <AnalogyWidget key={i} content={widget.content} />;
+                        if (widget.type === 'diagram') return <DiagramWidget key={i} content={widget.content} />;
+                        return null;
+                    })}
                 </div>
             )}
         </div>
