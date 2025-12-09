@@ -9,9 +9,11 @@ interface PageProps {
 
 export default async function ZonePage({ params }: PageProps) {
     const { zoneId } = await params;
-    const topics = getTopicsByZone(zoneId.toUpperCase());
+    // Normalize "zone-a" -> "A"
+    const normalizedZoneId = zoneId.replace(/zone-/i, "").toUpperCase();
+    const topics = getTopicsByZone(normalizedZoneId);
 
-    if (!topics.length && zoneId !== "F") {
+    if (!topics.length && normalizedZoneId !== "F") {
         // Allow F for now or handle empty zones gracefully
     }
 
@@ -22,7 +24,7 @@ export default async function ZonePage({ params }: PageProps) {
                 Volver al Templo
             </Link>
 
-            <h1 className="text-5xl font-black text-white mb-12">ZONA {zoneId.toUpperCase()}</h1>
+            <h1 className="text-5xl font-black text-white mb-12">ZONA {normalizedZoneId}</h1>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {topics.map((topic) => (
