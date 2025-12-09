@@ -4,15 +4,7 @@ import { motion } from "framer-motion";
 import { Zap, Clock, Brain, Variable, Image as ImageIcon, PlayCircle, Repeat } from "lucide-react";
 import { useEffect, useState } from "react";
 // We will dynamically import mermaid only on client side to avoid SSR issues if complex
-import mermaid from "mermaid";
-
-mermaid.initialize({
-    startOnLoad: false,
-    theme: 'dark',
-    securityLevel: 'loose',
-    fontFamily: 'Inter',
-});
-
+// import mermaid from "mermaid"; // Removed top-level import
 
 // ------------------------------------------------------------------
 // WIDGET 1: MNEMONIC (Flashcard style)
@@ -102,6 +94,16 @@ export function DiagramWidget({ content }: { content: { structure: string } }) {
     useEffect(() => {
         const render = async () => {
             try {
+                // Dynamic import HERE
+                const mermaid = (await import("mermaid")).default;
+
+                mermaid.initialize({
+                    startOnLoad: false,
+                    theme: 'dark',
+                    securityLevel: 'loose',
+                    fontFamily: 'Inter',
+                });
+
                 // Wrap in unique ID to avoid conflicts
                 // Simple Graph LR format injection if not provided
                 const code = content.structure.startsWith("graph") || content.structure.startsWith("sequenceDiagram")
