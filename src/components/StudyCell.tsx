@@ -5,14 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Play, Pause, FileText, Zap, Brain, MessageSquare, ChevronDown, BookOpen, Layers, Image as ImageIcon, GraduationCap, Loader2, Headphones } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MnemonicWidget, TimelineWidget, AnalogyWidget, DiagramWidget, VideoWidget } from "@/components/widgets";
-...
-const WidgetComponent = {
-    'mnemonic': MnemonicWidget,
-    'timeline': TimelineWidget,
-    'analogy': AnalogyWidget,
-    'diagram': DiagramWidget,
-    'video_loop': VideoWidget
-}[widget.type as string];
 import { analyzeContentAction, generateSmartAudioAction } from "@/app/actions";
 
 // Mock Data structure simulating parsed PDF sections
