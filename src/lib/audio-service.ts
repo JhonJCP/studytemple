@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 const ELEVENLABS_API_KEY = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY;
 // Specific voice ID for "Professional Spanish Narrator" (Example: 'ErXwobaYiN019PkySvjV' - Antoni)
 // User should verify this ID in their ElevenLabs dashboard or we default to a standard one.
-const VOICE_ID = "2EiwWnXFnvU5JabPnv8n"; // Example: 'Clyde' (Deep) - Change to preferred Spanish voice
+const VOICE_ID = "ZCh4e9eZSUf41K4cmCEL"; // User specified voice
 
 export class AudioService {
 
