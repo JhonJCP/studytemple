@@ -5,11 +5,12 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 interface PageProps {
-    params: { topicId: string };
+    params: Promise<{ topicId: string }>;
 }
 
-export default function TopicPage({ params }: PageProps) {
-    const topic = SYLLABUS_DATA.find((t) => t.id === params.topicId);
+export default async function TopicPage({ params }: PageProps) {
+    const { topicId } = await params;
+    const topic = SYLLABUS_DATA.find((t) => t.id === topicId);
 
     if (!topic) {
         // For demo, if ID not found, just show a generic one or 404
@@ -25,7 +26,7 @@ export default function TopicPage({ params }: PageProps) {
 
             <div className="flex-1">
                 <StudyCell
-                    topicId={params.topicId}
+                    topicId={topicId}
                     topicTitle={topic?.title || "Tema Desconocido (Demo)"}
                 />
             </div>
