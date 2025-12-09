@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Book, Anchor, Droplets, Wallet, Scale, HardHat, Calendar } from "lucide-react";
+import { Book, Anchor, Droplets, Wallet, Scale, HardHat, Calendar, BookOpen } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,7 @@ const ZONES = [
     { id: "D", title: "Medio Ambiente", icon: Book, color: "from-green-500/20 to-green-900/20", border: "border-green-500/50", href: "/syllabus/zone-d" },
     { id: "E", title: "Administrativo", icon: Scale, color: "from-slate-500/20 to-slate-900/20", border: "border-slate-500/50", href: "/syllabus/zone-e" },
     { id: "F", title: "Taller Práctico", icon: Wallet, color: "from-purple-500/20 to-purple-900/20", border: "border-purple-500/50", href: "/practice" },
+    { id: "LIB", title: "Gran Biblioteca", icon: BookOpen, color: "from-amber-500/20 to-yellow-900/20", border: "border-amber-500/50", href: "/library" }, // New Library Card
     { id: "SRS", title: "El Calendario", icon: Calendar, color: "from-green-500/20 to-green-900/20", border: "border-green-500/50", href: "/calendar" },
 ];
 
