@@ -33,6 +33,7 @@ export class AiService {
     private masterModel: GenerativeModel;
     private visualModel: GenerativeModel;
     private fastModel: GenerativeModel;
+    private audioModel: GenerativeModel;
 
     constructor() {
         if (!API_KEY) {
@@ -42,6 +43,12 @@ export class AiService {
         this.masterModel = genAI.getGenerativeModel({ model: AI_MODELS.MASTER, systemInstruction: SYSTEM_PROMPT_CORE });
         this.visualModel = genAI.getGenerativeModel({ model: AI_MODELS.VISUAL, systemInstruction: SYSTEM_PROMPT_CORE + "\nEspecialidad: Generación de diagramas Mermaid y descripciones visuales precisas." });
         this.fastModel = genAI.getGenerativeModel({ model: AI_MODELS.FAST, systemInstruction: SYSTEM_PROMPT_CORE });
+
+        // Agent dedicated to Podcasts
+        this.audioModel = genAI.getGenerativeModel({
+            model: AI_MODELS.MASTER,
+            systemInstruction: SYSTEM_PROMPT_CORE + "\nROL: Guionista de Podcast Técnico. Escribes para ser ESCUCHADO, no leído. Usas frases cortas, conectores orales ('Bien, veamos...', 'Por tanto...') y evitas listas enumeradas largas."
+        });
     }
 
     async analyzeContent(complexText: string): Promise<any> {
@@ -56,6 +63,7 @@ export class AiService {
        - Si hay jerarquía/procesos -> Widget "diagram"
        - Si hay listas difíciles -> Widget "mnemonic"
        - Si es abstracto -> Widget "analogy"
+       - Si es un proceso visualizable (movimiento, construcción) -> Widget "video_loop"
 
     CONTENIDO:
     ${complexText}
@@ -67,7 +75,8 @@ export class AiService {
          { "type": "mnemonic", "content": { "rule": "PPC", "explanation": "Planifica, Proyecta, Construye" } },
          { "type": "timeline", "content": { "steps": [{ "time": "1 mes", "action": "Audiencia" }] } },
          { "type": "analogy", "content": { "story": "Imagina que la carretera es como una tubería..." } },
-         { "type": "diagram", "content": { "structure": "Consejero -> Director -> Servicio" } }
+         { "type": "diagram", "content": { "structure": "Consejero -> Director -> Servicio" } },
+         { "type": "video_loop", "content": { "concept": "Compactación de terraplén", "visual_prompt": "Rodillo compactador pasando sobre capas de suelo, mostrando reducción de volumen." } }
       ]
     }
     `;
@@ -105,6 +114,20 @@ export class AiService {
     SALIDA: Solo el código Mermaid dentro de bloque \`\`\`mermaid \`\`\`.
     `;
         const result = await this.visualModel.generateContent(prompt);
+        return result.response.text();
+    }
+
+    async summarizeForAudio(rawText: string): Promise<string> {
+        const prompt = `
+        TAREA: Convierte el siguiente texto legal/técnico en un guion de AUDIO breve (máx 2 minutos).
+        FORMATO: Texto plano narrativo. Sin markdown. Sin "Hola, soy el Oráculo". Directo al grano.
+        ESTILO: Divulgativo pero riguroso. Usa analogías rápidas si es necesario.
+        
+        TEXTO ORIGINAL:
+        ${rawText}
+        `;
+
+        const result = await this.audioModel.generateContent(prompt);
         return result.response.text();
     }
 }

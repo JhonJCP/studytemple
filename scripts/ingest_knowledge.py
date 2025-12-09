@@ -61,13 +61,14 @@ except Exception as e:
     print(f"❌ Error inicializando clientes API: {e}")
     exit(1)
 
-# Dirs to scan
+# Dirs to scan - FOCUSED RUN FOR SUPPLEMENTARY
 DIRS = {
-    "CORE": r"C:\Users\yony2\StudyBoard\Temario\Legislacion y Material fundacional",
-    "PRACTICE": r"C:\Users\yony2\StudyBoard\Temario\Informes y Propuestas de Resolución",
-    "BOE": r"C:\Users\yony2\StudyBoard\Temario\BOE Convocatoria",
+    #"CORE": r"C:\Users\yony2\StudyBoard\Temario\Legislacion y Material fundacional",
+    #"PRACTICE": r"C:\Users\yony2\StudyBoard\Temario\Informes y Propuestas de Resolución",
+    #"BOE": r"C:\Users\yony2\StudyBoard\Temario\BOE Convocatoria",
     "SUPPLEMENTARY": r"C:\Users\yony2\StudyBoard\Temario\MATERIAL CONVOCATORIAS ANTERIORES"
 }
+
 
 # 2. HELPER: EMBEDDING GENERATOR
 def get_embedding(text):
@@ -112,21 +113,27 @@ def extract_text_chunks(filepath, chunk_size=1000):
 
 # 4. MAIN INGESTION LOOP
 def ingest_all():
-    print("🚀 INICIANDO INGESTA MASIVA AL CEREBRO...")
+    print("🚀 INICIANDO INGESTA RECURSIVA (SUPLEMENTARIA)...")
     total_docs = 0
     
-    for category, path in DIRS.items():
+    for category, root_path in DIRS.items():
         print(f"\n📂 Procesando Silo: {category}")
         
-        if not os.path.exists(path):
-            print(f"⚠️ Ruta no encontrada: {path}")
+        if not os.path.exists(root_path):
+            print(f"⚠️ Ruta no encontrada: {root_path}")
             continue
 
-        files = [f for f in os.listdir(path) if f.endswith(".pdf")]
-        print(f"   Encontrados {len(files)} archivos PDF.")
+        # RECURSIVE WALK
+        pdf_files = []
+        for root, dirs, files in os.walk(root_path):
+            for file in files:
+                if file.lower().endswith(".pdf"):
+                    pdf_files.append(os.path.join(root, file))
+
+        print(f"   Encontrados {len(pdf_files)} archivos PDF (Recursivo).")
         
-        for filename in files:
-            filepath = os.path.join(path, filename)
+        for filepath in pdf_files:
+            filename = os.path.basename(filepath)
             print(f"  📄 Leyendo: {filename}...", end="", flush=True)
             
             chunks = extract_text_chunks(filepath)

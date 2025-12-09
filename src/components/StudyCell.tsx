@@ -4,9 +4,16 @@ import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Play, Pause, FileText, Zap, Brain, MessageSquare, ChevronDown, BookOpen, Layers, Image as ImageIcon, GraduationCap, Loader2, Headphones } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { audioService } from "@/lib/audio-service";
-import { MnemonicWidget, TimelineWidget, AnalogyWidget, DiagramWidget } from "@/components/widgets";
-import { analyzeContentAction } from "@/app/actions";
+import { MnemonicWidget, TimelineWidget, AnalogyWidget, DiagramWidget, VideoWidget } from "@/components/widgets";
+...
+const WidgetComponent = {
+    'mnemonic': MnemonicWidget,
+    'timeline': TimelineWidget,
+    'analogy': AnalogyWidget,
+    'diagram': DiagramWidget,
+    'video_loop': VideoWidget
+}[widget.type as string];
+import { analyzeContentAction, generateSmartAudioAction } from "@/app/actions";
 
 // Mock Data structure simulating parsed PDF sections
 const MOCK_SECTIONS = [
@@ -71,11 +78,13 @@ export function StudyCell({ topicId, topicTitle }: StudyCellProps) {
 
         // Generate Audio
         setIsAudioLoading(true);
-        // Concatenate text for demo purposes
+        // Concatenate text for context
         const fullText = MOCK_SECTIONS.filter(s => s.content).map(s => s.title + ". " + s.content).join(". ");
 
         try {
-            const url = await audioService.generateAudio(fullText.substring(0, 500), topicId); // Limit char for demo
+            // Using Smart Audio Action (Summary -> TTS)
+            const { audioUrl: url, summary } = await generateSmartAudioAction(fullText.substring(0, 2000), topicId);
+
             if (url) {
                 setAudioUrl(url);
                 // Create audio element
@@ -87,6 +96,9 @@ export function StudyCell({ topicId, topicTitle }: StudyCellProps) {
                 }
                 audioRef.current.play();
                 setIsPlaying(true);
+
+                // Optional: Show summary toast or visual indication?
+                console.log("Audio Summary:", summary);
             }
         } catch (e) {
             console.error(e);
@@ -345,7 +357,8 @@ function ExplanationBlock({ text, title }: any) {
                             'mnemonic': MnemonicWidget,
                             'timeline': TimelineWidget,
                             'analogy': AnalogyWidget,
-                            'diagram': DiagramWidget
+                            'diagram': DiagramWidget,
+                            'video_loop': VideoWidget
                         }[widget.type as string];
 
                         return WidgetComponent ? (
