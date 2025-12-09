@@ -161,7 +161,7 @@ function SectionCard({ section, isExpanded, onToggle }: any) {
                                         <ImageIcon className="w-3 h-3" /> Diagrama Mental
                                     </h4>
                                     <div className="h-32 flex items-center justify-center text-white/20 text-xs italic">
-                                        (Aquí iría un diagrama Mermaid generado: "CA -> Planifica -> Carreteras")
+                                        (Aquí iría un diagrama Mermaid generado: &quot;CA &rarr; Planifica &rarr; Carreteras&quot;)
                                     </div>
                                 </div>
                                 <div className="bg-black/20 rounded-xl p-4 border border-white/5 hover:border-white/10 transition-colors">
@@ -169,7 +169,7 @@ function SectionCard({ section, isExpanded, onToggle }: any) {
                                         <Zap className="w-3 h-3" /> Regla Mnemotécnica
                                     </h4>
                                     <p className="text-sm text-white/70 italic">
-                                        "PPC CEF" -> Planifica, Proyecta, Construye | Conserva, Explota, Financia.
+                                        &quot;PPC CEF&quot; &rarr; Planifica, Proyecta, Construye | Conserva, Explota, Financia.
                                     </p>
                                 </div>
                             </div>
