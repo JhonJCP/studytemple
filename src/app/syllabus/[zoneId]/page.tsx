@@ -4,13 +4,11 @@ import { ArrowLeft, BookOpen } from "lucide-react";
 import { notFound } from "next/navigation";
 
 interface PageProps {
-    params: { zoneId: string };
+    params: Promise<{ zoneId: string }>;
 }
 
 export default async function ZonePage({ params }: PageProps) {
-    // In Next.js 15+, params is a promise but this is 16? check types.
-    // Assuming standard behavior for now.
-    const { zoneId } = params;
+    const { zoneId } = await params;
     const topics = getTopicsByZone(zoneId.toUpperCase());
 
     if (!topics.length && zoneId !== "F") {
