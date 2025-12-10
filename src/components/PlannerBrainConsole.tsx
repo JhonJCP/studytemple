@@ -21,6 +21,7 @@ export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onAc
     // Auto-scroll logic
     const consoleRef = useRef<HTMLDivElement>(null);
     const [showRaw, setShowRaw] = useState(false);
+    const [history, setHistory] = useState<{ ts: string; analysis: string; raw: string }[]>([]);
 
     useEffect(() => {
         if (consoleRef.current) {
@@ -40,11 +41,24 @@ export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onAc
                 });
                 // keep last 5 entries
                 localStorage.setItem("planner_history", JSON.stringify(prev.slice(0, 5)));
+                setHistory(prev.slice(0, 5));
             } catch {
                 // ignore storage errors
             }
         }
     }, [status, diagnostics]);
+
+    // Load history on open
+    useEffect(() => {
+        if (isOpen) {
+            try {
+                const prev = JSON.parse(localStorage.getItem("planner_history") || "[]");
+                setHistory(prev);
+            } catch {
+                setHistory([]);
+            }
+        }
+    }, [isOpen]);
 
     if (!isOpen) return null;
 
@@ -162,6 +176,11 @@ export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onAc
                                         <Copy className="w-3 h-3" /> Copiar JSON
                                     </button>
                                 )}
+                                {history.length > 0 && (
+                                    <div className="text-[10px] text-white/40 font-mono">
+                                        Historial: {history.length} guardados
+                                    </div>
+                                )}
                                 {status === 'thinking' && <span className="text-[10px] text-purple-400 font-mono animate-pulse">GENERANDO...</span>}
                             </div>
                         </div>
@@ -179,6 +198,31 @@ export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onAc
                                             {diagnostics.analysis}
                                         </pre>
                                     </div>
+                                    {history.length > 0 && (
+                                        <div className="border border-white/5 rounded-lg p-3 bg-white/5">
+                                            <div className="text-xs font-bold text-white/60 mb-2 uppercase">Historial local (últimos)</div>
+                                            <div className="space-y-2 max-h-[200px] overflow-auto custom-scrollbar">
+                                                {history.map((h, idx) => (
+                                                    <div key={idx} className="p-2 rounded bg-black/40 border border-white/5">
+                                                        <div className="text-[10px] text-white/40 flex justify-between">
+                                                            <span>{new Date(h.ts).toLocaleString()}</span>
+                                                            <button
+                                                                onClick={() => navigator.clipboard.writeText(h.raw)}
+                                                                className="text-[10px] text-blue-300 hover:text-blue-100 underline"
+                                                            >
+                                                                Copiar JSON
+                                                            </button>
+                                                        </div>
+                                                        {h.analysis && (
+                                                            <div className="text-xs text-white/70 mt-1 line-clamp-3">
+                                                                {h.analysis}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                     {diagnostics.rawResponse && showRaw && (
                                         <div className="border border-white/10 rounded-lg bg-white/5 p-3 text-xs font-mono whitespace-pre overflow-auto max-h-[45vh] custom-scrollbar">
                                             {diagnostics.rawResponse}

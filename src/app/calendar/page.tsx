@@ -58,7 +58,7 @@ export default function CalendarPage() {
         setViewDate(newDate);
     };
 
-    // Load Plan from DB on Mount
+    // Load Plan from DB on Mount (primary) and fallback to localStorage (avoid re-generar tokens)
     useEffect(() => {
         async function loadPlan() {
             try {
@@ -66,15 +66,18 @@ export default function CalendarPage() {
                 if (res.success && res.plan && res.plan.schedule) {
                     console.log("✅ Loaded plan from DB", res.plan);
 
-                    // Transform dates
                     const loadedSchedule: ScheduledSession[] = (res.plan.schedule as any[]).map(s => ({
                         ...s,
                         date: new Date(s.date)
                     }));
 
                     setAiPlan(loadedSchedule);
+                    setMasterPlanData(res.plan.ai_metadata ? {
+                        strategic_analysis: res.plan.ai_metadata?.strategic_analysis,
+                        topic_time_estimates: res.plan.ai_metadata?.topic_time_estimates,
+                        daily_schedule: loadedSchedule
+                    } : null);
 
-                    // AUTO-NAVIGATE to the first date of the loaded plan
                     if (loadedSchedule.length > 0) {
                         const firstDate = loadedSchedule[0].date;
                         setSelectedDate(firstDate);
@@ -82,16 +85,43 @@ export default function CalendarPage() {
                         console.log("📅 Calendario posicionado en:", firstDate.toLocaleDateString('es-ES'));
                     }
 
-                    // Restore metadata if available
                     if (res.plan.ai_metadata) {
                         setDiagnostics(prev => ({
                             ...(prev || { prompt: "", rawResponse: "" }),
                             analysis: res.plan.ai_metadata.strategic_analysis
                         }));
                     }
+                    return; // DB plan loaded
                 }
             } catch (e) {
                 console.error("Failed to load plan", e);
+            }
+
+            // Fallback: localStorage
+            try {
+                const saved = localStorage.getItem("last_ai_plan");
+                const savedDiag = localStorage.getItem("last_ai_plan_diag");
+                if (saved) {
+                    const plan = JSON.parse(saved);
+                    if (plan?.daily_schedule && Array.isArray(plan.daily_schedule)) {
+                        const parsedSchedule: ScheduledSession[] = plan.daily_schedule.map((s: any, i: number) => ({
+                            ...s,
+                            id: s.id || `local-${i}-${s.topicId}`,
+                            date: new Date(s.date),
+                            status: s.status || 'pending',
+                            breaks: s.breaks || "Standard"
+                        }));
+                        setAiPlan(parsedSchedule);
+                        setMasterPlanData(plan);
+                        const diag = savedDiag ? JSON.parse(savedDiag) : undefined;
+                        setDiagnostics(diag);
+                        setSelectedDate(parsedSchedule[0]?.date || new Date());
+                        setViewDate(parsedSchedule[0]?.date || new Date());
+                        console.log("✅ Loaded plan from localStorage");
+                    }
+                }
+            } catch {
+                // ignore parse errors
             }
         }
         loadPlan();
@@ -112,6 +142,13 @@ export default function CalendarPage() {
             setAiPlan(masterPlanData.daily_schedule);
             // Maybe show toast success?
             setIsConsoleOpen(false);
+            // Persist locally
+            try {
+                localStorage.setItem("last_ai_plan", JSON.stringify(masterPlanData));
+                localStorage.setItem("last_ai_plan_diag", JSON.stringify(diagnostics));
+            } catch {
+                // ignore storage errors
+            }
         } else {
             alert("Error saving plan: " + res.error);
         }
@@ -263,6 +300,21 @@ export default function CalendarPage() {
             setMasterPlanData(result.masterPlan); // Store for saving
             setDiagnostics(result.diagnostics);
             setBrainStatus('success');
+
+            // Persist locally to avoid re-generar tokens si la sesión caduca
+            try {
+                localStorage.setItem("last_ai_plan", JSON.stringify(result.masterPlan));
+                localStorage.setItem("last_ai_plan_diag", JSON.stringify(result.diagnostics));
+                const prev = JSON.parse(localStorage.getItem("planner_history") || "[]");
+                prev.unshift({
+                    ts: new Date().toISOString(),
+                    analysis: result.diagnostics?.analysis || "",
+                    raw: result.diagnostics?.rawResponse || JSON.stringify(result.masterPlan, null, 2)
+                });
+                localStorage.setItem("planner_history", JSON.stringify(prev.slice(0, 5)));
+            } catch {
+                // ignore storage errors
+            }
         } else {
             console.error("Brain Error", result);
 
