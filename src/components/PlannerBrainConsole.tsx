@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BrainCircuit, X, Terminal, CheckCircle, AlertTriangle, Code, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,6 +15,27 @@ interface PlannerBrainConsoleProps {
 
 export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onActivate }: PlannerBrainConsoleProps) {
     const [view, setView] = useState<'prompt' | 'response'>('prompt');
+    const [elapsed, setElapsed] = useState(0);
+
+    // Timer Logic
+    useEffect(() => {
+        let timer: NodeJS.Timeout;
+        if (status === 'thinking') {
+            const start = Date.now();
+            timer = setInterval(() => {
+                setElapsed(Math.floor((Date.now() - start) / 1000));
+            }, 1000);
+        } else {
+            setElapsed(0);
+        }
+        return () => clearInterval(timer);
+    }, [status]);
+
+    const formatTime = (s: number) => {
+        const mins = Math.floor(s / 60).toString().padStart(2, '0');
+        const secs = (s % 60).toString().padStart(2, '0');
+        return `${mins}:${secs}`;
+    };
 
     if (!isOpen) return null;
 
@@ -32,7 +52,7 @@ export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onAc
                         <BrainCircuit className={cn("w-6 h-6", status === 'thinking' ? "text-purple-400 animate-pulse" : "text-purple-500")} />
                         <div>
                             <h3 className="text-lg font-bold text-white">Consola Cerebro Cortez</h3>
-                            <p className="text-xs text-white/50">Planificador Generativo Gemini Pro 1.5</p>
+                            <p className="text-xs text-white/50">Planificador Generativo Gemini Pro</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
@@ -51,11 +71,14 @@ export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onAc
                             </div>
                             <div className={cn("flex items-center gap-3 p-3 rounded-lg transition-colors", status === 'thinking' ? "bg-purple-500/20 text-purple-300" : "text-white/30")}>
                                 {status === 'thinking' ? <Cpu className="w-4 h-4 animate-spin" /> : <div className="w-2 h-2 rounded-full bg-white/50" />}
-                                <span className="text-sm font-bold">2. Razonamiento IA</span>
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-bold">2. Razonamiento IA</span>
+                                    {status === 'thinking' && <span className="text-xs font-mono opacity-75">{formatTime(elapsed)}</span>}
+                                </div>
                             </div>
                             <div className={cn("flex items-center gap-3 p-3 rounded-lg transition-colors", status === 'success' ? "bg-green-500/20 text-green-400" : "text-white/30")}>
                                 <div className="w-2 h-2 rounded-full bg-green-500" />
-                                <span className="text-sm font-bold">3. calendario Generado</span>
+                                <span className="text-sm font-bold">3. Calendario Generado</span>
                             </div>
                         </div>
 
@@ -75,6 +98,13 @@ export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onAc
                                 >
                                     <CheckCircle className="w-4 h-4" /> APLICAR PLAN
                                 </button>
+                            )}
+
+                            {/* Hint for closing */}
+                            {status === 'thinking' && (
+                                <p className="text-[10px] text-white/30 text-center mt-2 animate-pulse">
+                                    Puede cerrar esta ventana. El proceso continuará en segundo plano.
+                                </p>
                             )}
                         </div>
                     </div>
