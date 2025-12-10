@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { generateSmartSchedule, StudyPlan, ScheduledSession } from "@/lib/planner-brain";
 import { CalendarGrid } from "@/components/CalendarGrid";
-import { generateDeepPlan } from "@/app/actions/ai-planner";
+import { generateDeepPlan, getPlannerPrompt } from "@/app/actions/ai-planner";
 import { debugGeminiModels } from "@/app/actions/debug-models";
 import { PlannerBrainConsole } from "@/components/PlannerBrainConsole";
 import { saveStudyPlan } from "@/app/actions/save-plan";
@@ -57,6 +57,8 @@ export default function CalendarPage() {
         setViewDate(newDate);
     };
 
+
+
     const handleApplyPlan = async () => {
         if (!masterPlanData) return;
 
@@ -74,6 +76,24 @@ export default function CalendarPage() {
             alert("Error saving plan: " + res.error);
         }
     };
+
+    // Load Prompt on Open
+    useEffect(() => {
+        if (isConsoleOpen && !diagnostics?.prompt) {
+            getPlannerPrompt({
+                startDate: "2025-12-15",
+                goalDate: "2026-01-15",
+                availability: planConfig.availability,
+                intensity: intensity
+            }).then(prompt => {
+                setDiagnostics(prev => ({
+                    prompt: prompt,
+                    rawResponse: prev?.rawResponse || "",
+                    analysis: prev?.analysis
+                }));
+            });
+        }
+    }, [isConsoleOpen, planConfig, intensity]); // Dependency array
 
     const handleBrainExecution = async () => {
         setBrainStatus('thinking');
