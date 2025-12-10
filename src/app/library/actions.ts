@@ -31,8 +31,10 @@ function getFileList() {
 export async function analyzeSyllabusAction(customPrompt: string) {
     if (!GEMINI_KEY) throw new Error("Missing API Key");
 
+    console.log("🚀 Starting analysis with prompt length:", customPrompt.length);
     const files = getFileList();
-    const model = genai.getGenerativeModel({ model: "gemini-1.5-pro" }); // Using Pro for reasoning
+    // Use Flash for speed/reliability in real-time interactive tasks
+    const model = genai.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const fullPrompt = `
     ${customPrompt}

@@ -114,7 +114,14 @@ export function SyllabusBrain() {
                                 <JSONTree data={result} />
                             ) : (
                                 <div className="h-full flex items-center justify-center text-white/20 italic">
-                                    Ejecuta el análisis para ver la estructura propuesta...
+                                    {analyzing ? (
+                                        <div className="flex flex-col items-center justify-center gap-2 text-purple-400">
+                                            <RotateCcw className="w-8 h-8 animate-spin" />
+                                            <p>Razonando estructura...</p>
+                                        </div>
+                                    ) : (
+                                        "Ejecuta el análisis para ver la estructura propuesta..."
+                                    )}
                                 </div>
                             )}
                         </div>
