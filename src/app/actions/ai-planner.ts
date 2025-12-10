@@ -68,7 +68,7 @@ export async function generateDeepPlan(constraints: any) {
         const schedule = JSON.parse(jsonStr);
 
         // Store in DB
-        const supabase = createClient();
+        const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();
 
         if (user) {
