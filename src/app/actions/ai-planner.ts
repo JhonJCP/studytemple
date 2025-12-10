@@ -7,22 +7,52 @@ import { DEFAULT_SYLLABUS } from "@/lib/default-syllabus";
 const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || "");
 
 export async function generateDeepPlan(constraints: any) {
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    // Use the latest stable model
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     // 1. Construct Context (Syllabus Structure)
-    // Separation of Concerns: "Study Content" vs "Rules/Context"
+    // Intelligent Filter: Context vs Content vs Duplicates
     const studyTopics: any[] = [];
     const contextDocs: any[] = [];
 
+    // Heuristic Helper: Clean title for deduplication
+    const cleanTitle = (t: string) => t.toLowerCase()
+        .replace("enunciado", "")
+        .replace("soluciones", "")
+        .replace("respuestas", "")
+        .replace("respuesta", "")
+        .replace("plantilla", "")
+        .replace("examen", "")
+        .replace(/\s+/g, ' ').trim();
+
     DEFAULT_SYLLABUS.groups.forEach((g: any) => {
         const title = g.title.toLowerCase();
-        if (title.includes("suplementario")) return;
 
-        // "Bases" is context (Rules of the game), not study material for the calendar
-        if (title.includes("bases") || title.includes("información") || title.includes("convocatoria")) {
+        // "Bases" and Info are purely Context
+        if (title.includes("bases") || title.includes("información") || title.includes("convocatoria") || title.includes("suplementario")) {
             contextDocs.push({ group: g.title, files: g.topics.map((t: any) => t.title) });
-        } else {
-            studyTopics.push({ group: g.title, topics: g.topics.map((t: any) => t.title) });
+            return;
+        }
+
+        // Processing Study Topics with Deduplication
+        // We group by "Main Topic" name. If we have "Exam A Enunciado" and "Exam A Respuestas", we just want "Exam A".
+        const seen = new Set<string>();
+        const uniqueTopics: string[] = [];
+
+        g.topics.forEach((t: any) => {
+            const rawTitle = t.title;
+            const coreName = cleanTitle(rawTitle);
+
+            // If the core name is too short (e.g. just numbers), keep original to be safe, 
+            // but usually this works for "Supuesto 1 Enunciado" vs "Supuesto 1 Solucion".
+            if (!seen.has(coreName)) {
+                seen.add(coreName);
+                uniqueTopics.push(t.title); // Push the first variant we find as the "Representative" title
+            }
+        });
+
+        if (uniqueTopics.length > 0) {
+            studyTopics.push({ group: g.title, topics: uniqueTopics });
         }
     });
 
@@ -31,48 +61,46 @@ export async function generateDeepPlan(constraints: any) {
         You are Cortex, an elite Study Planner AI for a high-stakes competitive exam (Oposiciones).
         
         OBJECTIVE: 
-        Create a high-performance PRO study calendar (JSON) for the User.
+        Create a detailed day-by-day PRO study calendar (JSON).
         
         INPUT DATA:
         1. STUDY MATERIAL (Schedule these):
         ${JSON.stringify(studyTopics)}
+        (Note: I have pre-grouped these. "Enunciado" (Question) and "Respuesta" (Answer) are the SAME study session. Do not duplicate them.)
 
-        2. EXAM CONTEXT (Do NOT schedule these, just understand the rules):
+        2. EXAM CONTEXT (Do NOT schedule these - strictly for understanding rules):
         ${JSON.stringify(contextDocs)}
 
         3. CONSTRAINTS:
-        - Start Date: ${constraints.startDate}
-        - Goal Date: ${constraints.goalDate}
-        - Daily Availability: ${JSON.stringify(constraints.availability)}
+        - Dates: ${constraints.startDate} to ${constraints.goalDate}
+        - Availability: ${JSON.stringify(constraints.availability)}
         - Intensity: ${constraints.intensity}
-        - Strategy: "Spaced Repetition Sprint" 
-          (Sequence: Study -> Flashcards(+1d) -> Test(+4d) -> Review(+10d)).
+        - Strategy: "Sprint 30 Days" (Compress material).
 
         INSTRUCTIONS:
-        1. **Filter Non-Study Items**: Do NOT schedule sessions for "Bases" or administrative docs. Only schedule the "Study Material".
-        2. **Complexity Analysis**: 
-           - 'Ley' (Law) = High Complexity (Needs more time, frequent breaks).
-           - 'Reglamento' = High/Medium.
-           - 'Manual/Guía' = Low/Medium.
-        3. **Detailed Scheduling**:
-           - Break down study sessions. 
-           - Suggest specific START TIMES (e.g. "09:00", "16:30").
-           - Add BREAKS (e.g. "Pomodoro: 25/5" or "50/10").
-        4. **Output Format**:
-           Return a STRICT JSON array of objects. No markdown.
+        1. **Scope**: Schedule ONLY the "Study Material". Ignore "Context" docs for scheduling.
+        2. **Intelligence**: 
+           - If a topic is "Supuesto Práctico", schedule a PRACTICAL session (problem solving).
+           - If a topic is "Ley" (Law), schedule deep study with breaks.
+        3. **Logic**:
+           - **Study Sessions**: Include specific Start Time and Break Strategy.
+           - **Spaced Repetition**: Insert review sessions for topics studied 3-4 days prior.
+        4. **Output Format**: STRICT JSON ARRAY.
            
-           Example Object:
-           {
-             "date": "YYYY-MM-DD",
-             "topicTitle": "Ley de Carreteras",
-             "topicId": "filename_guess",
-             "type": "study",
-             "durationMinutes": 120,
-             "startTime": "09:00",
-             "breaks": "10 min every 50 min",
-             "complexity": "High",
-             "aiReasoning": "Core legislation. Vital for exam. High density."
-           }
+           Example:
+           [
+             {
+               "date": "YYYY-MM-DD",
+               "topicTitle": "Supuesto Práctico 1",
+               "topicId": "filename_guess",
+               "type": "study", // or "test_practice"
+               "durationMinutes": 90,
+               "startTime": "10:00",
+               "breaks": "10m after 45m",
+               "complexity": "High",
+               "aiReasoning": "Practical case requires active problem solving. Paired Question+Answer study."
+             }
+           ]
     `;
 
     try {
