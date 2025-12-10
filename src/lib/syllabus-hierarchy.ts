@@ -80,10 +80,31 @@ export function getTopicById(topicId: string): TopicWithGroup | undefined {
     if (byId) return byId;
 
     // Fallback: Try matching originalFilename (URL decoded)
-    // The planner uses filename as ID currently.
+    // Normalize: strip extension, decode, and compare also against titles/slugs.
+    const normalize = (s: string) => {
+        const decoded = decodeURIComponent(s || "").trim();
+        const withoutExt = decoded.replace(/\.[A-Za-z0-9]+$/, "");
+        return withoutExt.toLowerCase();
+    };
+    const normalizedId = normalize(topicId);
+
+    const slugify = (s: string) =>
+        s.toLowerCase()
+            .replace(/\.[A-Za-z0-9]+$/, "")
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "");
+
     try {
-        const decoded = decodeURIComponent(topicId);
-        return allTopics.find(t => t.originalFilename === decoded || t.title === decoded);
+        return allTopics.find(t => {
+            const normalizedOriginal = normalize(t.originalFilename);
+            const normalizedTitle = normalize(t.title);
+            return (
+                normalizedOriginal === normalizedId ||
+                normalizedTitle === normalizedId ||
+                slugify(normalizedOriginal) === slugify(normalizedId) ||
+                slugify(normalizedTitle) === slugify(normalizedId)
+            );
+        });
     } catch {
         return undefined;
     }

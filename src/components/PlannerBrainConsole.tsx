@@ -20,11 +20,31 @@ interface PlannerBrainConsoleProps {
 export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onActivate, onSave, onPromptChange, onLoadBlitzkrieg, onPasteFromClipboard }: PlannerBrainConsoleProps) {
     // Auto-scroll logic
     const consoleRef = useRef<HTMLDivElement>(null);
+    const [showRaw, setShowRaw] = useState(false);
+
     useEffect(() => {
         if (consoleRef.current) {
             consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
         }
     }, [diagnostics]);
+
+    // Persist simple history in localStorage for later review
+    useEffect(() => {
+        if (status === "success" && diagnostics?.rawResponse) {
+            try {
+                const prev = JSON.parse(localStorage.getItem("planner_history") || "[]");
+                prev.unshift({
+                    ts: new Date().toISOString(),
+                    analysis: diagnostics.analysis || "",
+                    raw: diagnostics.rawResponse
+                });
+                // keep last 5 entries
+                localStorage.setItem("planner_history", JSON.stringify(prev.slice(0, 5)));
+            } catch {
+                // ignore storage errors
+            }
+        }
+    }, [status, diagnostics]);
 
     if (!isOpen) return null;
 
@@ -123,7 +143,27 @@ export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onAc
                     <div className="flex flex-col min-h-0">
                         <div className="px-4 py-2 border-b border-white/5 bg-zinc-900/30 flex justify-between items-center">
                             <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Resultado (Master Plan Analysis)</span>
-                            {status === 'thinking' && <span className="text-[10px] text-purple-400 font-mono animate-pulse">GENERANDO...</span>}
+                            <div className="flex items-center gap-3">
+                                {diagnostics?.rawResponse && (
+                                    <button
+                                        onClick={() => setShowRaw(!showRaw)}
+                                        className="text-[10px] px-2 py-1 rounded border border-white/10 text-white/60 hover:text-white hover:border-white/30 transition-colors"
+                                        title="Mostrar/ocultar JSON completo"
+                                    >
+                                        {showRaw ? "Ocultar JSON" : "Ver JSON"}
+                                    </button>
+                                )}
+                                {diagnostics?.rawResponse && (
+                                    <button
+                                        onClick={() => navigator.clipboard.writeText(diagnostics.rawResponse)}
+                                        className="text-[10px] px-2 py-1 rounded border border-white/10 text-white/60 hover:text-white hover:border-white/30 transition-colors flex items-center gap-1"
+                                        title="Copiar JSON al portapapeles"
+                                    >
+                                        <Copy className="w-3 h-3" /> Copiar JSON
+                                    </button>
+                                )}
+                                {status === 'thinking' && <span className="text-[10px] text-purple-400 font-mono animate-pulse">GENERANDO...</span>}
+                            </div>
                         </div>
                         <div className="flex-1 p-6 overflow-auto custom-scrollbar bg-black text-sm text-white/80 leading-relaxed font-sans relative">
                             {status === 'thinking' ? (
@@ -132,11 +172,18 @@ export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onAc
                                     <p className="text-xs text-purple-300/50 font-mono animate-pulse">Consultando a Gemini 3 Pro...</p>
                                 </div>
                             ) : diagnostics?.analysis ? (
-                                <div className="prose prose-invert max-w-none prose-p:text-white/80 prose-headings:text-blue-400 prose-strong:text-white">
-                                    <h2 className="text-xl font-bold mb-4 text-purple-400 border-b border-white/10 pb-2">Estrategia Generada:</h2>
-                                    <pre className="whitespace-pre-wrap font-sans bg-transparent p-0">
-                                        {diagnostics.analysis}
-                                    </pre>
+                                <div className="prose prose-invert max-w-none prose-p:text-white/80 prose-headings:text-blue-400 prose-strong:text-white space-y-6">
+                                    <div>
+                                        <h2 className="text-xl font-bold mb-2 text-purple-400 border-b border-white/10 pb-2">Estrategia Generada:</h2>
+                                        <pre className="whitespace-pre-wrap font-sans bg-transparent p-0">
+                                            {diagnostics.analysis}
+                                        </pre>
+                                    </div>
+                                    {diagnostics.rawResponse && showRaw && (
+                                        <div className="border border-white/10 rounded-lg bg-white/5 p-3 text-xs font-mono whitespace-pre overflow-auto max-h-[45vh] custom-scrollbar">
+                                            {diagnostics.rawResponse}
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-white/10 gap-4">
