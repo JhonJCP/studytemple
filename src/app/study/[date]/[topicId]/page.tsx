@@ -6,6 +6,7 @@ import { TopicContentViewer } from "@/components/TopicContentViewer";
 import { createClient } from "@/utils/supabase/server";
 import type { GeneratedContentRecord } from "@/types/generated";
 import { StudyPodcastPanel } from "@/components/StudyPodcastPanel";
+import { AIFlowPanel } from "@/components/AIFlowPanel";
 
 interface PageProps {
     params: Promise<{ date: string; topicId: string }>;
@@ -75,12 +76,19 @@ export default async function StudyPage({ params }: PageProps) {
                 </div>
             </header>
 
-            <main className="grid lg:grid-cols-[2fr_1fr] gap-6 p-6">
+            <main className="grid xl:grid-cols-[2fr_1fr] gap-6 p-6">
                 <section className="rounded-2xl border border-white/5 bg-black/30 overflow-hidden">
                     <TopicContentViewer topic={topic} initialContent={cachedContent?.content_json} />
                 </section>
 
                 <aside className="space-y-4">
+                    <AIFlowPanel
+                        topicTitle={topic.title}
+                        topicId={topic.id}
+                        date={date}
+                        groupTitle={topic.groupTitle}
+                    />
+
                     <StudyPodcastPanel
                         topicId={topic.id}
                         initialAudioUrl={audioUrl}
