@@ -7,13 +7,12 @@ import { DEFAULT_SYLLABUS } from "@/lib/default-syllabus";
 const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || "");
 
 export async function generateDeepPlan(constraints: any) {
-    // Use "gemini-2.0-flash" as confirmed available by user diagnostics
-    // We enable Native JSON Mode and High Output Tokens to prevent truncation
+    // 1. Use the "Big Brain" Model (Reasoning Capability)
     const model = genAI.getGenerativeModel({
-        model: "gemini-2.0-flash",
+        model: "gemini-3-pro-preview",
         generationConfig: {
             responseMimeType: "application/json",
-            maxOutputTokens: 16000, // Ensure long schedules fit
+            maxOutputTokens: 30000 // Huge context for Master Plan
         }
     });
 
@@ -63,75 +62,80 @@ export async function generateDeepPlan(constraints: any) {
         }
     });
 
-    // 2. The Mega Prompt (Optimized for Token Efficiency)
-    // We request an ARRAY of ARRAYS to save tokens on repeated Keys.
+    // 2. The Grandmaster Prompt
     const prompt = `
-        You are Cortex, an elite Study Planner AI.
+        You are Cortex, a World-Class Competitive Exam Strategist (Grandmaster Level).
         
         OBJECTIVE: 
-        Create a detailed day-by-day PRO study calendar.
-        
+        Analyze the Syllabus and Time Constraints to generate a "Victory Master Plan".
+        You must think deeply about the complexity of each topic ('Ley' vs 'Reglamento'), the user's availability, and the optimal scientifically-proven study method (Spaced Repetition, Interleaving).
+
         INPUT DATA:
         - Syllabus: ${JSON.stringify(studyTopics)}
-        - Context (Ignored for scheduling): ${JSON.stringify(contextDocs)}
-        - Constraints: ${constraints.startDate} to ${constraints.goalDate}, ${constraints.intensity}.
-        - Strategy: "Sprint 30 Days" (Study -> Review intervals).
+        - Context High-Level Info: ${JSON.stringify(contextDocs)}
+        - Timeline: ${constraints.startDate} to ${constraints.goalDate}.
+        - Daily Minutes Available: ${JSON.stringify(constraints.availability)}.
+        - Intensity Level: ${constraints.intensity}.
 
         INSTRUCTIONS:
-        1. **Scope**: Schedule ONLY "Study Material".
-        2. **Deduplication**: Treat "Enunciado" and "Respuesta" as ONE session.
-        3. **Format**: Return a single JSON Object with a "plan" property.
-           "plan" must be an Array of Arrays.
-           Each inner array represents a session: 
-           [Date (YYYY-MM-DD), TopicTitle, Type, Duration(mins), AI_Reasoning, Complexity(High/Med/Low)]
-           
-           Types: 'study', 'review_flashcards', 'test_practice'.
-           
-           Example:
-           {
-             "plan": [
-               ["2025-12-15", "Ley Carreteras", "study", 90, "Deep dive law.", "High"],
-               ["2025-12-16", "Ley Carreteras", "review_flashcards", 15, "SRS Interval 1", "High"]
-             ]
-           }
+        1. **Deep Analysis (The "Brain")**: 
+           - Evaluate the volume of material vs time.
+           - Define a strategy (e.g. "Front-load heavy legislation", "Weekend testing marathons").
+        2. **Detailed Scheduling**:
+           - Create a precise day-by-day schedule.
+           - **Deduplication**: "Enunciado" and "Respuesta" are the SAME session.
+           - **Review System**: Explicitly schedule review sessions for past topics.
+        
+        OUTPUT FORMAT (Strict JSON Object):
+        {
+          "strategic_analysis": " ... Markdown text detailing your evaluation, the chosen strategy, potential risks, and why this plan guarantees success ... ",
+          "daily_schedule": [
+             {
+               "date": "YYYY-MM-DD",
+               "topicTitle": "Name of Topic",
+               "topicId": "slug-id",
+               "type": "study" | "review_flashcards" | "test_practice",
+               "durationMinutes": 120,
+               "startTime": "09:00",
+               "breaks": "Pomodoro 50/10",
+               "aiReasoning": "Why this topic today? (e.g. 'High difficulty, fresh mind needed')",
+               "complexity": "High" | "Medium" | "Low"
+             },
+             ...
+          ]
+        }
     `;
 
     try {
         const result = await model.generateContent(prompt);
         const response = await result.response;
-        // Text might be "```json { ... } ```" or just "{ ... }"
         const text = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+        const masterPlan = JSON.parse(text);
 
-        const rawJson = JSON.parse(text);
-
-        // Map Array-of-Arrays back to Object Structure
-        const schedule = rawJson.plan.map((item: any[]) => ({
-            date: item[0], // Date string, will be hydrated on client
-            topicTitle: item[1],
-            topicId: (item[1] || "").toLowerCase().replace(/\s+/g, '-'), // Simple ID gen
-            type: item[2],
-            durationMinutes: item[3],
-            startTime: "09:00", // Default, could ask AI but saving tokens
-            breaks: "5m/25m",
-            aiReasoning: item[4],
-            complexity: item[5]
-        }));
-
-        // Store in DB
+        // Store in DB (We save the schedule part, maybe we can save the analysis later or in a separate field)
         const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();
 
         if (user) {
+            // We'll store the schedule as usual
             await supabase.from('study_plans').upsert({
                 user_id: user.id,
-                schedule: schedule,
+                schedule: masterPlan.daily_schedule,
                 last_updated_with_ai: new Date().toISOString(),
                 availability: constraints.availability,
                 goal_date: constraints.goalDate
             });
         }
 
-        return { success: true, schedule, diagnostics: { prompt, rawResponse: text.substring(0, 1000) + "... [truncated]" } };
+        return {
+            success: true,
+            schedule: masterPlan.daily_schedule, // Return schedule for Calendar Grid
+            diagnostics: {
+                prompt, // Keep prompt for debugging
+                rawResponse: text, // Raw JSON
+                analysis: masterPlan.strategic_analysis // Pass analysis to frontend
+            }
+        };
     } catch (error) {
         console.error("AI Planning Failed:", error);
         return { success: false, error: "Failed to generate plan.", diagnostics: { prompt, rawResponse: String(error) } };

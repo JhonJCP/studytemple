@@ -22,7 +22,7 @@ export default function CalendarPage() {
     const [isConsoleOpen, setIsConsoleOpen] = useState(false);
     const [brainStatus, setBrainStatus] = useState<'idle' | 'thinking' | 'success' | 'error'>('idle');
     const [aiPlan, setAiPlan] = useState<ScheduledSession[] | null>(null);
-    const [diagnostics, setDiagnostics] = useState<{ prompt: string, rawResponse: string } | undefined>(undefined);
+    const [diagnostics, setDiagnostics] = useState<{ prompt: string, rawResponse: string, analysis?: string } | undefined>(undefined);
 
     // Default Plan (Local Fallback)
     const planConfig: StudyPlan = useMemo(() => ({

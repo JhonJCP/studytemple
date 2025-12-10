@@ -9,12 +9,12 @@ interface PlannerBrainConsoleProps {
     isOpen: boolean;
     onClose: () => void;
     status: 'idle' | 'thinking' | 'success' | 'error';
-    diagnostics?: { prompt: string; rawResponse: string };
+    diagnostics?: { prompt: string; rawResponse: string; analysis?: string };
     onActivate: () => void;
 }
 
 export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onActivate }: PlannerBrainConsoleProps) {
-    const [view, setView] = useState<'prompt' | 'response'>('prompt');
+    const [view, setView] = useState<'prompt' | 'response' | 'strategy'>('strategy');
     const [elapsed, setElapsed] = useState(0);
 
     // Timer Logic
@@ -112,27 +112,42 @@ export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onAc
                     {/* Terminal View */}
                     <div className="flex-1 flex flex-col min-h-0 bg-[#050505]">
                         {/* Tabs */}
-                        <div className="flex border-b border-white/5">
+                        <div className="flex border-b border-white/5 overflow-x-auto">
+                            <button
+                                onClick={() => setView('strategy')}
+                                className={cn("px-6 py-3 text-xs font-mono font-bold uppercase border-b-2 transition-colors whitespace-nowrap", view === 'strategy' ? "border-blue-500 text-blue-400" : "border-transparent text-white/30 hover:text-white/70")}
+                            >
+                                1. Master Plan
+                            </button>
                             <button
                                 onClick={() => setView('prompt')}
-                                className={cn("px-6 py-3 text-xs font-mono font-bold uppercase border-b-2 transition-colors", view === 'prompt' ? "border-purple-500 text-white" : "border-transparent text-white/30 hover:text-white/70")}
+                                className={cn("px-6 py-3 text-xs font-mono font-bold uppercase border-b-2 transition-colors whitespace-nowrap", view === 'prompt' ? "border-purple-500 text-purple-400" : "border-transparent text-white/30 hover:text-white/70")}
                             >
-                                Input Prompt
+                                2. Input Prompt
                             </button>
                             <button
                                 onClick={() => setView('response')}
-                                className={cn("px-6 py-3 text-xs font-mono font-bold uppercase border-b-2 transition-colors", view === 'response' ? "border-green-500 text-white" : "border-transparent text-white/30 hover:text-white/70")}
+                                className={cn("px-6 py-3 text-xs font-mono font-bold uppercase border-b-2 transition-colors whitespace-nowrap", view === 'response' ? "border-green-500 text-green-400" : "border-transparent text-white/30 hover:text-white/70")}
                             >
-                                Output JSON
+                                3. Raw JSON
                             </button>
                         </div>
 
                         {/* Code Block */}
                         <div className="flex-1 overflow-auto p-4 custom-scrollbar">
                             {diagnostics ? (
-                                <pre className="font-mono text-xs text-white/70 whitespace-pre-wrap leading-relaxed">
-                                    {view === 'prompt' ? diagnostics.prompt : diagnostics.rawResponse}
-                                </pre>
+                                <div className="font-mono text-xs text-white/70 leading-relaxed">
+                                    {view === 'strategy' && (
+                                        <div className="prose prose-invert max-w-none">
+                                            <h4 className="text-blue-400 font-bold mb-4 uppercase tracking-widest border-b border-blue-500/20 pb-2">Análisis Estratégico (Gemini 3 Pro)</h4>
+                                            <pre className="whitespace-pre-wrap font-sans text-sm text-white/80">
+                                                {diagnostics.analysis || "No Master Plan Analysis generated. Check JSON tab."}
+                                            </pre>
+                                        </div>
+                                    )}
+                                    {view === 'prompt' && <pre className="whitespace-pre-wrap text-purple-200/50">{diagnostics.prompt}</pre>}
+                                    {view === 'response' && <pre className="whitespace-pre-wrap text-green-200/50">{diagnostics.rawResponse}</pre>}
+                                </div>
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-white/20 gap-4">
                                     <Terminal className="w-12 h-12" />
