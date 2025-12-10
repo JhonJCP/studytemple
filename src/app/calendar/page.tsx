@@ -63,7 +63,7 @@ export default function CalendarPage() {
         if (!masterPlanData) return;
 
         // Save to DB
-        const res = await saveStudyPlan(masterPlanData.daily_schedule, {
+        const res = await saveStudyPlan(masterPlanData, {
             availability: planConfig.availability,
             goalDate: planConfig.goalDate
         });
