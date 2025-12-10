@@ -7,31 +7,28 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const GEMINI_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY!;
 const genai = new GoogleGenerativeAI(GEMINI_KEY);
 
-// Helper to get file list (Simplified for demo, in real app assumes pre-scanned list)
-function getFileList() {
-    // In a real scenario, this would scan the directory again or fetch from DB
-    // For now, we read the current smart-syllabus.json to get the list of files known
-    try {
-        const p = path.join(process.cwd(), "src", "lib", "smart-syllabus.json");
-        const data = JSON.parse(fs.readFileSync(p, "utf-8"));
+// Import directly to ensure it works in bundled Serverless environments
+import currentSyllabus from "@/lib/smart-syllabus.json";
 
-        // Flatten to just a list of filenames/paths for the AI to re-organize
+function getFileList() {
+    try {
+        // Flatten to just a list of filenames/paths
         let files: string[] = [];
-        data.groups.forEach((g: any) => {
+        currentSyllabus.groups.forEach((g: any) => {
             g.topics.forEach((t: any) => {
                 files.push(t.originalFilename);
             });
         });
         return files;
     } catch (e) {
-        return ["Error reading current file list"];
+        return ["Error reading file list"];
     }
 }
 
 // maxDuration configuration should be in the page.tsx or next.config.js for Server Actions
 // export const maxDuration = 300; 
 
-const STATUS_FILE = path.join(process.cwd(), "src", "lib", "analysis-status.json");
+const STATUS_FILE = path.join("/tmp", "analysis-status.json");
 
 export async function getAnalysisStatus() {
     try {
