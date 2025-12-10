@@ -74,6 +74,14 @@ export default function CalendarPage() {
 
                     setAiPlan(loadedSchedule);
 
+                    // AUTO-NAVIGATE to the first date of the loaded plan
+                    if (loadedSchedule.length > 0) {
+                        const firstDate = loadedSchedule[0].date;
+                        setSelectedDate(firstDate);
+                        setViewDate(firstDate);
+                        console.log("📅 Calendario posicionado en:", firstDate.toLocaleDateString('es-ES'));
+                    }
+
                     // Restore metadata if available
                     if (res.plan.ai_metadata) {
                         setDiagnostics(prev => ({
@@ -175,6 +183,14 @@ export default function CalendarPage() {
             analysis: planData.strategic_analysis
         });
         setBrainStatus('success');
+        
+        // AUTO-NAVIGATE to the first date of the plan
+        if (flatSchedule.length > 0) {
+            const firstDate = flatSchedule[0].date;
+            setSelectedDate(firstDate);
+            setViewDate(firstDate);
+            console.log("📅 Calendario posicionado en:", firstDate.toLocaleDateString('es-ES'));
+        }
     };
 
     const handleBrainExecution = async () => {
