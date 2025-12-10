@@ -79,7 +79,14 @@ export async function triggerAnalysis(customPrompt: string) {
         const fullPrompt = `
         ${customPrompt}
 
-        Here is the database of files to organize. Each entry has the filename and its current/legacy category tag which you should use to identify 'Supplementary' material if asked:
+        DATASET:
+        Here is the database of files to organize. 
+        Each entry has "filename" and "currentCategory".
+        
+        STRICT RULE: Check "currentCategory" for EVERY file.
+        - If "currentCategory" IS "Supplementary" (or matches supplementary), you MUST place it in "Material Suplementario".
+        - NEVER place a Supplementary file in a core engineering block.
+
         ${JSON.stringify(files)}
 
         RETURN ONLY JSON.

@@ -8,19 +8,23 @@ import Editor from "@monaco-editor/react";
 import { triggerAnalysis, getAnalysisStatus, saveSyllabusAction } from "@/app/library/actions";
 import { toast } from "sonner";
 
-const DEFAULT_PROMPT = `You are an expert Librarian and Civil Engineer building a syllabus for 'Ingenieros Técnicos de Obras Públicas'.
+const DEFAULT_PROMPT = `You are an expert Librarian and Civil Engineer building a syllabus for 'Ingenieros Técnicos de Obras Públicas Exam'.
 
-Your task: Organize the provided list of filenames into a clean, logical, hierarchical structure aligned with the Official Exam Blocks.
+Your task: Organize the provided list of filenames into a clean, logical, hierarchical structure aligned with the Official Exam Blocks for the second exam "Parte Práctica".
 
 CONTEXT & RULES:
-1. "BOE Convocatoria" and generic legal bases are CONTEXT, not study topics. Put them in a "Bases de la Oposición" group.
-2. "Guía Informe Administrativo" and similar are METHODOLOGY for the Practical Exam. Put them in "Herramientas Prácticas".
+1. "BOE Convocatoria" and generic legal bases are CONTEXT (Bases), not study topics. Put them in a "Bases de la Oposición" group.
+2. "Guía Informe Administrativo" and similar are METHODOLOGY. Put them in "Herramientas Prácticas".
 3. Group the rest by Engineering Domain:
     - Aguas y Obras Hidráulicas
     - Costas y Puertos
     - Carreteras y Transportes
     - Medio Ambiente
-4. Rename 'title' to be human-readable. Keep 'originalFilename' EXACTLY as is.
+4. CRITICAL: The input data has a "currentCategory" field.
+    - If currentCategory contains "Supplementary", you MUST put this file in a separate group called "Material Suplementario".
+    - DO NOT mix Supplementary files with the main study blocks (Aguas, Carreteras, etc.), even if their title matches the topic.
+    - The main blocks are ONLY for "Core" and "Practice" files.
+5. Rename 'title' to be human-readable. Keep 'originalFilename' EXACTLY as is.
 
 RETURN JSON STRUCTURE:
 {
