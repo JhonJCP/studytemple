@@ -51,8 +51,8 @@ export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onAc
                     <div className="flex items-center gap-3">
                         <BrainCircuit className={cn("w-6 h-6", status === 'thinking' ? "text-purple-400 animate-pulse" : "text-purple-500")} />
                         <div>
-                            <h3 className="text-lg font-bold text-white">Consola Cerebro Cortez</h3>
-                            <p className="text-xs text-white/50">Planificador Generativo Gemini Pro</p>
+                            <h3 className="text-lg font-bold text-blue-400">Consola Cerebro Cortez v2</h3>
+                            <p className="text-xs text-white/50">Planificador Generativo Gemini Pro (Stable)</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">

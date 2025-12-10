@@ -56,6 +56,7 @@ export default function CalendarPage() {
 
     const handleBrainExecution = async () => {
         setBrainStatus('thinking');
+        setDiagnostics(undefined); // Clear previous logs
         // Call Server Action
         const result = await generateDeepPlan({
             startDate: "2025-12-15",
