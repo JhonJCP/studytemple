@@ -112,12 +112,30 @@ def extract_text_chunks(filepath, chunk_size=1000):
         return []
 
 # 4. MAIN INGESTION LOOP
+# 4. MAIN INGESTION LOOP
 def ingest_all():
-    print("🚀 INICIANDO INGESTA RECURSIVA (SUPLEMENTARIA)...")
-    total_docs = 0
+    print("🚀 INICIANDO VERIFICACIÓN DE INGESTA (SUPLEMENTARIA)...")
     
+    # Pre-fetch existing filenames to avoid duplicates
+    print("🔍 Consultando base de datos para archivos existentes...", end="", flush=True)
+    try:
+        # Fetch only metadata column to check filenames
+        # Note: Supabase limits rows per request, may need pagination for huge datasets. 
+        # For now, we assume < 10000 distinct docs or we check simply.
+        # Ideally we would use an RPC 'get_ingested_filenames' but we'll do a client-side set for now.
+        response = supabase.table("library_documents").select("metadata").execute()
+        existing_filenames = set()
+        for row in response.data:
+            meta = row.get('metadata', {})
+            if meta and 'filename' in meta:
+                existing_filenames.add(meta['filename'])
+        print(f" {len(existing_filenames)} archivos ya indexados.")
+    except Exception as e:
+        print(f"\n⚠️ Error consultando DB: {e}. Se procederá con precaución.")
+        existing_filenames = set()
+
     for category, root_path in DIRS.items():
-        print(f"\n📂 Procesando Silo: {category}")
+        print(f"\n📂 Analizando Silo: {category}")
         
         if not os.path.exists(root_path):
             print(f"⚠️ Ruta no encontrada: {root_path}")
@@ -130,24 +148,36 @@ def ingest_all():
                 if file.lower().endswith(".pdf"):
                     pdf_files.append(os.path.join(root, file))
 
-        print(f"   Encontrados {len(pdf_files)} archivos PDF (Recursivo).")
+        total_files = len(pdf_files)
         
-        for filepath in pdf_files:
+        # Filter out already done
+        pending_files = [f for f in pdf_files if os.path.basename(f) not in existing_filenames]
+        skipped_count = total_files - len(pending_files)
+        
+        print(f"   DETECTADOS: {total_files} | YA PROCESADOS: {skipped_count} | PENDIENTES: {len(pending_files)}")
+        
+        if not pending_files:
+            print("   ✅ Todo al día en esta carpeta.")
+            continue
+
+        # Process Pending
+        for idx, filepath in enumerate(pending_files):
             filename = os.path.basename(filepath)
-            print(f"  📄 Leyendo: {filename}...", end="", flush=True)
+            progress = ((idx + 1) / len(pending_files)) * 100
+            print(f"\n[{idx+1}/{len(pending_files)}] {progress:.1f}% - 📄 Ingestando: {filename}...", end="", flush=True)
             
             chunks = extract_text_chunks(filepath)
             
             if not chunks:
-                print(" (Vacío o Error)")
+                print(" ⚠️ (Vacío/Ilegible)")
                 continue
                 
-            print(f" {len(chunks)} fragmentos.", end="", flush=True)
+            print(f" {len(chunks)} frags.", end="", flush=True)
             
             vectors = []
             for i, chunk in enumerate(chunks):
                 # Rate limit safety
-                time.sleep(0.5) 
+                time.sleep(1.0) # Increased safety delay
                 
                 vector = get_embedding(chunk)
                 if vector:
@@ -160,16 +190,18 @@ def ingest_all():
                         },
                         "embedding": vector
                     })
+                print(".", end="", flush=True)
             
             if vectors:
                 try:
                     data, count = supabase.table("library_documents").insert(vectors).execute()
                     print(f" ✅ Guardado.")
-                    total_docs += 1
                 except Exception as e:
                      print(f" ❌ Error Supabase: {e}")
+            else:
+                print(" ❌ Sin vectores generados.")
 
-    print(f"\n🏁 PROCESO COMPLETADO. {total_docs} Archivos procesados e indexados.")
+    print(f"\n🏁 VERIFICACIÓN COMPLETADA.")
 
 if __name__ == "__main__":
     ingest_all()

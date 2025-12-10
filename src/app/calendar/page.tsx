@@ -112,7 +112,16 @@ export default function CalendarPage() {
         }, diagnostics?.prompt);
 
         if (result.success && result.schedule) {
-            setAiPlan(result.schedule); // Show preview
+            // Transform raw JSON (strings) to Typed Objects (Dates)
+            const parsedSchedule: ScheduledSession[] = result.schedule.map((s: any, i: number) => ({
+                ...s,
+                id: `ai-session-${i}-${s.topicId}`,
+                date: new Date(s.date), // Convert 'YYYY-MM-DD' to Date object
+                status: 'pending',
+                breaks: s.breaks || "Standard"
+            }));
+
+            setAiPlan(parsedSchedule); // Show preview
             setMasterPlanData(result.masterPlan); // Store for saving
             setDiagnostics(result.diagnostics);
             setBrainStatus('success');

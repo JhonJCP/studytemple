@@ -72,12 +72,25 @@ export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onAc
 
                             {/* Editable Content */}
                             <textarea
-                                className="flex-1 bg-transparent text-white/70 font-mono text-xs resize-none focus:outline-none p-4 leading-6 custom-scrollbar"
+                                className="flex-1 bg-transparent text-white/70 font-mono text-xs resize-none focus:outline-none p-4 leading-6 custom-scrollbar focus:bg-white/5 transition-colors"
                                 value={diagnostics?.prompt || ""}
                                 onChange={(e) => onPromptChange(e.target.value)}
                                 spellCheck={false}
-                                placeholder="// Esperando ejecución para generar prompt..."
+                                placeholder="// Esperando instrucciones del sistema..."
                             />
+                        </div>
+
+                        {/* Data Injection Visual Indicator */}
+                        <div className="p-3 bg-[#0c0c0c] border-t border-white/5 border-b border-white/5 flex flex-col gap-2 opacity-50 select-none">
+                            <div className="flex items-center gap-2 text-[10px] text-blue-400 font-mono">
+                                <Terminal className="w-3 h-3" />
+                                <span>SYSTEM_DATA_INJECTION_LAYER</span>
+                            </div>
+                            <div className="flex gap-2 text-[10px] text-white/20 font-mono pl-5">
+                                <span className="px-1.5 py-0.5 rounded border border-white/10 bg-white/5">+ JSON(Syllabus)</span>
+                                <span className="px-1.5 py-0.5 rounded border border-white/10 bg-white/5">+ JSON(Timeline)</span>
+                                <span className="px-1.5 py-0.5 rounded border border-white/10 bg-white/5">+ JSON(Context)</span>
+                            </div>
                         </div>
                     </div>
 
