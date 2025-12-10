@@ -530,7 +530,14 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
                                                 {isActive && <span className="text-sm font-mono font-bold">29:59</span>}
                                             </button>
 
-                                            <Link href={session.type.includes('test') ? `/practice/simulator?topic=${encodeURIComponent(session.topicId)}` : `/syllabus/topic/${encodeURIComponent(session.topicId)}`} className="flex-1 md:flex-none">
+                                            <Link
+                                                href={
+                                                    session.type.includes('test')
+                                                        ? `/practice/simulator?topic=${encodeURIComponent(session.topicId)}`
+                                                        : `/study/${formatDate(session.date)}/${encodeURIComponent(session.topicId)}`
+                                                }
+                                                className="flex-1 md:flex-none"
+                                            >
                                                 <button className="w-full md:w-auto px-6 py-3 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
                                                     <Play className="w-4 h-4 fill-current" />
                                                     {session.type.includes('test') ? 'Hacer Test' : 'Estudiar'}
@@ -572,4 +579,12 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
             </div>
         </div>
     );
+}
+
+function formatDate(date: Date | string) {
+    const d = typeof date === "string" ? new Date(date) : date;
+    const y = d.getFullYear();
+    const m = `${d.getMonth() + 1}`.padStart(2, "0");
+    const day = `${d.getDate()}`.padStart(2, "0");
+    return `${y}-${m}-${day}`;
 }

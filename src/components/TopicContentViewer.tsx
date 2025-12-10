@@ -64,7 +64,7 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
         setOrchestrationState(prev => ({ ...prev, status: 'fetching' }));
 
         try {
-            const result = await generateTopicContentAction(topic.id);
+            const result = await generateTopicContentAction(topic.id, { force: Boolean(content) });
 
             if (result.success && result.data) {
                 setContent(result.data);
@@ -81,7 +81,7 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
         } finally {
             setIsGenerating(false);
         }
-    }, [topic.id]);
+    }, [topic.id, content]);
 
     // Status badge
     const getStatusBadge = () => {

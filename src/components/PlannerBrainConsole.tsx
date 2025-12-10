@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BrainCircuit, X, Play, Save, CheckCircle, Terminal, Cpu, Loader2, Copy, ClipboardPaste } from "lucide-react";
+import { BrainCircuit, X, Play, Save, CheckCircle, Terminal, Cpu, Loader2, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PlannerBrainConsoleProps {
@@ -14,10 +14,9 @@ interface PlannerBrainConsoleProps {
     onSave: () => void;
     onPromptChange: (newPrompt: string) => void;
     onLoadBlitzkrieg?: () => void;
-    onPasteFromClipboard?: () => void;
 }
 
-export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onActivate, onSave, onPromptChange, onLoadBlitzkrieg, onPasteFromClipboard }: PlannerBrainConsoleProps) {
+export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onActivate, onSave, onPromptChange, onLoadBlitzkrieg }: PlannerBrainConsoleProps) {
     // Auto-scroll logic
     const consoleRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -47,15 +46,6 @@ export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onAc
                         </div>
                     </div>
                     <div className="flex gap-2">
-                        {onPasteFromClipboard && (
-                            <button 
-                                onClick={onPasteFromClipboard} 
-                                className="px-3 py-1 bg-green-500/10 hover:bg-green-500/20 text-green-400 text-xs font-bold rounded border border-green-500/30 uppercase tracking-wider transition-colors flex items-center gap-2"
-                                title="Pegar JSON del plan desde el portapapeles"
-                            >
-                                <ClipboardPaste className="w-3 h-3" /> Pegar Plan (Clipboard)
-                            </button>
-                        )}
                         {onLoadBlitzkrieg && (
                             <button onClick={onLoadBlitzkrieg} className="px-3 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs font-bold rounded border border-blue-500/30 uppercase tracking-wider transition-colors">
                                 Cargar Preset 'Blitzkrieg'

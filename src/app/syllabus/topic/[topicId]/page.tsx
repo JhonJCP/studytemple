@@ -1,6 +1,8 @@
 import { TopicContentViewer } from "@/components/TopicContentViewer";
 import { getTopicById, parseTopicId } from "@/lib/syllabus-hierarchy";
 import { notFound } from "next/navigation";
+import { createClient } from "@/utils/supabase/server";
+import type { GeneratedTopicContent } from "@/lib/widget-types";
 
 interface PageProps {
     params: Promise<{ topicId: string }>;
@@ -20,5 +22,23 @@ export default async function TopicPage({ params }: PageProps) {
         notFound();
     }
 
-    return <TopicContentViewer topic={topic} />;
+    // Intentar cargar contenido persistido (si el usuario está autenticado)
+    let initialContent: GeneratedTopicContent | undefined;
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            const { data } = await supabase
+                .from("generated_content")
+                .select("content_json")
+                .eq("user_id", user.id)
+                .eq("topic_id", topic.id)
+                .maybeSingle();
+            initialContent = data?.content_json as GeneratedTopicContent | undefined;
+        }
+    } catch {
+        // Ignorar errores de supabase para no bloquear la página
+    }
+
+    return <TopicContentViewer topic={topic} initialContent={initialContent} />;
 }
