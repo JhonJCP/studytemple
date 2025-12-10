@@ -1,21 +1,27 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Calendar as CalendarIcon, Play, BrainCircuit, Timer, FileQuestion, BookOpen, Layers, Info } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, Play, BrainCircuit, Timer, FileQuestion, BookOpen, Layers, Info, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { generateSmartSchedule, StudyPlan, ScheduledSession } from "@/lib/planner-brain";
 import { CalendarGrid } from "@/components/CalendarGrid";
+import { generateDeepPlan } from "@/app/actions/ai-planner"; // Server Action
 
 export default function CalendarPage() {
+    // State
     const [intensity, setIntensity] = useState<StudyPlan['intensity']>('balanced');
-    const [selectedDate, setSelectedDate] = useState(new Date("2025-12-15")); // Demo start
+    const [selectedDate, setSelectedDate] = useState(new Date("2025-12-15")); // Viewport selected day
+    const [viewDate, setViewDate] = useState(new Date("2025-12-15")); // Viewport month
     const [activeTimer, setActiveTimer] = useState<string | null>(null);
 
-    // Default Plan Config (Sprint: Dec 15 - Jan 15)
-    // In a real app, these dates would come from user settings/onboarding.
-    const plan: StudyPlan = useMemo(() => ({
+    // AI State
+    const [isThinking, setIsThinking] = useState(false);
+    const [aiPlan, setAiPlan] = useState<ScheduledSession[] | null>(null);
+
+    // Default Plan (Local Fallback)
+    const planConfig: StudyPlan = useMemo(() => ({
         availability: {
             monday: 120, tuesday: 120, wednesday: 120, thursday: 120, friday: 120, saturday: 240, sunday: 60
         },
@@ -24,21 +30,51 @@ export default function CalendarPage() {
         intensity: intensity
     }), [intensity]);
 
-    // The Brain Calculation
-    const schedule = useMemo(() => generateSmartSchedule(plan), [plan]);
+    // Local Algo Schedule
+    const localSchedule = useMemo(() => generateSmartSchedule(planConfig), [planConfig]);
 
-    // Filter Missions by Selected Date
-    const dailyMissions = schedule.filter(s =>
-        s.date.getDate() === selectedDate.getDate() &&
-        s.date.getMonth() === selectedDate.getMonth()
-    );
+    // Active Schedule (Prefer AI if exists)
+    const schedule = aiPlan || localSchedule;
 
-    // Filter for Today (for Stats/Header)
-    const today = new Date("2025-12-15"); // Demo Today
-    const todaysMissions = schedule.filter(s => s.date.getDate() === today.getDate() && s.date.getMonth() === today.getMonth());
-    const isToday = selectedDate.getDate() === today.getDate() && selectedDate.getMonth() === today.getMonth();
+    // Filter Missions
+    const dailyMissions = schedule.filter(s => {
+        const d = new Date(s.date);
+        return d.getDate() === selectedDate.getDate() &&
+            d.getMonth() === selectedDate.getMonth() &&
+            d.getFullYear() === selectedDate.getFullYear();
+    });
 
-    // Helpers
+    // Handlers
+    const handleMonthNav = (dir: 1 | -1) => {
+        const newDate = new Date(viewDate);
+        newDate.setMonth(newDate.getMonth() + dir);
+        setViewDate(newDate);
+    };
+
+    const handleBrainActivation = async () => {
+        setIsThinking(true);
+        // Call Server Action
+        const result = await generateDeepPlan({
+            startDate: "2025-12-15",
+            goalDate: "2026-01-15",
+            availability: planConfig.availability,
+            intensity: intensity
+        });
+
+        if (result.success && result.schedule) {
+            // Convert strings back to Dates if JSON lost them
+            const hydrated = result.schedule.map((s: any) => ({
+                ...s,
+                date: new Date(s.date)
+            }));
+            setAiPlan(hydrated);
+        } else {
+            alert("El Cerebro Cortez no pudo completar el análisis profundo. Usando algoritmo local.");
+        }
+        setIsThinking(false);
+    };
+
+    // UI Helpers
     const getIconForType = (type: ScheduledSession['type']) => {
         switch (type) {
             case 'study': return BookOpen;
@@ -61,9 +97,39 @@ export default function CalendarPage() {
                         EL CALENDARIO <BrainCircuit className="w-10 h-10 text-white/20" />
                     </h1>
                     <p className="text-xl text-white/60">
-                        Cortez Brain v3.0: <span className="text-green-400 font-bold">Análisis de Complejidad Activado</span>
+                        {aiPlan ? (
+                            <span className="flex items-center gap-2 text-purple-400 font-bold">
+                                <Sparkles className="w-4 h-4" /> Planificación Generativa (Gemini Pro) Activa
+                            </span>
+                        ) : (
+                            <span>Modo Algorítmico (Local). Activa el Cerebro para profundidad real.</span>
+                        )}
                     </p>
                 </div>
+
+                <button
+                    onClick={handleBrainActivation}
+                    disabled={isThinking}
+                    className={cn(
+                        "group relative px-6 py-3 rounded-xl font-bold flex items-center gap-3 overflow-hidden transition-all",
+                        isThinking ? "bg-purple-500/20 text-purple-200 cursor-wait" : "bg-gradient-to-r from-purple-600 to-blue-600 hover:scale-105 shadow-lg shadow-purple-500/20 text-white"
+                    )}
+                >
+                    {isThinking ? (
+                        <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            Analizando Temario...
+                        </>
+                    ) : (
+                        <>
+                            <BrainCircuit className="w-5 h-5 fill-current" />
+                            ACTIVAR CEREBRO CORTEZ
+                        </>
+                    )}
+
+                    {/* Glow Effect */}
+                    {!isThinking && <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />}
+                </button>
             </header>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1">
@@ -78,7 +144,7 @@ export default function CalendarPage() {
                     <div className="grid gap-4">
                         {dailyMissions.length === 0 ? (
                             <div className="p-12 text-center border border-dashed border-white/10 rounded-xl">
-                                <p className="text-white/50">No hay misiones programadas para este día.</p>
+                                <p className="text-white/50">Toque un día en el calendario para ver detalles.</p>
                             </div>
                         ) : (
                             dailyMissions.map((session, i) => {
@@ -87,7 +153,7 @@ export default function CalendarPage() {
 
                                 return (
                                     <motion.div
-                                        key={session.id}
+                                        key={session.id || i}
                                         initial={{ opacity: 0, x: -20 }}
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{ delay: i * 0.1 }}
@@ -109,13 +175,10 @@ export default function CalendarPage() {
                                                     )}>
                                                         {session.type.replace('_', ' ')}
                                                     </span>
-                                                    {session.complexity && (
-                                                        <span className={cn(
-                                                            "text-[10px] font-bold px-2 py-0.5 rounded text-black uppercase",
-                                                            session.complexity === 'High' ? "bg-red-400" :
-                                                                session.complexity === 'Medium' ? "bg-amber-400" : "bg-green-400"
-                                                        )}>
-                                                            {session.complexity} Complexity
+                                                    {/* If AI Plan has explicit breaks or start time, show them */}
+                                                    {(session as any).startTime && (
+                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">
+                                                            Starts: {(session as any).startTime}
                                                         </span>
                                                     )}
                                                     <span className="text-xs font-mono text-white/30 flex items-center gap-1">
@@ -127,12 +190,19 @@ export default function CalendarPage() {
                                                     {session.topicTitle}
                                                 </h3>
 
-                                                {/* AI REASONING BOX */}
+                                                {/* Reasoning */}
                                                 <div className="mt-3 p-3 bg-black/30 rounded-lg border border-white/5 flex gap-3 items-start">
                                                     <BrainCircuit className="w-4 h-4 text-purple-400 mt-0.5 shrink-0" />
-                                                    <p className="text-xs text-purple-200/80 italic leading-relaxed">
-                                                        "{session.aiReasoning}"
-                                                    </p>
+                                                    <div className="space-y-1">
+                                                        <p className="text-xs text-purple-200/80 italic leading-relaxed">
+                                                            "{session.aiReasoning}"
+                                                        </p>
+                                                        {(session as any).breaks && (
+                                                            <p className="text-[10px] text-white/40 uppercase font-bold flex items-center gap-1">
+                                                                <Timer className="w-3 h-3" /> Break: {(session as any).breaks}
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -169,15 +239,16 @@ export default function CalendarPage() {
                 {/* RIGHT: Calendar Grid */}
                 <div className="space-y-8">
                     <CalendarGrid
-                        currentDate={selectedDate}
+                        currentDate={viewDate}
                         schedule={schedule}
                         selectedDate={selectedDate}
-                        onSelectDate={setSelectedDate}
+                        onSelectDate={(d) => { setSelectedDate(d); setViewDate(d); }}
+                        onNavigateMonth={handleMonthNav}
                     />
 
                     {/* Stats Widget */}
                     <div className="glass-card p-6">
-                        <h4 className="text-sm font-bold text-white/50 mb-4 uppercase">Estadísticas del Plan (IA)</h4>
+                        <h4 className="text-sm font-bold text-white/50 mb-4 uppercase">Estadísticas {aiPlan ? "(Generativa)" : "(Algorítmica)"}</h4>
                         <div className="space-y-3">
                             <div className="flex justify-between items-center bg-white/5 p-3 rounded">
                                 <span className="text-xs text-white/50">Sesiones de Estudio</span>
@@ -186,10 +257,6 @@ export default function CalendarPage() {
                             <div className="flex justify-between items-center bg-white/5 p-3 rounded">
                                 <span className="text-xs text-white/50">Tests Simulados</span>
                                 <span className="text-xl font-bold text-purple-400">{schedule.filter(s => s.type === 'test_practice').length}</span>
-                            </div>
-                            <div className="flex justify-between items-center bg-white/5 p-3 rounded">
-                                <span className="text-xs text-white/50">Flashcards SRS</span>
-                                <span className="text-xl font-bold text-blue-400">{schedule.filter(s => s.type === 'review_flashcards').length}</span>
                             </div>
                         </div>
                     </div>
