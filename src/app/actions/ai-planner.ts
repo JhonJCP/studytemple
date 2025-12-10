@@ -147,19 +147,25 @@ Devuelve EXACTAMENTE un objeto JSON con estas claves:
       "topicTitle": "Name of Topic",
       "topicId": "slug-or-db-id",
       "type": "study|review_flashcards|test_practice",
-      "durationMinutes": 120,
-      "startTime": "HH:MM",
+      "durationMinutes": 60,
+      "startTime": "09:00",
+      "endTime": "10:00",
       "breaks": "Pomodoro 50/10",
       "aiReasoning": "Por qué hoy + qué generar + enfoque.",
       "complexity": "High|Medium|Low"
     }
   ]
-}`;
+}
+
+RESTRICCIONES CRÍTICAS ADICIONALES:
+1. NO programes NUNCA documentos de 'Context High-Level Info' (Convocatorias, Temarios, Listas). Solo sirven para que entiendas el alcance.
+2. Horario Base OBLIGATORIO (salvo indicación contraria): 09:00 a 19:00. Rellena este tiempo con sesiones productivas y descansos explícitos.
+3. Si el usuario pide un horario específico, úsalo. Si no, usa 09:00-19:00.`;
 
 // Helper to build the prompt string (Injects Data into Instructions)
 function constructFullPayload(instructions: string, constraints: any, studyTopics: any[], contextDocs: any[]) {
-    // We append the DATA to the Instructions provided (or default)
-    return `${instructions}
+  // We append the DATA to the Instructions provided (or default)
+  return `${instructions}
 
     
 /* ================================================================================== */
@@ -182,79 +188,79 @@ INPUT DATA (JSON):
 
 // 1. Action to Get the Default Instructions (Editable by User)
 export async function getPlannerPrompt(constraints: any) {
-    // We now just return the Instructions Text. 
-    // The Data injection happens during execution.
-    return PLANNER_INSTRUCTIONS;
+  // We now just return the Instructions Text. 
+  // The Data injection happens during execution.
+  return PLANNER_INSTRUCTIONS;
 }
 
 // 2. Main Execution Action
 export async function generateDeepPlan(constraints: any, customInstructions?: string) {
-    // 1. Use the "Big Brain" Model (Reasoning Capability)
-    const model = genAI.getGenerativeModel({
-        model: "gemini-3-pro-preview",
-        generationConfig: {
-            responseMimeType: "application/json",
-            maxOutputTokens: 30000 // Huge context for Master Plan
-        }
-    });
-
-    // 2. Prepare Data Context (This is ALWAYS done, user cannot delete this)
-    const studyTopics: any[] = [];
-    const contextDocs: any[] = [];
-
-    // ... Copying syllabus parsing logic ...
-    const cleanTitle = (t: string) => t.toLowerCase()
-        .replace("enunciado", "")
-        .replace("soluciones", "")
-        .replace("respuestas", "")
-        .replace("respuesta", "")
-        .replace("plantilla", "")
-        .replace("examen", "")
-        .replace(/\s+/g, ' ').trim();
-
-    DEFAULT_SYLLABUS.groups.forEach((g: any) => {
-        const title = g.title.toLowerCase();
-        if (title.includes("bases") || title.includes("información") || title.includes("convocatoria") || title.includes("suplementario")) {
-            contextDocs.push({ group: g.title, files: g.topics.map((t: any) => t.title) });
-            return;
-        }
-        const seen = new Set<string>();
-        const uniqueTopics: string[] = [];
-        g.topics.forEach((t: any) => {
-            const rawTitle = t.title;
-            const coreName = cleanTitle(rawTitle);
-            if (!seen.has(coreName)) {
-                seen.add(coreName);
-                uniqueTopics.push(t.title);
-            }
-        });
-        if (uniqueTopics.length > 0) {
-            studyTopics.push({ group: g.title, topics: uniqueTopics });
-        }
-    });
-
-    // 3. Construct Final Prompt (Instructions + Data)
-    const instructions = customInstructions || PLANNER_INSTRUCTIONS;
-    const finalPrompt = constructFullPayload(instructions, constraints, studyTopics, contextDocs);
-
-    try {
-        const result = await model.generateContent(finalPrompt); // Non-null assertion safely
-        const response = await result.response;
-        const text = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
-        const masterPlan = JSON.parse(text);
-
-        return {
-            success: true,
-            schedule: masterPlan.daily_schedule, // Provide schedule for preview
-            masterPlan: masterPlan, // Pass full object including analysis for client-side holding
-            diagnostics: {
-                prompt: instructions, // We return just the Instructions part for the editor
-                rawResponse: text,
-                analysis: masterPlan.strategic_analysis
-            }
-        };
-    } catch (error) {
-        console.error("AI Planning Failed:", error);
-        return { success: false, error: "Failed to generate plan.", diagnostics: { prompt: finalPrompt || "Error building prompt", rawResponse: String(error) } };
+  // 1. Use the "Big Brain" Model (Reasoning Capability)
+  const model = genAI.getGenerativeModel({
+    model: "gemini-3-pro-preview",
+    generationConfig: {
+      responseMimeType: "application/json",
+      maxOutputTokens: 30000 // Huge context for Master Plan
     }
+  });
+
+  // 2. Prepare Data Context (This is ALWAYS done, user cannot delete this)
+  const studyTopics: any[] = [];
+  const contextDocs: any[] = [];
+
+  // ... Copying syllabus parsing logic ...
+  const cleanTitle = (t: string) => t.toLowerCase()
+    .replace("enunciado", "")
+    .replace("soluciones", "")
+    .replace("respuestas", "")
+    .replace("respuesta", "")
+    .replace("plantilla", "")
+    .replace("examen", "")
+    .replace(/\s+/g, ' ').trim();
+
+  DEFAULT_SYLLABUS.groups.forEach((g: any) => {
+    const title = g.title.toLowerCase();
+    if (title.includes("bases") || title.includes("información") || title.includes("convocatoria") || title.includes("suplementario")) {
+      contextDocs.push({ group: g.title, files: g.topics.map((t: any) => t.title) });
+      return;
+    }
+    const seen = new Set<string>();
+    const uniqueTopics: string[] = [];
+    g.topics.forEach((t: any) => {
+      const rawTitle = t.title;
+      const coreName = cleanTitle(rawTitle);
+      if (!seen.has(coreName)) {
+        seen.add(coreName);
+        uniqueTopics.push(t.title);
+      }
+    });
+    if (uniqueTopics.length > 0) {
+      studyTopics.push({ group: g.title, topics: uniqueTopics });
+    }
+  });
+
+  // 3. Construct Final Prompt (Instructions + Data)
+  const instructions = customInstructions || PLANNER_INSTRUCTIONS;
+  const finalPrompt = constructFullPayload(instructions, constraints, studyTopics, contextDocs);
+
+  try {
+    const result = await model.generateContent(finalPrompt); // Non-null assertion safely
+    const response = await result.response;
+    const text = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+    const masterPlan = JSON.parse(text);
+
+    return {
+      success: true,
+      schedule: masterPlan.daily_schedule, // Provide schedule for preview
+      masterPlan: masterPlan, // Pass full object including analysis for client-side holding
+      diagnostics: {
+        prompt: instructions, // We return just the Instructions part for the editor
+        rawResponse: text,
+        analysis: masterPlan.strategic_analysis
+      }
+    };
+  } catch (error) {
+    console.error("AI Planning Failed:", error);
+    return { success: false, error: "Failed to generate plan.", diagnostics: { prompt: finalPrompt || "Error building prompt", rawResponse: String(error) } };
+  }
 }
