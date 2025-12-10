@@ -127,12 +127,80 @@ export default function CalendarPage() {
         }
     }, [isConsoleOpen, planConfig, intensity]); // Dependency array
 
+    // Helper to parse 'Blitzkrieg' or Manual JSON format
+    const parseAndLoadPlan = (planData: any, sourceName: string) => {
+        const flatSchedule: ScheduledSession[] = [];
+        const rawDaily = planData.daily_schedule as any[];
+
+        rawDaily.forEach((day: any) => {
+            const [d, m, y] = day.date.split("-");
+            const dayDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+
+            day.tasks.forEach((task: any, idx: number) => {
+                const [start, end] = task.time.split("-");
+                const [sh, sm] = start.split(":").map(Number);
+                const [eh, em] = end.split(":").map(Number);
+                const duration = ((eh * 60) + em) - ((sh * 60) + sm);
+
+                const slug = task.activity.toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/^-+|-+$/g, '');
+
+                flatSchedule.push({
+                    id: `manual-${day.date}-${idx}`,
+                    date: dayDate,
+                    topicTitle: task.activity.substring(0, 100),
+                    topicId: slug,
+                    type: day.type.toLowerCase() === 'practice' ? 'test_practice' :
+                        day.type.toLowerCase() === 'review' ? 'review_flashcards' : 'study',
+                    durationMinutes: duration,
+                    startTime: start,
+                    endTime: end,
+                    breaks: "Pomodoro 50/10",
+                    aiReasoning: String(task.source_ref),
+                    complexity: "High",
+                    status: 'pending'
+                });
+            });
+        });
+
+        setAiPlan(flatSchedule);
+        setMasterPlanData({
+            ...planData,
+            daily_schedule: flatSchedule
+        });
+        setDiagnostics({
+            prompt: diagnostics?.prompt || sourceName,
+            rawResponse: JSON.stringify(planData, null, 2),
+            analysis: planData.strategic_analysis
+        });
+        setBrainStatus('success');
+    };
+
     const handleBrainExecution = async () => {
         setBrainStatus('thinking');
+
+        // CHECK: Is the prompt actually a JSON? (User pasted plan manually)
+        const promptInput = diagnostics?.prompt?.trim() || "";
+        if (promptInput.startsWith("{") && (promptInput.includes("daily_schedule") || promptInput.includes("strategic_analysis"))) {
+            try {
+                console.log("Detected JSON Input. Parsing directly...");
+                const manualPlan = JSON.parse(promptInput);
+                // Validate minimally
+                if (manualPlan.daily_schedule) {
+                    await new Promise(r => setTimeout(r, 1000)); // Fake processing delay
+                    parseAndLoadPlan(manualPlan, "JSON MANUAL PEGADO");
+                    return; // BYPASS AI
+                }
+            } catch (e) {
+                console.warn("Input looked like JSON but failed to parse:", e);
+                // Fallthrough to AI if parsing fails
+            }
+        }
+
         // Keep prompt, clear other logs
         setDiagnostics(prev => prev ? { ...prev, rawResponse: "", analysis: undefined } : undefined);
 
-        // Artificial "Feeling" Delay (so user sees the Thinking state)
         await new Promise(r => setTimeout(r, 800));
 
         // Call Server Action
@@ -197,63 +265,7 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
         // Dynamic Import to avoid huge bundle initially if not used
         import("@/lib/blitzkrieg-data").then(({ BLITZKRIEG_PLAN }) => {
             console.log("Loading Blitzkrieg", BLITZKRIEG_PLAN);
-
-            // Transform nested structure to flat schedule
-            const flatSchedule: ScheduledSession[] = [];
-            const rawDaily = BLITZKRIEG_PLAN.daily_schedule as any[];
-
-            rawDaily.forEach((day: any) => {
-                // Parse Date (DD-MM-YYYY)
-                const [d, m, y] = day.date.split("-");
-                const dayDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
-
-                day.tasks.forEach((task: any, idx: number) => {
-                    // Start/End Time logic
-                    const [start, end] = task.time.split("-");
-
-                    // Duration calc
-                    const [sh, sm] = start.split(":").map(Number);
-                    const [eh, em] = end.split(":").map(Number);
-                    const duration = ((eh * 60) + em) - ((sh * 60) + sm);
-
-                    // Slug generation from activity
-                    // Simple slugify: "Estudio Ley 9/1991..." -> "estudio-ley-9-1991"
-                    const slug = task.activity.toLowerCase()
-                        .replace(/[^a-z0-9]+/g, '-')
-                        .replace(/^-+|-+$/g, '');
-
-                    flatSchedule.push({
-                        id: `blitz-${day.date}-${idx}`,
-                        date: dayDate,
-                        topicTitle: task.activity.substring(0, 100), // Trim title
-                        topicId: slug,
-                        type: day.type.toLowerCase() === 'practice' ? 'test_practice' :
-                            day.type.toLowerCase() === 'review' ? 'review_flashcards' : 'study',
-                        durationMinutes: duration,
-                        startTime: start,
-                        endTime: end,
-                        breaks: "Pomodoro 50/10",
-                        aiReasoning: String(task.source_ref),
-                        complexity: "High",
-                        status: 'pending'
-                    });
-                });
-            });
-
-            // Set State
-            setAiPlan(flatSchedule);
-            setMasterPlanData({
-                ...BLITZKRIEG_PLAN,
-                daily_schedule: flatSchedule // Save flattened version to DB for consistency
-            });
-            setDiagnostics({
-                prompt: "PLAN BLITZKRIEG IMPORTADO MANUALMENTE.",
-                rawResponse: JSON.stringify(BLITZKRIEG_PLAN, null, 2),
-                analysis: BLITZKRIEG_PLAN.strategic_analysis
-            });
-            setBrainStatus('success');
-
-            // Auto close or show success
+            parseAndLoadPlan(BLITZKRIEG_PLAN, "PLAN BLITZKRIEG IMPORTADO MANUALMENTE");
             console.log("✅ Blitzkrieg Plan Loaded into Memory. Please Save.");
         });
     };
