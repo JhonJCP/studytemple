@@ -97,7 +97,8 @@ export default function CalendarPage() {
 
     const handleBrainExecution = async () => {
         setBrainStatus('thinking');
-        setDiagnostics(undefined); // Clear previous logs
+        // Keep prompt, clear other logs
+        setDiagnostics(prev => prev ? { ...prev, rawResponse: "", analysis: undefined } : undefined);
 
         // Artificial "Feeling" Delay (so user sees the Thinking state)
         await new Promise(r => setTimeout(r, 800));
@@ -108,7 +109,7 @@ export default function CalendarPage() {
             goalDate: "2026-01-15",
             availability: planConfig.availability,
             intensity: intensity
-        });
+        }, diagnostics?.prompt);
 
         if (result.success && result.schedule) {
             setAiPlan(result.schedule); // Show preview
@@ -136,6 +137,10 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
         }
     };
 
+    const handlePromptChange = (newPrompt: string) => {
+        setDiagnostics(prev => prev ? { ...prev, prompt: newPrompt } : { prompt: newPrompt, rawResponse: "" });
+    };
+
     // UI Helpers
     const getIconForType = (type: ScheduledSession['type']) => {
         switch (type) {
@@ -155,6 +160,7 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
                 diagnostics={diagnostics}
                 onActivate={handleBrainExecution}
                 onSave={handleApplyPlan}
+                onPromptChange={handlePromptChange}
             />
 
             <Link href="/dashboard" className="flex items-center text-white/50 hover:text-white mb-8 transition-colors w-fit">

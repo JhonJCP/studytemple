@@ -12,9 +12,10 @@ interface PlannerBrainConsoleProps {
     diagnostics?: { prompt: string; rawResponse: string; analysis?: string };
     onActivate: () => void;
     onSave: () => void;
+    onPromptChange: (newPrompt: string) => void;
 }
 
-export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onActivate, onSave }: PlannerBrainConsoleProps) {
+export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onActivate, onSave, onPromptChange }: PlannerBrainConsoleProps) {
     // Auto-scroll logic
     const consoleRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -61,26 +62,22 @@ export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onAc
                                 <div className="w-2 h-2 rounded-full bg-green-500/20 border border-green-500/50" />
                             </div>
                         </div>
-                        <div className="flex-1 p-0 overflow-auto custom-scrollbar relative font-mono text-xs bg-[#0c0c0c]">
+                        <div className="flex-1 p-0 overflow-auto custom-scrollbar relative font-mono text-xs bg-[#0c0c0c] flex">
                             {/* Line Numbers */}
-                            <div className="absolute left-0 top-0 bottom-0 w-8 bg-zinc-900/50 border-r border-white/5 flex flex-col items-end py-4 pr-2 text-white/20 select-none">
+                            <div className="w-8 bg-zinc-900/50 border-r border-white/5 flex flex-col items-end py-4 pr-2 text-white/20 select-none shrink-0 z-10">
                                 {Array.from({ length: 50 }).map((_, i) => (
                                     <div key={i} className="leading-6">{i + 1}</div>
                                 ))}
                             </div>
 
-                            {/* Content */}
-                            <div className="pl-12 pr-4 py-4 leading-6 text-white/70 whitespace-pre-wrap">
-                                {diagnostics?.prompt ? (
-                                    diagnostics.prompt
-                                ) : (
-                                    <span className="text-white/20 italic">
-                                         // Esperando ejecución para generar prompt...
-                                        <br />
-                                        Waiting for context analysis...
-                                    </span>
-                                )}
-                            </div>
+                            {/* Editable Content */}
+                            <textarea
+                                className="flex-1 bg-transparent text-white/70 font-mono text-xs resize-none focus:outline-none p-4 leading-6 custom-scrollbar"
+                                value={diagnostics?.prompt || ""}
+                                onChange={(e) => onPromptChange(e.target.value)}
+                                spellCheck={false}
+                                placeholder="// Esperando ejecución para generar prompt..."
+                            />
                         </div>
                     </div>
 
