@@ -99,6 +99,11 @@ export function getTopicById(topicId: string): TopicWithGroup | undefined {
             .replace(/\.[A-Za-z0-9]+$/, "")
             .replace(/[^a-z0-9]/g, ""); // remove all non-alnum for loose match
 
+    const tokens = (s: string) =>
+        slugify(s)
+            .split("-")
+            .filter(Boolean);
+
     try {
         return allTopics.find(t => {
             const normalizedOriginal = normalize(t.originalFilename);
@@ -109,6 +114,8 @@ export function getTopicById(topicId: string): TopicWithGroup | undefined {
             const looseTitle = loose(normalizedTitle);
             const looseId = loose(normalizedId);
             const slugId = slugify(normalizedId);
+            const idTokens = tokens(normalizedId);
+            const titleTokens = tokens(normalizedTitle);
             return (
                 normalizedOriginal === normalizedId ||
                 normalizedTitle === normalizedId ||
@@ -117,7 +124,11 @@ export function getTopicById(topicId: string): TopicWithGroup | undefined {
                 looseOriginal === looseId ||
                 looseTitle === looseId ||
                 looseId.includes(looseTitle) ||
-                looseTitle.includes(looseId)
+                looseTitle.includes(looseId) ||
+                // token subset match (e.g., "carreteras-ley" vs "ley-de-carreteras-..."):
+                (idTokens.length > 0 && idTokens.every(tok => slugTitle.includes(tok))) ||
+                (idTokens.length > 0 && idTokens.every(tok => slugOriginal.includes(tok))) ||
+                (titleTokens.length > 0 && titleTokens.every(tok => slugId.includes(tok)))
             );
         });
     } catch {
