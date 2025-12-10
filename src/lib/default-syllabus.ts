@@ -2,12 +2,13 @@
 export const DEFAULT_SYLLABUS = {
     "groups": [
         {
-            "title": "Bases de la Oposición",
+            "title": "Bases de la Oposicion",
             "icon": "Scale",
-            "description": "Documentación oficial, convocatorias y temarios del proceso selectivo.",
+            "description": "Documentacion oficial, convocatorias y temarios del proceso selectivo.",
+            "contextOnly": true,
             "topics": [
                 { "title": "Convocatoria ITOP 2025 (BOC)", "originalFilename": "Convocatoria ITOP 2025.pdf" },
-                { "title": "Temario: Parte Específica y Práctica", "originalFilename": "Temario Parte Específica y Contenidos Prácticos.pdf" },
+                { "title": "Temario: Parte Especifica y Practica", "originalFilename": "Temario Parte Especifica y Contenidos Practicos.pdf" },
                 { "title": "Temario: Parte General", "originalFilename": "Temario Parte General.pdf" }
             ]
         },

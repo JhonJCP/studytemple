@@ -79,7 +79,11 @@ function getAIAnalysis(title: string) {
 function getAnalyzedTasks(): AnalyzedTask[] {
     const tasks: AnalyzedTask[] = [];
     DEFAULT_SYLLABUS.groups.forEach((group: any) => {
+        const title = (group.title || "").toLowerCase();
+        const isContextOnly = group.contextOnly === true;
+        const isMeta = title.includes("bases") || title.includes("convocatoria") || title.includes("informaci");
         if (group.title.toLowerCase().includes("suplementario")) return;
+        if (isContextOnly || isMeta) return; // no se programa estudio sobre las bases; solo contexto
         group.topics.forEach((topic: any) => {
             const analysis = getAIAnalysis(topic.title);
 
