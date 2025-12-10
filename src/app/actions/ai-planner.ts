@@ -7,8 +7,8 @@ import { DEFAULT_SYLLABUS } from "@/lib/default-syllabus";
 const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || "");
 
 export async function generateDeepPlan(constraints: any) {
-    // Use "gemini-pro" which is the most widely available stable alias
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    // Use "gemini-2.0-flash" as confirmed available by user diagnostics
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     // 1. Construct Context (Syllabus Structure)
     // Intelligent Filter: Context vs Content vs Duplicates
