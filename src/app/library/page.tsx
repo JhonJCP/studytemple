@@ -1,25 +1,45 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Book } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { LibraryStacks } from "@/components/LibraryStacks";
 import { SyllabusBrain } from "@/components/SyllabusBrain";
 
-// Import the AI-generated syllabus directly
-import smartSyllabus from "@/lib/smart-syllabus.json";
-
-export const maxDuration = 300; // Allow 5 minutes for Server Actions used on this page
-
 export default function LibraryPage() {
     const supabase = createClient();
     const [searchQuery, setSearchQuery] = useState("");
+    const [libraryData, setLibraryData] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
 
-    // Use the smart data directly
-    const libraryData = smartSyllabus;
+    // Fetch dynamic syllabus from Supabase
+    useEffect(() => {
+        async function fetchSyllabus() {
+            try {
+                const { data, error } = await supabase
+                    .from('app_settings')
+                    .select('value')
+                    .eq('key', 'smart-syllabus')
+                    .single();
 
-    // Calculate total documents for display
-    const totalDocs = libraryData.groups.reduce((acc, g) => acc + g.topics.length, 0);
+                if (data && data.value) {
+                    setLibraryData(data.value);
+                }
+            } catch (e) {
+                console.error("Failed to load syllabus", e);
+            } finally {
+                setLoading(false);
+            }
+        }
+        fetchSyllabus();
+    }, []);
+
+    // Fallback while loading
+    if (loading) return <div className="p-20 text-center text-white/50">Cargando el conocimiento...</div>;
+
+    // Use fetched data or empty structure
+    const data = libraryData || { groups: [] };
+    const totalDocs = data && data.groups ? data.groups.reduce((acc: any, g: any) => acc + g.topics.length, 0) : 0;
 
     return (
         <div className="min-h-screen bg-background p-8 pb-32">
@@ -65,7 +85,7 @@ export default function LibraryPage() {
             </div>
 
             {/* The New AI-Organized Stacks */}
-            <LibraryStacks data={libraryData} />
+            <LibraryStacks data={data} key={JSON.stringify(data)} />
 
         </div>
     );
