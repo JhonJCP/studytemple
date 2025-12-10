@@ -9,24 +9,34 @@ const GEMINI_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY!;
 const genai = new GoogleGenerativeAI(GEMINI_KEY);
 
 async function fetchFilesFromDatabase() {
-    const supabase = await createClient(); // Await the promise for server client
+    console.log("🔍 Fetching files from Supabase...");
+    const supabase = await createClient();
     try {
-        // Fetch filename and metadata (where category lives)
+        // Fetch metadata to get filename and category (assuming stored there)
         const { data, error } = await supabase
             .from("library_documents")
-            .select("filename, metadata");
+            .select("metadata");
 
-        if (error) throw error;
+        if (error) {
+            console.error("❌ Supabase DB Error:", error);
+            throw error;
+        }
+
+        if (!data || data.length === 0) {
+            console.warn("⚠️ Database returned NO documents.");
+            return [];
+        }
+
+        console.log(`✅ Found ${data.length} documents in DB.`);
 
         // Map to specialized object for AI
         return data.map((doc: any) => ({
-            filename: doc.filename,
-            // Trust the database category as the absolute source of truth
+            filename: doc.metadata?.filename || "Unknown.pdf",
+            // Trust the database category
             currentCategory: doc.metadata?.category || "Uncategorized"
         }));
     } catch (e) {
-        console.error("DB Fetch Error:", e);
-        // Fallback or empty if DB fails
+        console.error("🔥 Critical DB Fetch Exception:", e);
         return [];
     }
 }
