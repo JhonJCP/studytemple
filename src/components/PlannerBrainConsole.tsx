@@ -1,0 +1,118 @@
+
+"use client";
+
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { BrainCircuit, X, Terminal, CheckCircle, AlertTriangle, Code, Cpu } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+interface PlannerBrainConsoleProps {
+    isOpen: boolean;
+    onClose: () => void;
+    status: 'idle' | 'thinking' | 'success' | 'error';
+    diagnostics?: { prompt: string; rawResponse: string };
+    onActivate: () => void;
+}
+
+export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onActivate }: PlannerBrainConsoleProps) {
+    const [view, setView] = useState<'prompt' | 'response'>('prompt');
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="w-full max-w-4xl bg-[#0a0a0a] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
+            >
+                {/* Header */}
+                <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/5">
+                    <div className="flex items-center gap-3">
+                        <BrainCircuit className={cn("w-6 h-6", status === 'thinking' ? "text-purple-400 animate-pulse" : "text-purple-500")} />
+                        <div>
+                            <h3 className="text-lg font-bold text-white">Consola Cerebro Cortez</h3>
+                            <p className="text-xs text-white/50">Planificador Generativo Gemini Pro 1.5</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                        <X className="w-5 h-5 text-white/50" />
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+                    {/* Sidebar / Status */}
+                    <div className="w-full md:w-64 border-r border-white/5 p-6 bg-black/20 flex flex-col gap-6">
+                        <div className="space-y-4">
+                            <div className={cn("flex items-center gap-3 p-3 rounded-lg transition-colors", status === 'idle' ? "bg-white/10" : "text-white/30")}>
+                                <div className="w-2 h-2 rounded-full bg-white/50" />
+                                <span className="text-sm font-bold">1. Configuración</span>
+                            </div>
+                            <div className={cn("flex items-center gap-3 p-3 rounded-lg transition-colors", status === 'thinking' ? "bg-purple-500/20 text-purple-300" : "text-white/30")}>
+                                {status === 'thinking' ? <Cpu className="w-4 h-4 animate-spin" /> : <div className="w-2 h-2 rounded-full bg-white/50" />}
+                                <span className="text-sm font-bold">2. Razonamiento IA</span>
+                            </div>
+                            <div className={cn("flex items-center gap-3 p-3 rounded-lg transition-colors", status === 'success' ? "bg-green-500/20 text-green-400" : "text-white/30")}>
+                                <div className="w-2 h-2 rounded-full bg-green-500" />
+                                <span className="text-sm font-bold">3. calendario Generado</span>
+                            </div>
+                        </div>
+
+                        <div className="mt-auto">
+                            {status === 'idle' && (
+                                <button
+                                    onClick={onActivate}
+                                    className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors shadow-lg shadow-purple-900/20 flex justify-center items-center gap-2"
+                                >
+                                    <BrainCircuit className="w-4 h-4" /> INICIAR PROCESO
+                                </button>
+                            )}
+                            {status === 'success' && (
+                                <button
+                                    onClick={onClose}
+                                    className="w-full py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg transition-colors flex justify-center items-center gap-2"
+                                >
+                                    <CheckCircle className="w-4 h-4" /> APLICAR PLAN
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Terminal View */}
+                    <div className="flex-1 flex flex-col min-h-0 bg-[#050505]">
+                        {/* Tabs */}
+                        <div className="flex border-b border-white/5">
+                            <button
+                                onClick={() => setView('prompt')}
+                                className={cn("px-6 py-3 text-xs font-mono font-bold uppercase border-b-2 transition-colors", view === 'prompt' ? "border-purple-500 text-white" : "border-transparent text-white/30 hover:text-white/70")}
+                            >
+                                Input Prompt
+                            </button>
+                            <button
+                                onClick={() => setView('response')}
+                                className={cn("px-6 py-3 text-xs font-mono font-bold uppercase border-b-2 transition-colors", view === 'response' ? "border-green-500 text-white" : "border-transparent text-white/30 hover:text-white/70")}
+                            >
+                                Output JSON
+                            </button>
+                        </div>
+
+                        {/* Code Block */}
+                        <div className="flex-1 overflow-auto p-4 custom-scrollbar">
+                            {diagnostics ? (
+                                <pre className="font-mono text-xs text-white/70 whitespace-pre-wrap leading-relaxed">
+                                    {view === 'prompt' ? diagnostics.prompt : diagnostics.rawResponse}
+                                </pre>
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-white/20 gap-4">
+                                    <Terminal className="w-12 h-12" />
+                                    <p className="font-mono text-sm">Esperando ejecución del núcleo...</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </motion.div>
+        </div>
+    );
+}

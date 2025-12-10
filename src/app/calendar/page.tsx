@@ -7,18 +7,21 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { generateSmartSchedule, StudyPlan, ScheduledSession } from "@/lib/planner-brain";
 import { CalendarGrid } from "@/components/CalendarGrid";
-import { generateDeepPlan } from "@/app/actions/ai-planner"; // Server Action
+import { generateDeepPlan } from "@/app/actions/ai-planner";
+import { PlannerBrainConsole } from "@/components/PlannerBrainConsole";
 
 export default function CalendarPage() {
     // State
     const [intensity, setIntensity] = useState<StudyPlan['intensity']>('balanced');
-    const [selectedDate, setSelectedDate] = useState(new Date("2025-12-15")); // Viewport selected day
-    const [viewDate, setViewDate] = useState(new Date("2025-12-15")); // Viewport month
+    const [selectedDate, setSelectedDate] = useState(new Date("2025-12-15"));
+    const [viewDate, setViewDate] = useState(new Date("2025-12-15"));
     const [activeTimer, setActiveTimer] = useState<string | null>(null);
 
     // AI State
-    const [isThinking, setIsThinking] = useState(false);
+    const [isConsoleOpen, setIsConsoleOpen] = useState(false);
+    const [brainStatus, setBrainStatus] = useState<'idle' | 'thinking' | 'success' | 'error'>('idle');
     const [aiPlan, setAiPlan] = useState<ScheduledSession[] | null>(null);
+    const [diagnostics, setDiagnostics] = useState<{ prompt: string, rawResponse: string } | undefined>(undefined);
 
     // Default Plan (Local Fallback)
     const planConfig: StudyPlan = useMemo(() => ({
@@ -51,8 +54,8 @@ export default function CalendarPage() {
         setViewDate(newDate);
     };
 
-    const handleBrainActivation = async () => {
-        setIsThinking(true);
+    const handleBrainExecution = async () => {
+        setBrainStatus('thinking');
         // Call Server Action
         const result = await generateDeepPlan({
             startDate: "2025-12-15",
@@ -62,16 +65,18 @@ export default function CalendarPage() {
         });
 
         if (result.success && result.schedule) {
-            // Convert strings back to Dates if JSON lost them
             const hydrated = result.schedule.map((s: any) => ({
                 ...s,
                 date: new Date(s.date)
             }));
             setAiPlan(hydrated);
+            setDiagnostics(result.diagnostics);
+            setBrainStatus('success');
         } else {
-            alert("El Cerebro Cortez no pudo completar el análisis profundo. Usando algoritmo local.");
+            console.error("Brain Error", result);
+            setDiagnostics(result.diagnostics);
+            setBrainStatus('error');
         }
-        setIsThinking(false);
     };
 
     // UI Helpers
@@ -86,6 +91,14 @@ export default function CalendarPage() {
 
     return (
         <div className="min-h-screen p-8 bg-background flex flex-col">
+            <PlannerBrainConsole
+                isOpen={isConsoleOpen}
+                onClose={() => setIsConsoleOpen(false)}
+                status={brainStatus}
+                diagnostics={diagnostics}
+                onActivate={handleBrainExecution}
+            />
+
             <Link href="/dashboard" className="flex items-center text-white/50 hover:text-white mb-8 transition-colors w-fit">
                 <ArrowLeft className="w-5 h-5 mr-2" />
                 Volver al Templo
@@ -108,27 +121,17 @@ export default function CalendarPage() {
                 </div>
 
                 <button
-                    onClick={handleBrainActivation}
-                    disabled={isThinking}
+                    onClick={() => { setIsConsoleOpen(true); setBrainStatus('idle'); }}
                     className={cn(
                         "group relative px-6 py-3 rounded-xl font-bold flex items-center gap-3 overflow-hidden transition-all",
-                        isThinking ? "bg-purple-500/20 text-purple-200 cursor-wait" : "bg-gradient-to-r from-purple-600 to-blue-600 hover:scale-105 shadow-lg shadow-purple-500/20 text-white"
+                        "bg-gradient-to-r from-purple-600 to-blue-600 hover:scale-105 shadow-lg shadow-purple-500/20 text-white"
                     )}
                 >
-                    {isThinking ? (
-                        <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            Analizando Temario...
-                        </>
-                    ) : (
-                        <>
-                            <BrainCircuit className="w-5 h-5 fill-current" />
-                            ACTIVAR CEREBRO CORTEZ
-                        </>
-                    )}
+                    <BrainCircuit className="w-5 h-5 fill-current" />
+                    ACTIVAR CEREBRO CORTEZ
 
                     {/* Glow Effect */}
-                    {!isThinking && <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />}
+                    <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
                 </button>
             </header>
 
@@ -175,10 +178,9 @@ export default function CalendarPage() {
                                                     )}>
                                                         {session.type.replace('_', ' ')}
                                                     </span>
-                                                    {/* If AI Plan has explicit breaks or start time, show them */}
                                                     {(session as any).startTime && (
                                                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">
-                                                            Starts: {(session as any).startTime}
+                                                            Inicio: {(session as any).startTime}
                                                         </span>
                                                     )}
                                                     <span className="text-xs font-mono text-white/30 flex items-center gap-1">

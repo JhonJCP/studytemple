@@ -10,52 +10,69 @@ export async function generateDeepPlan(constraints: any) {
     const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
     // 1. Construct Context (Syllabus Structure)
-    const syllabusContext = DEFAULT_SYLLABUS.groups
-        .filter((g: any) => !g.title.toLowerCase().includes("suplementario"))
-        .map((g: any) => ({
-            group: g.title,
-            topics: g.topics.map((t: any) => t.title)
-        }));
+    // Separation of Concerns: "Study Content" vs "Rules/Context"
+    const studyTopics: any[] = [];
+    const contextDocs: any[] = [];
+
+    DEFAULT_SYLLABUS.groups.forEach((g: any) => {
+        const title = g.title.toLowerCase();
+        if (title.includes("suplementario")) return;
+
+        // "Bases" is context (Rules of the game), not study material for the calendar
+        if (title.includes("bases") || title.includes("información") || title.includes("convocatoria")) {
+            contextDocs.push({ group: g.title, files: g.topics.map((t: any) => t.title) });
+        } else {
+            studyTopics.push({ group: g.title, topics: g.topics.map((t: any) => t.title) });
+        }
+    });
 
     // 2. The Mega Prompt
     const prompt = `
-        You are Cortex, an elite Study Planner AI. 
-        Your goal is to organize a HIGH PERFORMANCE study schedule for the user based on the following syllabus and constraints.
+        You are Cortex, an elite Study Planner AI for a high-stakes competitive exam (Oposiciones).
         
-        SYLLABUS:
-        ${JSON.stringify(syllabusContext)}
+        OBJECTIVE: 
+        Create a high-performance PRO study calendar (JSON) for the User.
+        
+        INPUT DATA:
+        1. STUDY MATERIAL (Schedule these):
+        ${JSON.stringify(studyTopics)}
 
-        CONSTRAINTS:
+        2. EXAM CONTEXT (Do NOT schedule these, just understand the rules):
+        ${JSON.stringify(contextDocs)}
+
+        3. CONSTRAINTS:
         - Start Date: ${constraints.startDate}
         - Goal Date: ${constraints.goalDate}
-        - Daily Availability (minutes): ${JSON.stringify(constraints.availability)}
+        - Daily Availability: ${JSON.stringify(constraints.availability)}
         - Intensity: ${constraints.intensity}
-        - Strategy: "Spaced Repetition Sprint" (Study -> Flashcards +1d -> Test +3d -> Review +7d).
-        
+        - Strategy: "Spaced Repetition Sprint" 
+          (Sequence: Study -> Flashcards(+1d) -> Test(+4d) -> Review(+10d)).
+
         INSTRUCTIONS:
-        1. Analyze the complexity of each topic based on its name (e.g. "Ley" is hard, "Guía" is easy).
-        2. Estimate page count (Low=10, Medium=20, Hard=40).
-        3. Distribute sessions across the dates. RESPECT WEEKENDS/HOLIDAYS (give lighter load if 'relaxed' or 'balanced').
-        4. Provide specific "AI Reasoning" for each major decision.
-        5. Return a STRICT JSON array of session objects.
-        
-        OUTPUT FORMAT (JSON Only):
-        [
-            {
-                "date": "YYYY-MM-DD",
-                "topicTitle": "Topic Name",
-                "topicId": "filename (guess best match)",
-                "type": "study" | "review_flashcards" | "test_practice",
-                "durationMinutes": 60,
-                "startTime": "09:00", // Suggest a start time
-                "breaks": "10 min break after 25 min",
-                "complexity": "High",
-                "aiReasoning": "Explanation..."
-            },
-            ...
-        ]
-        
-        Do not output markdown code blocks, just the raw JSON.
+        1. **Filter Non-Study Items**: Do NOT schedule sessions for "Bases" or administrative docs. Only schedule the "Study Material".
+        2. **Complexity Analysis**: 
+           - 'Ley' (Law) = High Complexity (Needs more time, frequent breaks).
+           - 'Reglamento' = High/Medium.
+           - 'Manual/Guía' = Low/Medium.
+        3. **Detailed Scheduling**:
+           - Break down study sessions. 
+           - Suggest specific START TIMES (e.g. "09:00", "16:30").
+           - Add BREAKS (e.g. "Pomodoro: 25/5" or "50/10").
+        4. **Output Format**:
+           Return a STRICT JSON array of objects. No markdown.
+           
+           Example Object:
+           {
+             "date": "YYYY-MM-DD",
+             "topicTitle": "Ley de Carreteras",
+             "topicId": "filename_guess",
+             "type": "study",
+             "durationMinutes": 120,
+             "startTime": "09:00",
+             "breaks": "10 min every 50 min",
+             "complexity": "High",
+             "aiReasoning": "Core legislation. Vital for exam. High density."
+           }
     `;
 
     try {
@@ -81,9 +98,9 @@ export async function generateDeepPlan(constraints: any) {
             });
         }
 
-        return { success: true, schedule };
+        return { success: true, schedule, diagnostics: { prompt, rawResponse: text } };
     } catch (error) {
         console.error("AI Planning Failed:", error);
-        return { success: false, error: "Failed to generate plan." };
+        return { success: false, error: "Failed to generate plan.", diagnostics: { prompt, rawResponse: String(error) } };
     }
 }
