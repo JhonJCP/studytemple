@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BrainCircuit, X, Terminal, CheckCircle, AlertTriangle, Code, Cpu } from "lucide-react";
+import { BrainCircuit, X, Play, Save, CheckCircle, Terminal, Cpu, Loader2, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PlannerBrainConsoleProps {
@@ -11,151 +11,137 @@ interface PlannerBrainConsoleProps {
     status: 'idle' | 'thinking' | 'success' | 'error';
     diagnostics?: { prompt: string; rawResponse: string; analysis?: string };
     onActivate: () => void;
+    onSave: () => void;
 }
 
-export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onActivate }: PlannerBrainConsoleProps) {
-    const [view, setView] = useState<'prompt' | 'response' | 'strategy'>('strategy');
-    const [elapsed, setElapsed] = useState(0);
-
-    // Timer Logic
+export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onActivate, onSave }: PlannerBrainConsoleProps) {
+    // Auto-scroll logic
+    const consoleRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
-        let timer: NodeJS.Timeout;
-        if (status === 'thinking') {
-            const start = Date.now();
-            timer = setInterval(() => {
-                setElapsed(Math.floor((Date.now() - start) / 1000));
-            }, 1000);
-        } else {
-            setElapsed(0);
+        if (consoleRef.current) {
+            consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
         }
-        return () => clearInterval(timer);
-    }, [status]);
-
-    const formatTime = (s: number) => {
-        const mins = Math.floor(s / 60).toString().padStart(2, '0');
-        const secs = (s % 60).toString().padStart(2, '0');
-        return `${mins}:${secs}`;
-    };
+    }, [diagnostics]);
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
             <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="w-full max-w-4xl bg-[#0a0a0a] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
+                className="w-full max-w-[95vw] h-[90vh] bg-[#09090b] border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden"
             >
                 {/* Header */}
-                <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/5">
+                <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between bg-zinc-900/50">
                     <div className="flex items-center gap-3">
-                        <BrainCircuit className={cn("w-6 h-6", status === 'thinking' ? "text-purple-400 animate-pulse" : "text-purple-500")} />
+                        <div className={cn("p-2 rounded-lg", status === 'thinking' ? "bg-purple-500/20" : "bg-white/5")}>
+                            <BrainCircuit className={cn("w-5 h-5", status === 'thinking' ? "text-purple-400 animate-pulse" : "text-purple-500")} />
+                        </div>
                         <div>
-                            <h3 className="text-lg font-bold text-blue-400">Consola Cerebro Cortez v2</h3>
-                            <p className="text-xs text-white/50">Planificador Generativo Gemini Pro (Stable)</p>
+                            <h3 className="text-sm font-bold text-white tracking-wide">CEREBRO CORTEZ (Gemini 3 Pro)</h3>
+                            <p className="text-[10px] text-white/40 font-mono">Planificador Estratégico de Oposiciones</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
                         <X className="w-5 h-5 text-white/50" />
                     </button>
                 </div>
 
-                {/* Content */}
-                <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-                    {/* Sidebar / Status */}
-                    <div className="w-full md:w-64 border-r border-white/5 p-6 bg-black/20 flex flex-col gap-6">
-                        <div className="space-y-4">
-                            <div className={cn("flex items-center gap-3 p-3 rounded-lg transition-colors", status === 'idle' ? "bg-white/10" : "text-white/30")}>
-                                <div className="w-2 h-2 rounded-full bg-white/50" />
-                                <span className="text-sm font-bold">1. Configuración</span>
-                            </div>
-                            <div className={cn("flex items-center gap-3 p-3 rounded-lg transition-colors", status === 'thinking' ? "bg-purple-500/20 text-purple-300" : "text-white/30")}>
-                                {status === 'thinking' ? <Cpu className="w-4 h-4 animate-spin" /> : <div className="w-2 h-2 rounded-full bg-white/50" />}
-                                <div className="flex flex-col">
-                                    <span className="text-sm font-bold">2. Razonamiento IA</span>
-                                    {status === 'thinking' && <span className="text-xs font-mono opacity-75">{formatTime(elapsed)}</span>}
-                                </div>
-                            </div>
-                            <div className={cn("flex items-center gap-3 p-3 rounded-lg transition-colors", status === 'success' ? "bg-green-500/20 text-green-400" : "text-white/30")}>
-                                <div className="w-2 h-2 rounded-full bg-green-500" />
-                                <span className="text-sm font-bold">3. Calendario Generado</span>
+                {/* Main Split Grid */}
+                <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-0 min-h-0 bg-[#050505]">
+
+                    {/* LEFT COLUMN: Prompt / Instructions */}
+                    <div className="flex flex-col border-r border-white/5 min-h-0">
+                        <div className="px-4 py-2 border-b border-white/5 bg-zinc-900/30 flex justify-between items-center">
+                            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Instrucciones (Prompt)</span>
+                            <div className="flex gap-2">
+                                <div className="w-2 h-2 rounded-full bg-yellow-500/20 border border-yellow-500/50" />
+                                <div className="w-2 h-2 rounded-full bg-red-500/20 border border-red-500/50" />
+                                <div className="w-2 h-2 rounded-full bg-green-500/20 border border-green-500/50" />
                             </div>
                         </div>
+                        <div className="flex-1 p-0 overflow-auto custom-scrollbar relative font-mono text-xs bg-[#0c0c0c]">
+                            {/* Line Numbers */}
+                            <div className="absolute left-0 top-0 bottom-0 w-8 bg-zinc-900/50 border-r border-white/5 flex flex-col items-end py-4 pr-2 text-white/20 select-none">
+                                {Array.from({ length: 50 }).map((_, i) => (
+                                    <div key={i} className="leading-6">{i + 1}</div>
+                                ))}
+                            </div>
 
-                        <div className="mt-auto">
-                            {status === 'idle' && (
-                                <button
-                                    onClick={onActivate}
-                                    className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors shadow-lg shadow-purple-900/20 flex justify-center items-center gap-2"
-                                >
-                                    <BrainCircuit className="w-4 h-4" /> INICIAR PROCESO
-                                </button>
-                            )}
-                            {status === 'success' && (
-                                <button
-                                    onClick={onClose}
-                                    className="w-full py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg transition-colors flex justify-center items-center gap-2"
-                                >
-                                    <CheckCircle className="w-4 h-4" /> APLICAR PLAN
-                                </button>
-                            )}
-
-                            {/* Hint for closing */}
-                            {status === 'thinking' && (
-                                <p className="text-[10px] text-white/30 text-center mt-2 animate-pulse">
-                                    Puede cerrar esta ventana. El proceso continuará en segundo plano.
-                                </p>
-                            )}
+                            {/* Content */}
+                            <div className="pl-12 pr-4 py-4 leading-6 text-white/70 whitespace-pre-wrap">
+                                {diagnostics?.prompt ? (
+                                    diagnostics.prompt
+                                ) : (
+                                    <span className="text-white/20 italic">
+                                         // Esperando ejecución para generar prompt...
+                                        <br />
+                                        Waiting for context analysis...
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
 
-                    {/* Terminal View */}
-                    <div className="flex-1 flex flex-col min-h-0 bg-[#050505]">
-                        {/* Tabs */}
-                        <div className="flex border-b border-white/5 overflow-x-auto">
-                            <button
-                                onClick={() => setView('strategy')}
-                                className={cn("px-6 py-3 text-xs font-mono font-bold uppercase border-b-2 transition-colors whitespace-nowrap", view === 'strategy' ? "border-blue-500 text-blue-400" : "border-transparent text-white/30 hover:text-white/70")}
-                            >
-                                1. Master Plan
-                            </button>
-                            <button
-                                onClick={() => setView('prompt')}
-                                className={cn("px-6 py-3 text-xs font-mono font-bold uppercase border-b-2 transition-colors whitespace-nowrap", view === 'prompt' ? "border-purple-500 text-purple-400" : "border-transparent text-white/30 hover:text-white/70")}
-                            >
-                                2. Input Prompt
-                            </button>
-                            <button
-                                onClick={() => setView('response')}
-                                className={cn("px-6 py-3 text-xs font-mono font-bold uppercase border-b-2 transition-colors whitespace-nowrap", view === 'response' ? "border-green-500 text-green-400" : "border-transparent text-white/30 hover:text-white/70")}
-                            >
-                                3. Raw JSON
-                            </button>
+                    {/* RIGHT COLUMN: Output / Result */}
+                    <div className="flex flex-col min-h-0">
+                        <div className="px-4 py-2 border-b border-white/5 bg-zinc-900/30 flex justify-between items-center">
+                            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Resultado (Master Plan Analysis)</span>
+                            {status === 'thinking' && <span className="text-[10px] text-purple-400 font-mono animate-pulse">GENERANDO...</span>}
                         </div>
-
-                        {/* Code Block */}
-                        <div className="flex-1 overflow-auto p-4 custom-scrollbar">
-                            {diagnostics ? (
-                                <div className="font-mono text-xs text-white/70 leading-relaxed">
-                                    {view === 'strategy' && (
-                                        <div className="prose prose-invert max-w-none">
-                                            <h4 className="text-blue-400 font-bold mb-4 uppercase tracking-widest border-b border-blue-500/20 pb-2">Análisis Estratégico (Gemini 3 Pro)</h4>
-                                            <pre className="whitespace-pre-wrap font-sans text-sm text-white/80">
-                                                {diagnostics.analysis || "No Master Plan Analysis generated. Check JSON tab."}
-                                            </pre>
-                                        </div>
-                                    )}
-                                    {view === 'prompt' && <pre className="whitespace-pre-wrap text-purple-200/50">{diagnostics.prompt}</pre>}
-                                    {view === 'response' && <pre className="whitespace-pre-wrap text-green-200/50">{diagnostics.rawResponse}</pre>}
+                        <div className="flex-1 p-6 overflow-auto custom-scrollbar bg-black text-sm text-white/80 leading-relaxed font-sans relative">
+                            {status === 'thinking' ? (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+                                    <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+                                    <p className="text-xs text-purple-300/50 font-mono animate-pulse">Consultando a Gemini 3 Pro...</p>
+                                </div>
+                            ) : diagnostics?.analysis ? (
+                                <div className="prose prose-invert max-w-none prose-p:text-white/80 prose-headings:text-blue-400 prose-strong:text-white">
+                                    <h2 className="text-xl font-bold mb-4 text-purple-400 border-b border-white/10 pb-2">Estrategia Generada:</h2>
+                                    <pre className="whitespace-pre-wrap font-sans bg-transparent p-0">
+                                        {diagnostics.analysis}
+                                    </pre>
                                 </div>
                             ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-white/20 gap-4">
-                                    <Terminal className="w-12 h-12" />
-                                    <p className="font-mono text-sm">Esperando ejecución del núcleo...</p>
+                                <div className="h-full flex flex-col items-center justify-center text-white/10 gap-4">
+                                    <Cpu className="w-16 h-16 stroke-1" />
+                                    <p className="font-mono text-sm max-w-[200px] text-center">Ejecuta el análisis para visualizar la estrategia propuesta.</p>
                                 </div>
                             )}
                         </div>
                     </div>
+                </div>
+
+                {/* Footer Controls */}
+                <div className="p-4 bg-zinc-900 border-t border-white/10 flex items-center justify-between gap-4">
+                    <button
+                        onClick={onActivate}
+                        disabled={status === 'thinking'}
+                        className={cn(
+                            "flex items-center gap-2 px-8 py-4 rounded-lg font-bold uppercase tracking-wider transition-all w-full md:w-auto justify-center",
+                            status === 'thinking'
+                                ? "bg-white/5 text-white/30 cursor-wait"
+                                : "bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/20 hover:shadow-purple-700/40"
+                        )}
+                    >
+                        {status === 'thinking' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5 fill-current" />}
+                        {status === 'thinking' ? "Analizando..." : "Ejecutar Análisis"}
+                    </button>
+
+                    <button
+                        onClick={onSave}
+                        disabled={status !== 'success'}
+                        className={cn(
+                            "flex items-center gap-2 px-8 py-4 rounded-lg font-bold uppercase tracking-wider transition-all w-full md:w-auto justify-center border",
+                            status === 'success'
+                                ? "bg-white/5 border-white/10 hover:bg-white/10 text-green-400 border-green-500/30"
+                                : "bg-transparent border-white/5 text-white/20 cursor-not-allowed"
+                        )}
+                    >
+                        <Save className="w-5 h-5" />
+                        Guardar Plan (Memoria)
+                    </button>
                 </div>
             </motion.div>
         </div>

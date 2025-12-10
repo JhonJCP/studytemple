@@ -134,6 +134,7 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
                 status={brainStatus}
                 diagnostics={diagnostics}
                 onActivate={handleBrainExecution}
+                onSave={handleApplyPlan}
             />
 
             <Link href="/dashboard" className="flex items-center text-white/50 hover:text-white mb-8 transition-colors w-fit">
