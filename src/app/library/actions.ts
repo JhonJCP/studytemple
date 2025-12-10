@@ -159,16 +159,37 @@ export async function triggerAnalysis(customPrompt: string) {
     }
 }
 
+// NEW: Save to Supabase for persistence across deployments
 export async function saveSyllabusAction(newSyllabus: any) {
+    const supabase = await createClient();
     try {
-        const p = path.join(process.cwd(), "src", "lib", "smart-syllabus.json");
-        fs.writeFileSync(p, JSON.stringify(newSyllabus, null, 2), "utf-8");
+        console.log("💾 Saving syllabus to Supabase...");
 
-        // Reset status after applying
+        // 1. Save to DB
+        const { error } = await supabase
+            .from('app_settings')
+            .upsert({
+                key: 'smart-syllabus',
+                value: newSyllabus,
+                updated_at: new Date().toISOString()
+            });
+
+        if (error) throw error;
+
+        // 2. Also try to update local file for dev/preview (optional, might fail in Vercel but that's ok)
+        try {
+            const p = path.join(process.cwd(), "src", "lib", "smart-syllabus.json");
+            fs.writeFileSync(p, JSON.stringify(newSyllabus, null, 2), "utf-8");
+        } catch (e) {
+            console.warn("⚠️ Could not write to local filesystem (expected in Vercel). DB save was successful.");
+        }
+
+        // 3. Reset status after applying
         if (fs.existsSync(STATUS_FILE)) fs.unlinkSync(STATUS_FILE);
 
         return { success: true };
     } catch (error: any) {
+        console.error("❌ Save Failed:", error);
         return { success: false, error: error.message };
     }
 }
