@@ -1,4 +1,3 @@
-```
 "use server";
 
 import fs from "fs";
@@ -10,20 +9,20 @@ const GEMINI_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY!;
 const genai = new GoogleGenerativeAI(GEMINI_KEY);
 
 async function fetchFilesFromDatabase() {
-    const supabase = createClient();
+    const supabase = await createClient(); // Await the promise for server client
     try {
         // Fetch filename and metadata (where category lives)
         const { data, error } = await supabase
             .from("library_documents")
             .select("filename, metadata");
-            
+
         if (error) throw error;
-        
+
         // Map to specialized object for AI
         return data.map((doc: any) => ({
             filename: doc.filename,
             // Trust the database category as the absolute source of truth
-            currentCategory: doc.metadata?.category || "Uncategorized" 
+            currentCategory: doc.metadata?.category || "Uncategorized"
         }));
     } catch (e) {
         console.error("DB Fetch Error:", e);
@@ -71,17 +70,17 @@ export async function triggerAnalysis(customPrompt: string) {
         const model = genai.getGenerativeModel({ model: "models/gemini-3-pro-preview" });
 
         const fullPrompt = `
-        ${ customPrompt }
+        ${customPrompt}
 
 DATASET:
         Here is the database of files to organize. 
         Each entry has "filename" and "currentCategory".
         
         STRICT RULE: Check "currentCategory" for EVERY file.
-        - If "currentCategory" IS "Supplementary"(or matches supplementary), you MUST place it in "Material Suplementario".
+        - If "currentCategory" IS "Supplementary" (or matches supplementary), you MUST place it in "Material Suplementario".
         - NEVER place a Supplementary file in a core engineering block.
 
-    ${ JSON.stringify(files) }
+        ${JSON.stringify(files)}
 
         RETURN ONLY JSON.
         `;
@@ -89,27 +88,27 @@ DATASET:
         const result = await model.generateContent(fullPrompt);
         const response = result.response;
         const text = response.text();
-        const jsonStr = text.replace(/```json / g, "").replace(/```/g, "").trim();
-const data = JSON.parse(jsonStr);
+        const jsonStr = text.replace(/```json/g, "").replace(/```/g, "").trim();
+        const data = JSON.parse(jsonStr);
 
-// Save success state
-fs.writeFileSync(STATUS_FILE, JSON.stringify({
-    state: "completed",
-    completedAt: Date.now(),
-    result: data
-}));
+        // Save success state
+        fs.writeFileSync(STATUS_FILE, JSON.stringify({
+            state: "completed",
+            completedAt: Date.now(),
+            result: data
+        }));
 
-return { success: true };
+        return { success: true };
 
     } catch (error: any) {
-    // Save error state
-    console.error("Analysis Failed:", error);
-    fs.writeFileSync(STATUS_FILE, JSON.stringify({
-        state: "error",
-        error: error.message
-    }));
-    return { success: false, error: error.message };
-}
+        // Save error state
+        console.error("Analysis Failed:", error);
+        fs.writeFileSync(STATUS_FILE, JSON.stringify({
+            state: "error",
+            error: error.message
+        }));
+        return { success: false, error: error.message };
+    }
 }
 
 export async function saveSyllabusAction(newSyllabus: any) {
