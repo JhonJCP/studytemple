@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Search, Book } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { LibraryStacks } from "@/components/LibraryStacks";
+import { SyllabusBrain } from "@/components/SyllabusBrain";
 
 // Import the AI-generated syllabus directly
 import smartSyllabus from "@/lib/smart-syllabus.json";
@@ -22,18 +23,23 @@ export default function LibraryPage() {
         <div className="min-h-screen bg-background p-8 pb-32">
             {/* Header Area */}
             <div className="mb-12">
-                <div className="flex items-center gap-4 mb-4">
-                    <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20">
-                        <Book className="w-8 h-8 text-amber-500" />
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20">
+                            <Book className="w-8 h-8 text-amber-500" />
+                        </div>
+                        <div>
+                            <h1 className="text-4xl font-black text-white tracking-tight">
+                                La Gran Biblioteca
+                            </h1>
+                            <p className="text-white/60 text-lg">
+                                Fuente de la Verdad. {totalDocs} documentos organizados por la IA.
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="text-4xl font-black text-white tracking-tight">
-                            La Gran Biblioteca
-                        </h1>
-                        <p className="text-white/60 text-lg">
-                            Fuente de la Verdad. {totalDocs} documentos organizados por la IA.
-                        </p>
-                    </div>
+
+                    {/* The Brain Trigger */}
+                    <SyllabusBrain />
                 </div>
 
                 {/* AI Search Bar */}
