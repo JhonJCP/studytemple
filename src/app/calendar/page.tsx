@@ -172,42 +172,56 @@ export default function CalendarPage() {
         }
     }, [isConsoleOpen, planConfig, intensity]); // Dependency array
 
-    // Helper to parse 'Blitzkrieg' or Manual JSON format
+    // Helper to parse plans pasted as JSON (either manual tasks format or AI schedule format)
     const parseAndLoadPlan = (planData: any, sourceName: string) => {
-        const flatSchedule: ScheduledSession[] = [];
         const rawDaily = planData.daily_schedule as any[];
 
-        rawDaily.forEach((day: any) => {
-            const [d, m, y] = day.date.split("-");
-            const dayDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+        // If planData already comes with schedule entries (topicTitle, type, etc.), just normalize
+        const looksLikeSchedule = rawDaily && rawDaily.length > 0 && rawDaily[0].topicTitle;
+        let flatSchedule: ScheduledSession[] = [];
 
-            day.tasks.forEach((task: any, idx: number) => {
-                const [start, end] = task.time.split("-");
-                const [sh, sm] = start.split(":").map(Number);
-                const [eh, em] = end.split(":").map(Number);
-                const duration = ((eh * 60) + em) - ((sh * 60) + sm);
+        if (looksLikeSchedule) {
+            flatSchedule = rawDaily.map((s: any, i: number) => ({
+                ...s,
+                id: s.id || `manual-${i}-${s.topicId}`,
+                date: new Date(s.date),
+                status: s.status || 'pending',
+                breaks: s.breaks || "Standard"
+            }));
+        } else {
+            // Manual plan with tasks/time blocks (NotebookLM style)
+            rawDaily.forEach((day: any) => {
+                const [d, m, y] = day.date.split("-");
+                const dayDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
 
-                const slug = task.activity.toLowerCase()
-                    .replace(/[^a-z0-9]+/g, '-')
-                    .replace(/^-+|-+$/g, '');
+                (day.tasks || []).forEach((task: any, idx: number) => {
+                    const [start, end] = (task.time || "09:00-10:00").split("-");
+                    const [sh, sm] = start.split(":").map(Number);
+                    const [eh, em] = end.split(":").map(Number);
+                    const duration = ((eh * 60) + em) - ((sh * 60) + sm);
 
-                flatSchedule.push({
-                    id: `manual-${day.date}-${idx}`,
-                    date: dayDate,
-                    topicTitle: task.activity.substring(0, 100),
-                    topicId: slug,
-                    type: day.type.toLowerCase() === 'practice' ? 'test_practice' :
-                        day.type.toLowerCase() === 'review' ? 'review_flashcards' : 'study',
-                    durationMinutes: duration,
-                    startTime: start,
-                    endTime: end,
-                    breaks: "Pomodoro 50/10",
-                    aiReasoning: String(task.source_ref),
-                    complexity: "High",
-                    status: 'pending'
+                    const slug = (task.activity || "").toLowerCase()
+                        .replace(/[^a-z0-9]+/g, '-')
+                        .replace(/^-+|-+$/g, '');
+
+                    flatSchedule.push({
+                        id: `manual-${day.date}-${idx}`,
+                        date: dayDate,
+                        topicTitle: (task.activity || "").substring(0, 100),
+                        topicId: slug || `topic-${idx}`,
+                        type: day.type?.toLowerCase() === 'practice' ? 'test_practice' :
+                            day.type?.toLowerCase() === 'review' ? 'review_flashcards' : 'study',
+                        durationMinutes: duration,
+                        startTime: start,
+                        endTime: end,
+                        breaks: task.breaks || "Pomodoro 50/10",
+                        aiReasoning: String(task.source_ref || task.activity || ""),
+                        complexity: "High",
+                        status: 'pending'
+                    });
                 });
             });
-        });
+        }
 
         setAiPlan(flatSchedule);
         setMasterPlanData({
@@ -220,7 +234,15 @@ export default function CalendarPage() {
             analysis: planData.strategic_analysis
         });
         setBrainStatus('success');
-        
+
+        // Persist locally
+        try {
+            localStorage.setItem("last_ai_plan", JSON.stringify({ ...planData, daily_schedule: flatSchedule }));
+            localStorage.setItem("last_ai_plan_diag", JSON.stringify({ ...diagnostics, analysis: planData.strategic_analysis, rawResponse: JSON.stringify(planData, null, 2) }));
+        } catch {
+            // ignore
+        }
+
         // AUTO-NAVIGATE to the first date of the plan
         if (flatSchedule.length > 0) {
             const firstDate = flatSchedule[0].date;
@@ -256,20 +278,16 @@ export default function CalendarPage() {
             }
         }
         
-        // Check if it looks like a plan JSON
+        // Check if it looks like a plan JSON (bypass AI if valid)
         if (jsonText.startsWith("{") && (jsonText.includes("daily_schedule") || jsonText.includes("strategic_analysis"))) {
             try {
-                console.log("Detected JSON Input. Parsing directly...");
                 const manualPlan = JSON.parse(jsonText);
-                // Validate minimally
                 if (manualPlan.daily_schedule && Array.isArray(manualPlan.daily_schedule)) {
-                    await new Promise(r => setTimeout(r, 1000)); // Fake processing delay
                     parseAndLoadPlan(manualPlan, "JSON MANUAL PEGADO EN PROMPT");
                     return; // BYPASS AI
                 }
             } catch (e) {
                 console.warn("Input looked like JSON but failed to parse:", e);
-                // Fallthrough to AI if parsing fails
             }
         }
 

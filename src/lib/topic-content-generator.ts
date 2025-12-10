@@ -1,8 +1,7 @@
 /**
- * TOPIC CONTENT GENERATOR - Servicio de Generación de Contenido
- * 
- * Orquesta los agentes para generar contenido de un tema:
- * Librarian -> Auditor -> TimeKeeper -> Strategist
+ * TOPIC CONTENT GENERATOR - Flujo multi-cerebro
+ * Librarian -> Auditor -> TimeKeeper/Planificador -> Strategist -> Orchestrator (final)
+ * Cada paso genera JSON y se guarda en el estado (se puede persistir fuera si se desea).
  */
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -18,15 +17,12 @@ import type {
 } from "./widget-types";
 import { getTopicById, generateBaseHierarchy, TopicWithGroup } from "./syllabus-hierarchy";
 
-// ============================================
-// CONFIGURACIÓN
-// ============================================
-
 const API_KEY = process.env.GEMINI_API_KEY || "";
+const MODEL = "gemini-3-pro-preview";
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 // ============================================
-// CLASE PRINCIPAL DEL GENERADOR
+// CLASE PRINCIPAL
 // ============================================
 
 export class TopicContentGenerator {
@@ -43,19 +39,15 @@ export class TopicContentGenerator {
         this.onStateChange = onStateChange;
     }
 
-    getState(): OrchestrationState {
-        return this.state;
-    }
-
     private updateState(updates: Partial<OrchestrationState>) {
         this.state = { ...this.state, ...updates };
         this.onStateChange?.(this.state);
     }
 
     private updateStep(role: AgentRole, updates: Partial<AgentStep>) {
-        const stepIndex = this.state.steps.findIndex(s => s.role === role);
-        if (stepIndex >= 0) {
-            this.state.steps[stepIndex] = { ...this.state.steps[stepIndex], ...updates };
+        const idx = this.state.steps.findIndex(s => s.role === role);
+        if (idx >= 0) {
+            this.state.steps[idx] = { ...this.state.steps[idx], ...updates };
         } else {
             this.state.steps.push({ role, status: 'pending', ...updates });
         }
@@ -63,112 +55,115 @@ export class TopicContentGenerator {
     }
 
     // ============================================
-    // AGENTE 1: LIBRARIAN
+    // LIBRARIAN: estructura base + evidencia breve
     // ============================================
-
     private async runLibrarian(topic: TopicWithGroup): Promise<{
         structure: TopicSection[];
         documents: string[];
+        evidence: any[];
     }> {
         this.updateState({ currentStep: 'librarian' });
         this.updateStep('librarian', { status: 'running', startedAt: new Date() });
 
+        const structure = generateBaseHierarchy(topic);
+        const documents = [topic.originalFilename];
+        let evidence: any[] = [];
+
         try {
-            // Generar estructura base
-            const structure = generateBaseHierarchy(topic);
+            const model = genAI.getGenerativeModel({ model: MODEL, generationConfig: { responseMimeType: "application/json" } });
+            const prompt = `
+Eres el Bibliotecario. Devuelve evidencia breve (fragmentos) para el tema:
+- Título: "${topic.title}"
+- Grupo: "${topic.groupTitle}"
+- Archivo principal: "${topic.originalFilename}"
 
-            // TODO: Buscar documentos reales en Supabase
-            const documents = [topic.originalFilename];
-
-            this.updateStep('librarian', {
-                status: 'completed',
-                completedAt: new Date(),
-                reasoning: `Encontrado documento principal: ${topic.originalFilename}. Estructura base generada con ${structure[0]?.children?.length || 0} secciones.`,
-                output: { documentCount: documents.length, sectionCount: structure.length }
-            });
-
-            return { structure, documents };
-        } catch (error) {
-            this.updateStep('librarian', {
-                status: 'error',
-                error: String(error),
-                completedAt: new Date()
-            });
-            throw error;
+Salida JSON:
+{
+  "evidence": [
+    { "source_id": "doc-1", "filename": "${topic.originalFilename}", "fragment": "fragmento literal (<=400 chars)", "law_refs": ["ref1","ref2"], "confidence": 0.85 }
+  ],
+  "documents": ["${topic.originalFilename}"]
+}
+No inventes texto largo; resume en frases cortas.`;
+            const res = await model.generateContent(prompt);
+            const json = JSON.parse(res.response.text().replace(/```json/g, "").replace(/```/g, "").trim());
+            evidence = json.evidence || [];
+        } catch {
+            evidence = [];
         }
+
+        this.updateStep('librarian', {
+            status: 'completed',
+            completedAt: new Date(),
+            reasoning: `Estructura base generada. Evidencias: ${evidence.length}.`,
+            output: { documentCount: documents.length, sectionCount: structure.length, evidence }
+        });
+
+        return { structure, documents, evidence };
     }
 
     // ============================================
-    // AGENTE 2: AUDITOR
+    // AUDITOR: gaps + widgets + score
     // ============================================
-
-    private async runAuditor(topic: TopicWithGroup, libraryContext: { documents: string[] }): Promise<{
+    private async runAuditor(topic: TopicWithGroup, library: { documents: string[]; evidence: any[] }): Promise<{
         gaps: string[];
         optimizations: string[];
+        widgets: any[];
+        quality_score: number;
     }> {
         this.updateState({ currentStep: 'auditor' });
         this.updateStep('auditor', {
             status: 'running',
             startedAt: new Date(),
-            input: { topic: topic.title, documents: libraryContext.documents }
+            input: { topic: topic.title, documents: library.documents }
         });
 
+        let parsed: { gaps: string[]; optimizations: string[]; widgets: any[]; quality_score: number } = {
+            gaps: [],
+            optimizations: [],
+            widgets: [],
+            quality_score: 60
+        };
+
         try {
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
-
+            const model = genAI.getGenerativeModel({ model: MODEL, generationConfig: { responseMimeType: "application/json" } });
             const prompt = `
-        Analiza el siguiente tema de oposición y detecta posibles vacíos (GAPS):
-        
-        TEMA: "${topic.title}"
-        DOCUMENTOS DISPONIBLES: ${libraryContext.documents.join(', ')}
-        
-        Tu tarea:
-        1. Identificar conceptos que deberían cubrirse pero no están en los documentos.
-        2. Proponer optimizaciones para mejorar la comprensión.
-        
-        Responde SOLO en JSON con este formato:
-        {
-          "gaps": ["lista de conceptos faltantes"],
-          "optimizations": ["lista de mejoras sugeridas"]
-        }
-      `;
+Analiza el tema y detecta vacíos:
+- Tema: "${topic.title}"
+- Documentos: ${library.documents.join(', ')}
+- Evidencia (recortada): ${JSON.stringify(library.evidence).slice(0, 1200)}...
 
+Responde SOLO JSON:
+{
+  "gaps": ["concepto faltante"],
+  "optimizations": ["mejora"],
+  "widgets": [
+    { "type": "mnemonic|diagram|timeline|quiz|alert", "section": "intro|conceptos|desarrollo|practica", "why": "razón", "prompt": "micro-prompt" }
+  ],
+  "quality_score": 0-100
+}`;
             const result = await model.generateContent(prompt);
             const text = result.response.text();
-
-            // Parsear JSON de la respuesta
-            let parsed: { gaps: string[], optimizations: string[] } = { gaps: [], optimizations: [] };
-            try {
-                const jsonMatch = text.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                    parsed = JSON.parse(jsonMatch[0]);
-                }
-            } catch {
-                parsed = { gaps: ['Análisis general del BOE'], optimizations: ['Añadir ejemplos prácticos'] };
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                parsed = { ...parsed, ...JSON.parse(jsonMatch[0]) };
             }
-
-            this.updateStep('auditor', {
-                status: 'completed',
-                completedAt: new Date(),
-                reasoning: `Detectados ${parsed.gaps.length} vacíos y ${parsed.optimizations.length} optimizaciones.`,
-                output: parsed
-            });
-
-            return parsed;
-        } catch (error) {
-            this.updateStep('auditor', {
-                status: 'error',
-                error: String(error),
-                completedAt: new Date()
-            });
-            throw error;
+        } catch {
+            parsed = parsed;
         }
+
+        this.updateStep('auditor', {
+            status: 'completed',
+            completedAt: new Date(),
+            reasoning: `Gaps: ${parsed.gaps.length}, widgets: ${parsed.widgets.length}, score: ${parsed.quality_score}`,
+            output: parsed
+        });
+        return parsed;
     }
 
     // ============================================
-    // AGENTE 3: TIMEKEEPER
+    // TIMEKEEPER / PLANIFICADOR (simulado, usar plan diario en futuro)
     // ============================================
-
     private async runTimeKeeper(topic: TopicWithGroup): Promise<TimeKeeperDecision> {
         this.updateState({ currentStep: 'timekeeper' });
         this.updateStep('timekeeper', {
@@ -177,168 +172,120 @@ export class TopicContentGenerator {
             input: { topic: topic.title }
         });
 
-        try {
-            // TODO: Consultar al PlannerBrain para obtener tiempo real disponible
-            // Por ahora, simulamos un tiempo moderado
-            const availableMinutes = 45; // Simulado
+        // TODO: Leer plan diario/topic_time_estimates; por ahora heurística
+        const availableMinutes = 60;
+        let strategy: ConcisionStrategy = 'balanced';
+        let recommendedTokens = 2000;
+        let widgetBudget = 5;
 
-            let strategy: ConcisionStrategy;
-            let recommendedTokens: number;
-            let widgetBudget: number;
+        if (availableMinutes < 20) { strategy = 'executive_summary'; recommendedTokens = 500; widgetBudget = 2; }
+        else if (availableMinutes < 40) { strategy = 'condensed'; recommendedTokens = 1200; widgetBudget = 3; }
+        else if (availableMinutes < 90) { strategy = 'balanced'; recommendedTokens = 2200; widgetBudget = 5; }
+        else { strategy = 'detailed'; recommendedTokens = 4000; widgetBudget = 8; }
 
-            if (availableMinutes < 15) {
-                strategy = 'executive_summary';
-                recommendedTokens = 500;
-                widgetBudget = 2;
-            } else if (availableMinutes < 30) {
-                strategy = 'condensed';
-                recommendedTokens = 1000;
-                widgetBudget = 3;
-            } else if (availableMinutes < 60) {
-                strategy = 'balanced';
-                recommendedTokens = 2000;
-                widgetBudget = 5;
-            } else if (availableMinutes < 120) {
-                strategy = 'detailed';
-                recommendedTokens = 4000;
-                widgetBudget = 8;
-            } else {
-                strategy = 'exhaustive';
-                recommendedTokens = 8000;
-                widgetBudget = 12;
-            }
+        const decision: TimeKeeperDecision = {
+            availableMinutes,
+            recommendedTokens,
+            strategy,
+            widgetBudget
+        };
 
-            const decision: TimeKeeperDecision = {
-                availableMinutes,
-                recommendedTokens,
-                strategy,
-                widgetBudget
-            };
+        this.updateStep('timekeeper', {
+            status: 'completed',
+            completedAt: new Date(),
+            output: decision,
+            reasoning: `Estrategia: ${strategy}, min: ${availableMinutes}, widgets: ${widgetBudget}`
+        });
 
-            this.updateStep('timekeeper', {
-                status: 'completed',
-                completedAt: new Date(),
-                reasoning: `Tiempo disponible: ${availableMinutes}min. Estrategia: "${strategy}". Límite de widgets: ${widgetBudget}.`,
-                output: decision
-            });
-
-            return decision;
-        } catch (error) {
-            this.updateStep('timekeeper', {
-                status: 'error',
-                error: String(error),
-                completedAt: new Date()
-            });
-            throw error;
-        }
+        return decision;
     }
 
     // ============================================
-    // AGENTE 4: STRATEGIST
+    // STRATEGIST: outline refinado + widgets placeholders
     // ============================================
-
     private async runStrategist(
         topic: TopicWithGroup,
         structure: TopicSection[],
-        gaps: string[],
+        auditorData: { gaps: string[]; optimizations: string[]; widgets?: any[] },
         timeDecision: TimeKeeperDecision
     ): Promise<GeneratedTopicContent> {
         this.updateState({ currentStep: 'strategist' });
         this.updateStep('strategist', {
             status: 'running',
             startedAt: new Date(),
-            input: { gaps, strategy: timeDecision.strategy, tokenLimit: timeDecision.recommendedTokens }
+            input: { gaps: auditorData.gaps, strategy: timeDecision.strategy, tokenLimit: timeDecision.recommendedTokens }
         });
 
+        let parsed: any = { sections: structure, widgets: [] };
         try {
             const model = genAI.getGenerativeModel({
-                model: "gemini-1.5-pro-latest",
+                model: MODEL,
                 generationConfig: { responseMimeType: "application/json" }
             });
 
             const prompt = `
-        Eres un experto ingeniero y profesor. Genera contenido de estudio para este tema de oposición.
-        
-        TEMA: "${topic.title}"
-        ESTRATEGIA: "${timeDecision.strategy}" (${timeDecision.recommendedTokens} tokens máximo)
-        GAPS A CUBRIR: ${gaps.join(', ') || 'Ninguno detectado'}
-        WIDGETS MÁXIMOS: ${timeDecision.widgetBudget}
-        
-        INSTRUCCIONES:
-        1. Genera contenido claro y conciso adaptado a la estrategia.
-        2. Incluye widgets donde sean útiles (mnemonic, timeline, diagram, analogy, quiz).
-        3. Marca contenido augmentado (generado por ti) vs biblioteca.
-        
-        RESPONDE SOLO EN JSON con esta estructura:
-        {
-          "sections": [
-            {
-              "id": "string",
-              "title": "string",
-              "level": "h1|h2|h3",
-              "sourceType": "library|augmented|mixed",
-              "content": {
-                "text": "contenido de la sección...",
-                "widgets": [
-                  { "type": "mnemonic", "content": { "rule": "ABC", "explanation": "..." }, "generatable": false }
-                ]
-              },
-              "children": []
-            }
-          ]
-        }
-      `;
+Eres el Estratega. Genera contenido y widgets listos para disparar manualmente.
+
+Tema: "${topic.title}" (Grupo: "${topic.groupTitle}")
+Gaps: ${auditorData.gaps.join(', ') || 'Ninguno'}
+Optimizations: ${auditorData.optimizations.join(', ') || 'Ninguna'}
+Widgets sugeridos (Auditor): ${JSON.stringify(auditorData.widgets || [])}
+Plan: estrategia ${timeDecision.strategy}, tokens ${timeDecision.recommendedTokens}, widget_budget ${timeDecision.widgetBudget}
+
+Estructura base:
+${JSON.stringify(structure, null, 2)}
+
+Instrucciones:
+- Refina la estructura con bullets claros por sección.
+- Inserta widgets como placeholders con prompts accionables; no generes el widget completo si no es trivial.
+- Respeta presupuesto de widgets y tono según estrategia (executive/condensed/balanced/detailed/exhaustive).
+
+RESPUESTA SOLO JSON:
+{
+  "sections": [...],
+  "widgets": [
+    { "type": "mnemonic|timeline|diagram|quiz|alert", "title": "string", "prompt": "micro prompt", "section": "Visión General|Conceptos Clave|Desarrollo del Contenido|Aplicación Práctica" }
+  ]
+}
+`;
 
             const result = await model.generateContent(prompt);
             const text = result.response.text();
-
-            let parsed = { sections: structure };
             try {
                 parsed = JSON.parse(text);
             } catch {
-                // Si falla el parsing, usar estructura base con mensaje de error
-                if (parsed.sections[0]) {
-                    parsed.sections[0].content = {
-                        text: 'Error al generar contenido. Por favor, intenta de nuevo.',
-                        widgets: []
-                    };
-                }
+                parsed = { sections: structure, widgets: [] };
             }
-
-            const generatedContent: GeneratedTopicContent = {
-                topicId: topic.id,
-                title: topic.title,
-                metadata: {
-                    complexity: 'Medium',
-                    estimatedStudyTime: timeDecision.availableMinutes,
-                    sourceDocuments: [topic.originalFilename],
-                    generatedAt: new Date()
-                },
-                sections: parsed.sections
-            };
-
-            this.updateStep('strategist', {
-                status: 'completed',
-                completedAt: new Date(),
-                reasoning: `Contenido generado con ${parsed.sections.length} secciones. Estrategia: ${timeDecision.strategy}.`,
-                output: { sectionCount: parsed.sections.length }
-            });
-
-            return generatedContent;
-        } catch (error) {
-            this.updateStep('strategist', {
-                status: 'error',
-                error: String(error),
-                completedAt: new Date()
-            });
-            throw error;
+        } catch {
+            parsed = { sections: structure, widgets: [] };
         }
+
+        const generatedContent: GeneratedTopicContent = {
+            topicId: topic.id,
+            title: topic.title,
+            metadata: {
+                complexity: 'Medium',
+                estimatedStudyTime: timeDecision.availableMinutes,
+                sourceDocuments: [topic.originalFilename],
+                generatedAt: new Date()
+            },
+            sections: parsed.sections,
+            widgets: parsed.widgets || []
+        };
+
+        this.updateStep('strategist', {
+            status: 'completed',
+            completedAt: new Date(),
+            reasoning: `Secciones: ${parsed.sections?.length || 0}, widgets: ${(parsed.widgets || []).length}. Estrategia: ${timeDecision.strategy}.`,
+            output: { sectionCount: parsed.sections?.length || 0, widgetCount: (parsed.widgets || []).length }
+        });
+
+        return generatedContent;
     }
 
     // ============================================
-    // ORQUESTACIÓN PRINCIPAL
+    // ORQUESTACIÓN PRINCIPAL (sin auto-guardar)
     // ============================================
-
     async generate(): Promise<GeneratedTopicContent> {
         const topic = getTopicById(this.state.topicId);
         if (!topic) {
@@ -348,21 +295,22 @@ export class TopicContentGenerator {
         this.updateState({ status: 'fetching' });
 
         try {
-            // 1. Librarian: Obtener estructura y documentos
-            const { structure, documents } = await this.runLibrarian(topic);
+            // 1. Librarian
+            const librarian = await this.runLibrarian(topic);
 
-            // 2. Auditor: Detectar gaps
+            // 2. Auditor
             this.updateState({ status: 'analyzing' });
-            const { gaps, optimizations } = await this.runAuditor(topic, { documents });
+            const auditor = await this.runAuditor(topic, { documents: librarian.documents, evidence: librarian.evidence });
 
-            // 3. TimeKeeper: Determinar estrategia de tiempo
+            // 3. TimeKeeper / Planificador
             this.updateState({ status: 'planning' });
-            const timeDecision = await this.runTimeKeeper(topic);
+            const plan = await this.runTimeKeeper(topic);
 
-            // 4. Strategist: Generar contenido final
+            // 4. Strategist
             this.updateState({ status: 'generating' });
-            const result = await this.runStrategist(topic, structure, gaps, timeDecision);
+            const result = await this.runStrategist(topic, librarian.structure, auditor, plan);
 
+            // 5. Final
             this.updateState({
                 status: 'completed',
                 currentStep: null,
@@ -380,10 +328,7 @@ export class TopicContentGenerator {
     }
 }
 
-// ============================================
-// FUNCIÓN HELPER
-// ============================================
-
+// Helper
 export async function generateTopicContent(
     topicId: string,
     onStateChange?: (state: OrchestrationState) => void
