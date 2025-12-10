@@ -82,21 +82,37 @@ export async function triggerAnalysis(customPrompt: string) {
         // Using the most capable model available
         const model = genai.getGenerativeModel({ model: "models/gemini-3-pro-preview" });
 
+        // Initialize classification containers
+        const coreFiles: any[] = [];
+        const supplementaryFiles: any[] = [];
+
+        // Pre-classify based on DB truth
+        files.forEach(f => {
+            const cat = f.currentCategory?.toUpperCase() || "";
+            if (cat.includes("SUPPLEMENTARY")) {
+                supplementaryFiles.push(f);
+            } else {
+                coreFiles.push(f);
+            }
+        });
+
+        console.log(`🤖 Pre-classification: ${coreFiles.length} Core, ${supplementaryFiles.length} Supplementary`);
+
         const fullPrompt = `
         ${customPrompt}
 
-DATASET:
-        Here is the database of files to organize. 
-        Each entry has:
-        - "filename": The name of the file
-        - "currentCategory": The DB tag (STRICTLY for Supplementary)
-        - "excerpt": The start of the document content. USE THIS TO UNDERSTAND THE TOPIC if the title is ambiguous.
-        
-        STRICT RULE: Check "currentCategory" for EVERY file.
-        - If "currentCategory" IS "Supplementary" (or matches supplementary), you MUST place it in "Material Suplementario".
-        - NEVER place a Supplementary file in a core engineering block.
+        I have split the files into two lists for you.
 
-        ${JSON.stringify(files)}
+        LIST 1: CORE STUDY MATERIAL (Organize these carefully by topic)
+        ${JSON.stringify(coreFiles)}
+
+        LIST 2: SUPPLEMENTARY MATERIAL (Force ALL of these into a single group called "Material Suplementario")
+        ${JSON.stringify(supplementaryFiles)}
+
+        INSTRUCTIONS:
+        1. Analyze LIST 1 and group them into the engineering domains (Aguas, Costas, Carreteras, Medio Ambiente, etc.).
+        2. Create a separate group called "Material Suplementario" and put EVERY file from LIST 2 into it.
+        3. Do NOT mix them. List 2 files MUST go to "Material Suplementario".
 
         RETURN ONLY JSON.
         `;
