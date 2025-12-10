@@ -47,10 +47,17 @@ export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onAc
                     </div>
                     <div className="flex gap-2">
                         {onLoadBlitzkrieg && (
-                            <button onClick={onLoadBlitzkrieg} className="px-3 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-bold rounded border border-red-500/30 uppercase tracking-wider transition-colors">
-                                Importar Blitzkrieg
+                            <button onClick={onLoadBlitzkrieg} className="px-3 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs font-bold rounded border border-blue-500/30 uppercase tracking-wider transition-colors">
+                                Cargar Preset 'Blitzkrieg'
                             </button>
                         )}
+                        <button
+                            onClick={() => onPromptChange("")}
+                            className="px-3 py-1 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white text-xs font-bold rounded border border-white/10 uppercase tracking-wider transition-colors flex items-center gap-2"
+                            title="Limpiar Prompt"
+                        >
+                            <Copy className="w-3 h-3" /> Limpiar
+                        </button>
                         <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
                             <X className="w-5 h-5 text-white/50" />
                         </button>
