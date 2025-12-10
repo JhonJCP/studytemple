@@ -3,6 +3,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from "@/utils/supabase/server";
 import { DEFAULT_SYLLABUS } from "@/lib/default-syllabus";
+import fs from "fs-extra";
+import path from "path";
 
 const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || "");
 
@@ -113,9 +115,10 @@ export async function generateDeepPlan(constraints: any) {
         const masterPlan = JSON.parse(text);
 
         // Store in DB (We save the schedule part, maybe we can save the analysis later or in a separate field)
+        // USER REQUEST: Do NOT auto-program. Save to "memory" (file) for review.
+        /* 
         const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();
-
         if (user) {
             // We'll store the schedule as usual
             await supabase.from('study_plans').upsert({
@@ -126,14 +129,26 @@ export async function generateDeepPlan(constraints: any) {
                 goal_date: constraints.goalDate
             });
         }
+        */
+
+        // Save to File System ("Memory")
+        const memoryPath = path.join(process.cwd(), 'src', 'data', 'latest-ai-plan.json');
+        await fs.ensureDir(path.dirname(memoryPath));
+        await fs.writeJson(memoryPath, {
+            ...masterPlan,
+            meta: {
+                constraints,
+                generatedAt: new Date().toISOString()
+            }
+        }, { spaces: 2 });
 
         return {
             success: true,
-            schedule: masterPlan.daily_schedule, // Return schedule for Calendar Grid
+            schedule: masterPlan.daily_schedule, // Return schedule for Calendar Grid PREVIEW
             diagnostics: {
-                prompt, // Keep prompt for debugging
-                rawResponse: text, // Raw JSON
-                analysis: masterPlan.strategic_analysis // Pass analysis to frontend
+                prompt,
+                rawResponse: text,
+                analysis: masterPlan.strategic_analysis
             }
         };
     } catch (error) {
