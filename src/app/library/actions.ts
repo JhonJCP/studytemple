@@ -28,7 +28,8 @@ function getFileList() {
     }
 }
 
-export const maxDuration = 300; // Allow up to 5 minutes for deep reasoning
+// maxDuration configuration should be in the page.tsx or next.config.js for Server Actions
+// export const maxDuration = 300; 
 
 const STATUS_FILE = path.join(process.cwd(), "src", "lib", "analysis-status.json");
 

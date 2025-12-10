@@ -9,6 +9,8 @@ import { SyllabusBrain } from "@/components/SyllabusBrain";
 // Import the AI-generated syllabus directly
 import smartSyllabus from "@/lib/smart-syllabus.json";
 
+export const maxDuration = 300; // Allow 5 minutes for Server Actions used on this page
+
 export default function LibraryPage() {
     const supabase = createClient();
     const [searchQuery, setSearchQuery] = useState("");
