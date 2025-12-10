@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { Brain, Play, Save, RotateCcw, ChevronRight, ChevronDown } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Brain, Play, Save, RotateCcw } from "lucide-react";
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import Editor from "@monaco-editor/react";
-import { analyzeSyllabusAction, saveSyllabusAction } from "@/app/library/actions";
+import { triggerAnalysis, getAnalysisStatus, saveSyllabusAction } from "@/app/library/actions";
 import { toast } from "sonner";
 
 const DEFAULT_PROMPT = `You are an expert Librarian and Civil Engineer building a syllabus for 'Ingenieros Técnicos de Obras Públicas'.
@@ -41,18 +41,57 @@ export function SyllabusBrain() {
     const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
     const [analyzing, setAnalyzing] = useState(false);
     const [result, setResult] = useState<any>(null);
+    const [elapsed, setElapsed] = useState(0);
+
+    // Poll status on mount and when analyzing
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        let timer: NodeJS.Timeout;
+
+        const checkStatus = async () => {
+            const status = await getAnalysisStatus();
+            if (status.state === "processing") {
+                setAnalyzing(true);
+                // Sync elapsed time if possible, or just increment
+                if (status.startedAt) {
+                    setElapsed(Math.floor((Date.now() - status.startedAt) / 1000));
+                }
+            } else if (status.state === "completed") {
+                setAnalyzing(false);
+                setResult(status.result);
+                // toast.success("Analysis ready!"); // Optional noise
+            } else if (status.state === "error") {
+                setAnalyzing(false);
+                toast.error("Error en análisis previo: " + status.error);
+            }
+        };
+
+        if (isOpen) {
+            checkStatus(); // Initial check when opened
+        }
+
+        if (analyzing && isOpen) {
+            interval = setInterval(checkStatus, 3000); // Check every 3s
+            timer = setInterval(() => setElapsed(prev => prev + 1), 1000);
+        }
+
+        return () => {
+            clearInterval(interval);
+            clearInterval(timer);
+        };
+    }, [analyzing, isOpen]);
 
     const handleAnalyze = async () => {
         setAnalyzing(true);
-        const res = await analyzeSyllabusAction(prompt);
-        setAnalyzing(false);
+        setElapsed(0);
+        setResult(null);
 
-        if (res.success) {
-            setResult(res.data);
-            toast.success("Análisis completado. Revisa la estructura.");
-        } else {
-            toast.error("Error en el análisis: " + res.error);
-        }
+        // Trigger is fire-and-forget-ish (Server Action waits, client re-renders and polls)
+        triggerAnalysis(prompt).catch(err => {
+            console.error("Trigger failed", err);
+            setAnalyzing(false);
+            toast.error("No se pudo iniciar el análisis.");
+        });
     };
 
     const handleSave = async () => {
@@ -82,7 +121,7 @@ export function SyllabusBrain() {
                         Cerebro del Bibliotecario
                     </DialogTitle>
                     <DialogDescription>
-                        Supervisa y modifica las instrucciones de la IA para organizar tu temario.
+                        Supervisa y modifica las instrucciones de la IA (Gemini 3 Pro) para organizar tu temario.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -102,7 +141,7 @@ export function SyllabusBrain() {
                         </div>
                         <Button onClick={handleAnalyze} disabled={analyzing} className="w-full bg-purple-600 hover:bg-purple-700">
                             {analyzing ? <RotateCcw className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
-                            {analyzing ? "Analizando Documentos..." : "Ejecutar Análisis"}
+                            {analyzing ? `Analizando Documentos (${elapsed}s)...` : "Ejecutar Análisis"}
                         </Button>
                     </div>
 
@@ -110,18 +149,23 @@ export function SyllabusBrain() {
                     <div className="w-1/2 flex flex-col gap-2">
                         <h3 className="text-sm font-bold text-white/60 uppercase tracking-widest">Resultado (Previsualización)</h3>
                         <div className="flex-1 bg-black/50 border border-white/10 rounded-xl overflow-y-auto p-4 custom-scrollbar font-mono text-xs">
-                            {result ? (
+                            {analyzing ? (
+                                <div className="h-full flex flex-col items-center justify-center text-purple-400 gap-4">
+                                    <div className="relative">
+                                        <div className="absolute inset-0 bg-purple-500/20 blur-xl rounded-full animate-pulse" />
+                                        <Brain className="w-16 h-16 relative z-10 animate-bounce" />
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-lg font-bold">Razonando Estructura...</p>
+                                        <p className="text-white/50 text-sm">Gemini 3 Pro está leyendo {elapsed}s</p>
+                                        <p className="text-white/30 text-xs mt-2 max-w-xs">Puedes cerrar esta ventana, el proceso continuará en segundo plano.</p>
+                                    </div>
+                                </div>
+                            ) : result ? (
                                 <JSONTree data={result} />
                             ) : (
                                 <div className="h-full flex items-center justify-center text-white/20 italic">
-                                    {analyzing ? (
-                                        <div className="flex flex-col items-center justify-center gap-2 text-purple-400">
-                                            <RotateCcw className="w-8 h-8 animate-spin" />
-                                            <p>Razonando estructura...</p>
-                                        </div>
-                                    ) : (
-                                        "Ejecuta el análisis para ver la estructura propuesta..."
-                                    )}
+                                    Ejecuta el análisis para ver la estructura propuesta...
                                 </div>
                             )}
                         </div>
