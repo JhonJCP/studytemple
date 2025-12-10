@@ -317,16 +317,6 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
                 .replace(/^[\s\n\r]+/, '') // Remove leading whitespace/newlines
                 .trim();
             
-            // Show the raw content in the prompt area first
-            setDiagnostics(prev => ({
-                prompt: cleanedText.substring(0, 5000) + (cleanedText.length > 5000 ? "\n\n... (truncado para visualización)" : ""),
-                rawResponse: "",
-                analysis: "⏳ Procesando JSON... Por favor espera."
-            }));
-            
-            // Small delay so user sees the content
-            await new Promise(r => setTimeout(r, 300));
-            
             // Try to find JSON object in the text (in case there's markdown code blocks)
             let jsonText = cleanedText;
             const jsonMatch = cleanedText.match(/```json\s*([\s\S]*?)\s*```/);
@@ -341,18 +331,28 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
                 }
             }
 
-            // Validate it's valid JSON with daily_schedule
+            // Quick validation that it's valid JSON
             const planData = JSON.parse(jsonText);
             
             if (!planData.daily_schedule || !Array.isArray(planData.daily_schedule)) {
                 throw new Error("El JSON no contiene 'daily_schedule' válido. Asegúrate de copiar el JSON completo del plan.");
             }
 
+            // Count days and tasks for preview info
+            const numDays = planData.daily_schedule.length;
+            const numTasks = planData.daily_schedule.reduce((acc: number, day: any) => acc + (day.tasks?.length || 0), 0);
+            const firstDate = planData.daily_schedule[0]?.date || "?";
+            const lastDate = planData.daily_schedule[numDays - 1]?.date || "?";
+
             console.log("✅ JSON válido detectado desde portapapeles", planData);
             
-            // Parse and load the plan
-            parseAndLoadPlan(planData, "PLAN PEGADO DESDE PORTAPAPELES");
-            console.log("✅ Plan cargado desde portapapeles. Recuerda guardar.");
+            // DON'T process yet - just show the JSON for review
+            setBrainStatus('idle');
+            setDiagnostics({
+                prompt: jsonText,
+                rawResponse: "",
+                analysis: `✅ JSON PEGADO CORRECTAMENTE\n\n📊 RESUMEN DEL PLAN:\n• Días programados: ${numDays}\n• Tareas totales: ${numTasks}\n• Período: ${firstDate} → ${lastDate}\n• Análisis estratégico: ${planData.strategic_analysis ? "Incluido ✓" : "No incluido"}\n\n---\n\n👀 REVISA el JSON en el panel izquierdo.\n\n▶️ Si es correcto, haz clic en "EJECUTAR ANÁLISIS" para cargar el plan en el calendario.\n\n💾 Después de cargar, haz clic en "GUARDAR PLAN" para guardarlo en memoria.`
+            });
             
         } catch (error: any) {
             console.error("Error al pegar desde portapapeles:", error);
@@ -360,7 +360,7 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
             
             // Check for specific clipboard permission error
             let errorMessage = error?.message || String(error);
-            if (errorMessage.includes("denied") || errorMessage.includes("permission") || errorMessage.includes("NotAllowed")) {
+            if (errorMessage.includes("denied") || errorMessage.includes("permission") || errorMessage.includes("NotAllowed") || errorMessage.includes("focused")) {
                 errorMessage = "⚠️ PERMISO DENEGADO\n\nEl navegador bloqueó el acceso al portapapeles.\n\nSOLUCIÓN ALTERNATIVA:\n1. Pega manualmente el JSON en el área de texto de la izquierda (Ctrl+V)\n2. Haz clic en 'Ejecutar Análisis'\n\nO permite el acceso al portapapeles en la configuración del navegador.";
             } else {
                 errorMessage = `ERROR AL PROCESAR:\n\n${errorMessage}\n\n---\nAsegúrate de que:\n1. Has copiado el JSON completo del plan\n2. El JSON contiene "daily_schedule" con un array de días\n3. El formato de fechas es "DD-MM-YYYY"`;
