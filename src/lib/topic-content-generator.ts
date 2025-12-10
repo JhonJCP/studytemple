@@ -237,12 +237,25 @@ ${JSON.stringify(structure, null, 2)}
 
 Instrucciones:
 - Refina la estructura con bullets claros por sección.
+- Genera texto explicativo por sección (<= 400 palabras) en "content.text".
 - Inserta widgets como placeholders con prompts accionables; no generes el widget completo si no es trivial.
 - Respeta presupuesto de widgets y tono según estrategia (executive/condensed/balanced/detailed/exhaustive).
 
 RESPUESTA SOLO JSON:
 {
-  "sections": [...],
+  "sections": [
+    {
+      "id": "string",
+      "title": "string",
+      "level": "h1|h2|h3",
+      "sourceType": "library|augmented|mixed",
+      "content": {
+        "text": "texto explicativo",
+        "widgets": []
+      },
+      "children": []
+    }
+  ],
   "widgets": [
     { "type": "mnemonic|timeline|diagram|quiz|alert", "title": "string", "prompt": "micro prompt", "section": "Visión General|Conceptos Clave|Desarrollo del Contenido|Aplicación Práctica" }
   ]
@@ -250,15 +263,30 @@ RESPUESTA SOLO JSON:
 `;
 
             const result = await model.generateContent(prompt);
-            const text = result.response.text();
+            const rawText = result.response.text();
             try {
-                parsed = JSON.parse(text);
+                const cleaned = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+                const firstBrace = cleaned.indexOf("{");
+                const lastBrace = cleaned.lastIndexOf("}");
+                const jsonText = firstBrace >= 0 && lastBrace > firstBrace ? cleaned.substring(firstBrace, lastBrace + 1) : cleaned;
+                parsed = JSON.parse(jsonText);
             } catch {
                 parsed = { sections: structure, widgets: [] };
             }
         } catch {
             parsed = { sections: structure, widgets: [] };
         }
+
+        // Asegurar que haya texto en content.text aunque sea placeholder
+        const safeSections = (parsed.sections || structure).map((s: any, idx: number) => ({
+            ...s,
+            id: s.id || `sec-${idx}`,
+            content: {
+                text: s.content?.text || 'Contenido generado. Expande para ver detalles.',
+                widgets: s.content?.widgets || []
+            },
+            children: s.children || []
+        }));
 
         const generatedContent: GeneratedTopicContent = {
             topicId: topic.id,
@@ -269,7 +297,7 @@ RESPUESTA SOLO JSON:
                 sourceDocuments: [topic.originalFilename],
                 generatedAt: new Date()
             },
-            sections: parsed.sections,
+            sections: safeSections,
             widgets: parsed.widgets || []
         };
 
