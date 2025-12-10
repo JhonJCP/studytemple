@@ -17,7 +17,8 @@ import {
     ChevronRight,
     ChevronDown,
     Truck,
-    Leaf
+    Leaf,
+    Settings
 } from "lucide-react";
 import { useState } from "react";
 import { DEFAULT_SYLLABUS } from "@/lib/default-syllabus";
@@ -88,6 +89,7 @@ export function Sidebar() {
                 <NavItem href="/library" icon={BookOpen} label="Gran Biblioteca" active={pathname === "/library"} />
                 <NavItem href="/dojo" icon={Swords} label="El Dojo" active={pathname === "/dojo"} />
                 <NavItem href="/calendar" icon={Calendar} label="Calendario" active={pathname === "/calendar"} />
+                <NavItem href="/settings" icon={Settings} label="Configuración" active={pathname === "/settings"} />
             </nav>
 
             {/* Syllabus Tree */}
