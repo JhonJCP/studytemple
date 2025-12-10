@@ -30,6 +30,7 @@ interface SyllabusGroup {
 
 interface WrapperProps {
     data: { groups: SyllabusGroup[] };
+    initialOpenTopicId?: string;
 }
 
 // Icon mapping logic
@@ -44,8 +45,19 @@ const getIconForTitle = (title: string) => {
     return Book;
 };
 
-export function LibraryStacks({ data }: WrapperProps) {
-    const [openCategory, setOpenCategory] = useState<string | null>(data.groups[0]?.title || null);
+export function LibraryStacks({ data, initialOpenTopicId }: WrapperProps) {
+    // Find group to open
+    const findGroupForTopic = (fileId: string) => {
+        return data.groups.find(g => g.topics.some(t => t.originalFilename === fileId))?.title;
+    };
+
+    const [openCategory, setOpenCategory] = useState<string | null>(() => {
+        if (initialOpenTopicId) {
+            const group = findGroupForTopic(initialOpenTopicId);
+            if (group) return group;
+        }
+        return data.groups[0]?.title || null;
+    });
 
     const toggleCategory = (title: string) => {
         setOpenCategory(prev => prev === title ? null : title);
@@ -126,41 +138,50 @@ export function LibraryStacks({ data }: WrapperProps) {
                                         <div className="h-px w-full bg-white/10 mb-4" />
 
                                         <div className="flex flex-col gap-2">
-                                            {group.topics.map((topic, tIdx) => (
-                                                <div
-                                                    key={tIdx}
-                                                    className="group flex items-center justify-between p-3 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/5 transition-all"
-                                                >
-                                                    <div className="flex items-center gap-4 overflow-hidden">
-                                                        <FileText className="w-5 h-5 text-primary/40 group-hover:text-primary min-w-[20px]" />
-                                                        <div className="truncate">
-                                                            <span className="text-white/80 text-sm font-medium group-hover:text-white transition-colors block truncate">
-                                                                {topic.title}
-                                                            </span>
-                                                            <span className="text-xs text-white/30 truncate block max-w-md">
-                                                                {topic.originalFilename}
-                                                            </span>
+                                            {group.topics.map((topic, tIdx) => {
+                                                const isHighlighted = initialOpenTopicId === topic.originalFilename;
+                                                return (
+                                                    <div
+                                                        key={tIdx}
+                                                        ref={isHighlighted ? (el) => { el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } : null}
+                                                        className={cn(
+                                                            "group flex items-center justify-between p-3 rounded-lg border transition-all",
+                                                            isHighlighted
+                                                                ? "bg-purple-500/20 border-purple-500/50 shadow-inner"
+                                                                : "border-transparent hover:bg-white/5 hover:border-white/5"
+                                                        )}
+                                                    >
+                                                        <div className="flex items-center gap-4 overflow-hidden">
+                                                            <FileText className="w-5 h-5 text-primary/40 group-hover:text-primary min-w-[20px]" />
+                                                            <div className="truncate">
+                                                                <span className="text-white/80 text-sm font-medium group-hover:text-white transition-colors block truncate">
+                                                                    {topic.title}
+                                                                </span>
+                                                                <span className="text-xs text-white/30 truncate block max-w-md">
+                                                                    {topic.originalFilename}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); handleOpenFile(topic.originalFilename); }}
+                                                                className="p-2 rounded-lg bg-white/5 hover:bg-primary hover:text-black text-white/60 transition-colors"
+                                                                title="Ver Documento"
+                                                            >
+                                                                <Eye className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); handleOpenFile(topic.originalFilename, true); }}
+                                                                className="p-2 rounded-lg bg-white/5 hover:bg-white/20 text-white/60 transition-colors"
+                                                                title="Descargar Original"
+                                                            >
+                                                                <Download className="w-4 h-4" />
+                                                            </button>
                                                         </div>
                                                     </div>
-
-                                                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); handleOpenFile(topic.originalFilename); }}
-                                                            className="p-2 rounded-lg bg-white/5 hover:bg-primary hover:text-black text-white/60 transition-colors"
-                                                            title="Ver Documento"
-                                                        >
-                                                            <Eye className="w-4 h-4" />
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); handleOpenFile(topic.originalFilename, true); }}
-                                                            className="p-2 rounded-lg bg-white/5 hover:bg-white/20 text-white/60 transition-colors"
-                                                            title="Descargar Original"
-                                                        >
-                                                            <Download className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
 
                                             {group.topics.length === 0 && (
                                                 <div className="text-center py-8 text-white/20 text-sm italic">

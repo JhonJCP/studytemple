@@ -42,6 +42,12 @@ export default function LibraryPage() {
     const data = libraryData || DEFAULT_SYLLABUS;
     const totalDocs = data.groups?.reduce((acc: any, g: any) => acc + g.topics.length, 0) || 0;
 
+    // Parse search params for auto-opening
+    // In Next.js 15+ or structured apps, usually we use useSearchParams() hook
+    // but here we might need to import it.
+    const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const initialOpenTopicId = searchParams?.get('open');
+
     return (
         <div className="min-h-screen bg-background p-8 pb-32">
             {/* Header Area */}
@@ -86,7 +92,11 @@ export default function LibraryPage() {
             </div>
 
             {/* The New AI-Organized Stacks */}
-            <LibraryStacks data={data} key={JSON.stringify(data)} />
+            <LibraryStacks
+                data={data}
+                key={JSON.stringify(data)}
+                initialOpenTopicId={initialOpenTopicId || undefined}
+            />
 
         </div>
     );
