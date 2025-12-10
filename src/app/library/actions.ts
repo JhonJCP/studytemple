@@ -15,7 +15,7 @@ async function fetchFilesFromDatabase() {
         // Fetch metadata ONLY for the first chunk of each file to avoid duplicates (20k chunks -> ~200 files)
         const { data, error } = await supabase
             .from("library_documents")
-            .select("metadata")
+            .select("metadata, content") // Get content too
             .contains("metadata", { chunk_index: 0 }); // Filter JSONB
 
         if (error) {
@@ -30,11 +30,13 @@ async function fetchFilesFromDatabase() {
 
         console.log(`✅ Found ${data.length} documents in DB.`);
 
-        // Map to specialized object for AI
+        // Map to specialized object for AI with content excerpt
         return data.map((doc: any) => ({
             filename: doc.metadata?.filename || "Unknown.pdf",
             // Trust the database category
-            currentCategory: doc.metadata?.category || "Uncategorized"
+            currentCategory: doc.metadata?.category || "Uncategorized",
+            // Give context for better understanding
+            excerpt: doc.content ? doc.content.substring(0, 1000) : "No text available"
         }));
     } catch (e) {
         console.error("🔥 Critical DB Fetch Exception:", e);
@@ -74,7 +76,7 @@ export async function triggerAnalysis(customPrompt: string) {
     try {
         console.log("🚀 Starting DEEP analysis with Gemini 3 Pro...");
 
-        // Fetch rich file list (filename + currentCategory) from DB
+        // Fetch rich file list (filename + currentCategory + excerpt) from DB
         const files = await fetchFilesFromDatabase();
 
         // Using the most capable model available
@@ -85,7 +87,10 @@ export async function triggerAnalysis(customPrompt: string) {
 
 DATASET:
         Here is the database of files to organize. 
-        Each entry has "filename" and "currentCategory".
+        Each entry has:
+        - "filename": The name of the file
+        - "currentCategory": The DB tag (STRICTLY for Supplementary)
+        - "excerpt": The start of the document content. USE THIS TO UNDERSTAND THE TOPIC if the title is ambiguous.
         
         STRICT RULE: Check "currentCategory" for EVERY file.
         - If "currentCategory" IS "Supplementary" (or matches supplementary), you MUST place it in "Material Suplementario".
