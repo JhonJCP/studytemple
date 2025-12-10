@@ -94,15 +94,30 @@ export function getTopicById(topicId: string): TopicWithGroup | undefined {
             .replace(/[^a-z0-9]+/g, "-")
             .replace(/^-+|-+$/g, "");
 
+    const loose = (s: string) =>
+        s.toLowerCase()
+            .replace(/\.[A-Za-z0-9]+$/, "")
+            .replace(/[^a-z0-9]/g, ""); // remove all non-alnum for loose match
+
     try {
         return allTopics.find(t => {
             const normalizedOriginal = normalize(t.originalFilename);
             const normalizedTitle = normalize(t.title);
+            const slugOriginal = slugify(normalizedOriginal);
+            const slugTitle = slugify(normalizedTitle);
+            const looseOriginal = loose(normalizedOriginal);
+            const looseTitle = loose(normalizedTitle);
+            const looseId = loose(normalizedId);
+            const slugId = slugify(normalizedId);
             return (
                 normalizedOriginal === normalizedId ||
                 normalizedTitle === normalizedId ||
-                slugify(normalizedOriginal) === slugify(normalizedId) ||
-                slugify(normalizedTitle) === slugify(normalizedId)
+                slugOriginal === slugId ||
+                slugTitle === slugId ||
+                looseOriginal === looseId ||
+                looseTitle === looseId ||
+                looseId.includes(looseTitle) ||
+                looseTitle.includes(looseId)
             );
         });
     } catch {
