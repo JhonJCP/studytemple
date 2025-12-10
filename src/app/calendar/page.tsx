@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { generateSmartSchedule, StudyPlan, ScheduledSession } from "@/lib/planner-brain";
 import { CalendarGrid } from "@/components/CalendarGrid";
 import { generateDeepPlan } from "@/app/actions/ai-planner";
+import { debugGeminiModels } from "@/app/actions/debug-models";
 import { PlannerBrainConsole } from "@/components/PlannerBrainConsole";
 
 export default function CalendarPage() {
@@ -57,6 +58,10 @@ export default function CalendarPage() {
     const handleBrainExecution = async () => {
         setBrainStatus('thinking');
         setDiagnostics(undefined); // Clear previous logs
+
+        // Artificial "Feeling" Delay (so user sees the Thinking state)
+        await new Promise(r => setTimeout(r, 800));
+
         // Call Server Action
         const result = await generateDeepPlan({
             startDate: "2025-12-15",
@@ -75,7 +80,21 @@ export default function CalendarPage() {
             setBrainStatus('success');
         } else {
             console.error("Brain Error", result);
-            setDiagnostics(result.diagnostics);
+
+            // Run Diagnostics: Why did it fail? (Model 404?)
+            const debug = await debugGeminiModels();
+            const failureReason = `
+ERROR: ${result.error}
+RAW RESPONSE: ${result.diagnostics?.rawResponse}
+
+--- DEBUG: AVAILABLE MODELS (API KEY CHECK) ---
+${debug.success ? debug.models.join('\n') : 'Could not list models: ' + debug.error}
+            `.trim();
+
+            setDiagnostics({
+                prompt: result.diagnostics?.prompt || "No prompt generated.",
+                rawResponse: failureReason
+            });
             setBrainStatus('error');
         }
     };
