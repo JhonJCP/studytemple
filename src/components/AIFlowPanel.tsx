@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Clipboard, ChevronDown, ChevronRight, Brain, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Clipboard, ChevronDown, ChevronRight, Brain, Sparkles, Clock, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type BrainId = "bibliotecario" | "auditor" | "planificador" | "estratega" | "orquestador";
@@ -23,60 +23,92 @@ const brainLabels: Record<BrainId, string> = {
 
 export function AIFlowPanel({ topicTitle, topicId, date, groupTitle }: Props) {
     const [open, setOpen] = useState<BrainId | null>(null);
+    const [planMeta, setPlanMeta] = useState<{ minutes?: number; importance?: string; contentLength?: string } | null>(null);
+
+    // Cargar datos de plan guardado en localStorage (si existe) para mostrar minutos/importance
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem("last_ai_plan");
+            if (!saved) return;
+            const plan = JSON.parse(saved);
+            const matches: any[] = [];
+            const slug = topicId.toLowerCase();
+            (plan.daily_schedule || []).forEach((d: any) => {
+                if (d.topicId?.toLowerCase() === slug || d.topicTitle?.toLowerCase()?.includes(topicTitle.toLowerCase())) {
+                    matches.push(d);
+                }
+            });
+            const tte = (plan.topic_time_estimates || []).find((t: any) =>
+                t.topicId?.toLowerCase() === slug || t.topicTitle?.toLowerCase()?.includes(topicTitle.toLowerCase())
+            );
+            if (matches.length || tte) {
+                setPlanMeta({
+                    minutes: matches[0]?.durationMinutes || tte?.totalPlannedMinutes,
+                    importance: matches[0]?.importance || tte?.importance || tte?.complexity,
+                    contentLength: tte?.recommendedContentLength
+                });
+            }
+        } catch {
+            setPlanMeta(null);
+        }
+    }, [topicId, topicTitle]);
 
     const prompts: Record<BrainId, string> = {
         bibliotecario: `
-Eres el Bibliotecario. Devuelve citas y fragmentos relevantes del temario para:
-- Tema: "${topicTitle}" (${groupTitle || "Grupo"})
-- ID: ${topicId}
+Eres el Bibliotecario. Recupera evidencia exacta para el tema:
+- Tema: "${topicTitle}" (grupo: ${groupTitle || "Grupo"})
+- ID/slug: ${topicId}
 - Sesión: ${date}
 
 Instrucciones:
-- Busca en embeddings (library_documents, knowledge_chunks).
-- Devuelve lista: [{source_id, filename, fragment, law_refs, confidence}].
-- No generes contenido nuevo, solo recupera.
+- Busca en embeddings (library_documents, knowledge_chunks) top 8-12 matches.
+- Devuelve JSON: [{source_id, filename, fragment (<=400 chars), law_refs, confidence 0-1, page?}]
+- No inventes texto, no extrapoles. Usa fragmentos literales.
 `.trim(),
         auditor: `
-Eres el Auditor. Evalúa si las fuentes cubren el outline base del tema:
+Eres el Auditor. Evalúa cobertura y riesgos vs outline base del tema:
 - Tema: "${topicTitle}"
-- Fuentes recuperadas: (usa salida del Bibliotecario)
+- Fuentes: salida del Bibliotecario.
 
 Instrucciones:
-- Señala gaps, incoherencias y riesgos.
-- Sugiere 3-5 widgets útiles (mnemonic, diagram, timeline, quiz, alert).
-- Asigna quality_score 0-100 y razones.
+- Lista gaps específicos por sección (intro/conceptos/desarrollo/práctica).
+- Calidad: quality_score 0-100 con 3 razones.
+- Widgets propuestos (3-5): tipo (mnemonic/diagram/timeline/quiz/alert) + por qué + qué debe contener.
+- Señala incoherencias o duplicados.
+Salida en JSON con gaps, widgets, quality_score.
 `.trim(),
         planificador: `
-Eres el Planificador. Decide profundidad y tiempo según importancia/complejidad:
+Eres el Planificador. Ajusta profundidad y minutos usando el plan diario si existe:
 - Tema: "${topicTitle}" (grupo: ${groupTitle || "n/a"})
-- Minutos disponibles aproximados: usa plan diario si existe, si no 60-120.
-- Usa la evaluación del Auditor para ajustar: más detalles donde haya riesgo.
+- Minutos: ${planMeta?.minutes || "60-120 estimados"}
+- Importancia/Complejidad: ${planMeta?.importance || "media"}
+- content_length sugerido: ${planMeta?.contentLength || "standard"}
 
-Salida:
-- content_length: concise | standard | extended
-- widget_budget: número/temas prioritarios
-- secciones clave con minutos sugeridos
+Instrucciones:
+- Asigna minutos por sección (intro/conceptos/desarrollo/práctica) que sumen el total.
+- Define widget_budget y prioridades (riesgos del Auditor primero).
+- Fija tono: concise | standard | extended según importancia/minutos.
+Salida JSON: { minutes_total, minutes_por_seccion, content_length, widget_budget, rationale }.
 `.trim(),
         estratega: `
-Eres el Estratega. Construye el outline y las instrucciones de redacción:
+Eres el Estratega. Genera outline y micro-prompts de widgets:
 - Tema: "${topicTitle}"
-- Outline base: intro, conceptos, desarrollo, práctica.
-- Usa decisiones del Planificador y gaps del Auditor.
+- Usa presupuesto del Planificador y gaps del Auditor.
 
 Salida:
-- outline estructurado con bullet points y foco de examen/supuestos.
-- tono: claro, técnico y resumido para opositor.
-- lista de widgets a solicitar a mini-agentes con prompts breves.
+- outline estructurado (bullets) con foco en examen/supuestos.
+- Por sección: objetivo, puntos clave, evidencias a citar (fuentes del Bibliotecario).
+- widgets: [{type, prompt, objetivo, seccion}] listos para disparar manualmente.
 `.trim(),
         orquestador: `
-Orquestador final: combina todo.
+Orquestador final (solo tras confirmación del usuario):
 - Tema: "${topicTitle}" (${topicId}) fecha ${date}
-- Input: bibliotecario (fuentes), auditor (gaps/score), planificador (profundidad/minutos), estratega (outline/widgets).
+- Inputs: bibliotecario (fuentes), auditor (gaps/score/widgets), planificador (minutos/tono/widget_budget), estratega (outline + micro-prompts).
 
 Genera:
-- content_json con secciones (intro, conceptos, desarrollo, práctica) y widgets solicitados.
-- Marca status=draft hasta que el usuario confirme.
-- No reescribas las fuentes; úsala como evidencia/resumen.
+- content_json con secciones (intro, conceptos, desarrollo, práctica) respetando minutos/tono.
+- Inserta placeholders de widgets según el estratega (no generes todos automáticamente si se pide manual).
+- Status=draft hasta confirmación; no reescribas fuentes, resume con citas.
 `.trim(),
     };
 
@@ -91,7 +123,14 @@ Genera:
                     <Brain className="w-4 h-4 text-purple-300" />
                     <span className="text-sm font-bold text-white">Flujo IA (pre-flight)</span>
                 </div>
-                <span className="text-[10px] text-white/40">Revisa prompts antes de generar</span>
+                <div className="flex items-center gap-3 text-[10px] text-white/60">
+                    {planMeta && (
+                        <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" /> {planMeta.minutes || "N/D"} min · {planMeta.importance || "N/D"} · {planMeta.contentLength || "standard"}
+                        </div>
+                    )}
+                    <span className="text-white/40">Revisa prompts antes de generar</span>
+                </div>
             </div>
 
             <div className="space-y-2">
