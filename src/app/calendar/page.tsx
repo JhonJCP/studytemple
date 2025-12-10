@@ -329,7 +329,7 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
                                                 {isActive && <span className="text-sm font-mono font-bold">29:59</span>}
                                             </button>
 
-                                            <Link href={`/library?open=${encodeURIComponent(session.topicId)}`} className="flex-1 md:flex-none">
+                                            <Link href={`/syllabus/topic/${encodeURIComponent(session.topicId)}`} className="flex-1 md:flex-none">
                                                 <button className="w-full md:w-auto px-6 py-3 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
                                                     <Play className="w-4 h-4 fill-current" />
                                                     {session.type.includes('test') ? 'Hacer Test' : 'Estudiar'}

@@ -74,7 +74,19 @@ export function getAllTopicsWithGroups(): TopicWithGroup[] {
  * Busca un tema por su ID
  */
 export function getTopicById(topicId: string): TopicWithGroup | undefined {
-    return getAllTopicsWithGroups().find(t => t.id === topicId);
+    const allTopics = getAllTopicsWithGroups();
+    // Try strict ID match
+    const byId = allTopics.find(t => t.id === topicId);
+    if (byId) return byId;
+
+    // Fallback: Try matching originalFilename (URL decoded)
+    // The planner uses filename as ID currently.
+    try {
+        const decoded = decodeURIComponent(topicId);
+        return allTopics.find(t => t.originalFilename === decoded || t.title === decoded);
+    } catch {
+        return undefined;
+    }
 }
 
 /**
