@@ -1,0 +1,1022 @@
+{
+  "groups": [
+    {
+      "title": "Administración, Legislación y Gestión",
+      "icon": "Briefcase",
+      "description": "Normativa general, contratación pública, redacción de informes y convocatorias.",
+      "topics": [
+        {
+          "title": "Convocatoria ITOP 2025 (BOE)",
+          "originalFilename": "Convocatoria ITOP 2025"
+        },
+        {
+          "title": "Temario: Parte General",
+          "originalFilename": "Temario Parte General"
+        },
+        {
+          "title": "Temario: Parte Específica y Práctica",
+          "originalFilename": "Temario Parte Específica y Contenidos Prácticos"
+        },
+        {
+          "title": "Guía: El Informe Administrativo",
+          "originalFilename": "El informe administrativo"
+        },
+        {
+          "title": "Guía: La Propuesta de Resolución",
+          "originalFilename": "La propuesta de resolución"
+        },
+        {
+          "title": "Ley de Expropiación Forzosa",
+          "originalFilename": "Ley de Expropiación Forzosa"
+        },
+        {
+          "title": "Ley 8/1995 Accesibilidad (Canarias)",
+          "originalFilename": "Ley 8-1995, de 6 de abril de accesibilidad y supresión de barreras físicas y de la comunicación"
+        },
+        {
+          "title": "Reglamento Accesibilidad (Canarias)",
+          "originalFilename": "Reglamentación autonómica en materia de accesibilidad y supresión de barreras físicas y de la comunicación"
+        },
+        {
+          "title": "Contratación: Cronograma y Plazos",
+          "originalFilename": "Cronograma Contratación Pública"
+        },
+        {
+          "title": "Contratación: Modificaciones Contractuales",
+          "originalFilename": "Modificaciones contractuales"
+        },
+        {
+          "title": "Contratación: Revisión de Precios",
+          "originalFilename": "Revisión de precios"
+        },
+        {
+          "title": "Obras: Certificaciones y Liquidación",
+          "originalFilename": "Certificación"
+        },
+        {
+          "title": "Obras: Plantilla de Certificación",
+          "originalFilename": "Plantilla Certificación"
+        },
+        {
+          "title": "Gestión: Incidencias, Garantías y Vicios Ocultos",
+          "originalFilename": "Incidencias en las obras. Certificaciones de obras y relaciones valoradas. La certificación final y la liquidación. Garantía de las obras y vicios ocultos"
+        },
+        {
+          "title": "Gestión: Dirección, Plan de Obra y Calidad",
+          "originalFilename": "Dirección de obra. Plan de obra. Organización de las obras. Aseguramiento de la calidad. Plan de vigilancia medioambiental. Servicios afectados"
+        }
+      ]
+    },
+    {
+      "title": "Aguas y Obras Hidráulicas",
+      "icon": "Droplet",
+      "description": "Hidrología, abastecimiento, saneamiento, depuración y normativa de aguas.",
+      "topics": [
+        {
+          "title": "Ley de Aguas (Texto Refundido)",
+          "originalFilename": "Texto Refundido de la Ley de Aguas"
+        },
+        {
+          "title": "Directiva Marco del Agua",
+          "originalFilename": "Directiva Marco del Agua"
+        },
+        {
+          "title": "Legislación Canaria de Aguas",
+          "originalFilename": "Legislación canaria en materia de aguas"
+        },
+        {
+          "title": "Reglamento Control de Vertidos (Canarias)",
+          "originalFilename": "Reglamentación canaria en materia de aguas (Decreto 174-1994, de 29 de julio, por el que se aprueba el Reglamento de Control de Vertidos para la Protección del DPH)"
+        },
+        {
+          "title": "Reglamento Dominio Público Hidráulico (Canarias)",
+          "originalFilename": "Reglamentación canaria en materia de aguas (Decreto 86-2002, de 2 de julio, por el que se aprueba el Reglamento de Dominio Público Hidráulico)"
+        },
+        {
+          "title": "Tema Práctico 1: Hidráulica de Canales Abiertos",
+          "originalFilename": "Tema Práctico 1. Hidráulica de Canales Abiertos"
+        },
+        {
+          "title": "Tema Práctico 1: Presentación",
+          "originalFilename": "Presentación Tema Práctico 1"
+        },
+        {
+          "title": "Tema Práctico 1: Material de estudio",
+          "originalFilename": "Tema Práctico 1"
+        },
+        {
+          "title": "Tema Práctico 2: Conducciones Forzadas",
+          "originalFilename": "Tema Práctico 2"
+        },
+        {
+          "title": "Tema Práctico 2: Presentación",
+          "originalFilename": "Presentación Tema Práctico 2"
+        },
+        {
+          "title": "Tema Práctico 3: Máquinas Hidráulicas",
+          "originalFilename": "Tema Práctico 3"
+        },
+        {
+          "title": "Tema Práctico 3: Aprovechamientos Hidroeléctricos",
+          "originalFilename": "Aprovechamientos Hidroeléctricos"
+        },
+        {
+          "title": "Tema Práctico 3: Saltos Hidroeléctricos",
+          "originalFilename": "Saltos hidroeléctricos"
+        },
+        {
+          "title": "Tema Práctico 3: Presentación",
+          "originalFilename": "Presentación Tema Práctico 3"
+        },
+        {
+          "title": "Estación de Bombeo (Libro Granados)",
+          "originalFilename": "Supuesto Estación Bombeo. Libro Granados"
+        },
+        {
+          "title": "Tema Práctico 4: Abastecimiento",
+          "originalFilename": "Tema Práctico 4"
+        },
+        {
+          "title": "Tema Práctico 4: Diseño de Depósito",
+          "originalFilename": "Diseño depósito"
+        },
+        {
+          "title": "Tema Práctico 4: Ejemplo Abastecimiento",
+          "originalFilename": "Ejemplo abastecimiento"
+        },
+        {
+          "title": "Tema Práctico 4: Presentación",
+          "originalFilename": "Presentación Tema Práctico 4"
+        },
+        {
+          "title": "Tema Práctico 5: Saneamiento",
+          "originalFilename": "Tema Práctico 5"
+        },
+        {
+          "title": "Tema Práctico 5: Diseño Pretratamiento, Bombeo y Emisario",
+          "originalFilename": "Diseño pretratamiento, bombeo y emisario CIMBRA (EMISARIO) pag 20-25"
+        },
+        {
+          "title": "Tema Práctico 5: Presentación",
+          "originalFilename": "Presentación Tema Práctico 5"
+        },
+        {
+          "title": "Tema Práctico 6: Reutilización de Aguas",
+          "originalFilename": "Tema Práctico 6"
+        },
+        {
+          "title": "Tema Práctico 6: Presentación",
+          "originalFilename": "Presentación Tema Práctico 6"
+        },
+        {
+          "title": "Tema Práctico 7: Drenaje (Teoría)",
+          "originalFilename": "Tema 26"
+        },
+        {
+          "title": "Tema Práctico 7: Cálculo ODT",
+          "originalFilename": "Cálculo ODT y diseño simplificado"
+        },
+        {
+          "title": "Tema Práctico 7: Cálculo Sumidero",
+          "originalFilename": "Cálculo SUMIDERO"
+        },
+        {
+          "title": "Tema Práctico 7: Ejemplo Proyecto La Aldea",
+          "originalFilename": "Ejemplo Diseño Drenaje pág 63. Memoria proyecto de la Aldea"
+        }
+      ]
+    },
+    {
+      "title": "Costas, Puertos y Obras Marítimas",
+      "icon": "Anchor",
+      "description": "Dinámica litoral, oleaje, obras de abrigo, gestión del DPMT y normativa ROM.",
+      "topics": [
+        {
+          "title": "Ley de Costas (Legislación Estatal)",
+          "originalFilename": "Legislación del Estado en materia de costas"
+        },
+        {
+          "title": "Reglamento General de Costas",
+          "originalFilename": "Reglamento general de Costas"
+        },
+        {
+          "title": "Ley 2/2013 Protección Sostenible del Litoral",
+          "originalFilename": "Ley 2-2013, de 29 de mayo, de protección y uso sostenible del litoral"
+        },
+        {
+          "title": "Ley 41/2010 Protección del Medio Marino",
+          "originalFilename": "Ley 41-2010, de 29 de diciembre, de protección del medio marino"
+        },
+        {
+          "title": "Gestión del Litoral: Traspaso AGE a Canarias (RD 713/2022)",
+          "originalFilename": "Real Decreto, 713-2022, de 30 de agosto, de traspaso de funciones y servicios de la AGE a la CAC en materia de ordenación y gestión del litoral"
+        },
+        {
+          "title": "Ordenación del Espacio Marítimo (RD 363/2017)",
+          "originalFilename": "Real Decreto 363-2017, de 8 de abril, por el que se establece un marco para la ordenación del espacio marítimo"
+        },
+        {
+          "title": "Legislación de Puertos (Estatal)",
+          "originalFilename": "Legislación estatal en materia de puertos"
+        },
+        {
+          "title": "Legislación de Puertos (Canarias)",
+          "originalFilename": "Legislación autonómica en materia de puertos canarios"
+        },
+        {
+          "title": "Desarrollo Normativo Puertos Canarios",
+          "originalFilename": "Normativa de desarrollo de la legislación autonómica en materia de puertos canarios"
+        },
+        {
+          "title": "DPMT: Régimen Jurídico y Deslinde",
+          "originalFilename": "Deslinde"
+        },
+        {
+          "title": "DPMT: Servidumbres y Limitaciones",
+          "originalFilename": "DPMT, SERVIDUMBRES Y LIMITACIONES A LA PROPIEDAD"
+        },
+        {
+          "title": "DPMT: Dominio Público Estatal",
+          "originalFilename": "Dominio Público Marítimo Terrestre Estatal"
+        },
+        {
+          "title": "Guía Autorización Vertidos Tierra-Mar (2023)",
+          "originalFilename": "Guía explicativa para la solicitud de autorización de vertidos desde tierra al mar de enero de 2023"
+        },
+        {
+          "title": "Guía Autorización Vertidos Tierra-Mar (2017)",
+          "originalFilename": "Guía explicativa para la solicitud de autorización de vertidos desde tierra al mar de noviembre de 2017"
+        },
+        {
+          "title": "Tramitación en Zona de Servidumbre",
+          "originalFilename": "Procedimiento para la tramitación de autorizaciones en la zona de servidumbre de protección del DPMT"
+        },
+        {
+          "title": "Informe de Compatibilidad (RD 79/2019)",
+          "originalFilename": "Real Decreto 79-2019, de 22 de febrero, por el que se regula el informe de compatibilidad (...)"
+        },
+        {
+          "title": "Disposiciones Transitorias Ley de Costas",
+          "originalFilename": "Disposición transitoria 1 (Derechos y plazos)"
+        },
+        {
+          "title": "Disposiciones Transitorias: Afectación",
+          "originalFilename": "Disposición transitoria 2 (Afectación y Desafectación)"
+        },
+        {
+          "title": "Disposiciones Transitorias: Planeamiento",
+          "originalFilename": "Disposición transitoria 3 y 1 (Planeamiento)"
+        },
+        {
+          "title": "Disposiciones Transitorias: Obras",
+          "originalFilename": "Disposición transitoria 4 (Obras e instalaciones)"
+        },
+        {
+          "title": "ROM 0.0-01 Procedimiento General",
+          "originalFilename": "ROM 0 0-01"
+        },
+        {
+          "title": "ROM 0.2-90 Acciones en el Proyecto",
+          "originalFilename": "ROM 0.2-90 Acciones en el proyecto de obras marítimas y portuarias"
+        },
+        {
+          "title": "ROM 0.3-91 Oleaje",
+          "originalFilename": "ROM 0.3-91 Oleaje"
+        },
+        {
+          "title": "ROM 0.4-95 Vientos",
+          "originalFilename": "ROM 0.4-95 Vientos"
+        },
+        {
+          "title": "ROM 0.5-05 Geotecnia",
+          "originalFilename": "ROM 0 5-05"
+        },
+        {
+          "title": "ROM 1.0-09 Obras de Abrigo",
+          "originalFilename": "ROM 1 0-09"
+        },
+        {
+          "title": "ROM 1.1-18 Obras de Abrigo (Específica)",
+          "originalFilename": "ROM 1 1-18"
+        },
+        {
+          "title": "ROM 2.0-11 Obras de Atraque",
+          "originalFilename": "ROM 2 0-11"
+        },
+        {
+          "title": "ROM 3.1-99 Proyecto",
+          "originalFilename": "ROM 3 1-99"
+        },
+        {
+          "title": "ROM 4.1-18 Superestructuras",
+          "originalFilename": "ROM 4 1-18 v1"
+        },
+        {
+          "title": "ROM 5.1-13 Calidad del Agua",
+          "originalFilename": "ROM 5 1-13"
+        },
+        {
+          "title": "Oleaje: Descripción y Análisis (UPM)",
+          "originalFilename": "Descripcion, medida y analisis del oleaje (UPM)"
+        },
+        {
+          "title": "Oleaje: Teoría de Airy (UPC)",
+          "originalFilename": "Propagación del oleaje. Teoría de Airy (UPC)"
+        },
+        {
+          "title": "Oleaje: Water Wave Mechanics (CEM)",
+          "originalFilename": "Water Wave Mechanics (Coastal Engineering Manual)"
+        },
+        {
+          "title": "Shore Protection Manual Vol I",
+          "originalFilename": "Shore protection manual VOL I"
+        },
+        {
+          "title": "Shore Protection Manual Vol II",
+          "originalFilename": "Shore protection manual VOL II"
+        },
+        {
+          "title": "Dinámica Litoral: Introducción",
+          "originalFilename": "Introduccion a la dinamica de las formas costeras"
+        },
+        {
+          "title": "Dinámica Litoral: Perfil de Playas",
+          "originalFilename": "Perfil transversal de playas"
+        },
+        {
+          "title": "Dinámica Litoral: Variabilidad de Perfiles",
+          "originalFilename": "Variabilidad de los perfiles de playa"
+        },
+        {
+          "title": "Dinámica Litoral: Transporte Longitudinal",
+          "originalFilename": "Transporte longitudinal"
+        },
+        {
+          "title": "Dinámica Litoral: Rotura y Rebase",
+          "originalFilename": "Rotura y rebase del oleaje"
+        },
+        {
+          "title": "Regeneración de Playas: Documento Temático",
+          "originalFilename": "Documento-tematico-de-regeneracion-de-Playas"
+        },
+        {
+          "title": "Regeneración: Playas Sustentadas",
+          "originalFilename": "Playas sustentadas"
+        },
+        {
+          "title": "Regeneración: Instrucción Extracción Arenas",
+          "originalFilename": "Instruccion Extracciones Arena"
+        },
+        {
+          "title": "Regeneración: Factor de Sobrellenado (RA)",
+          "originalFilename": "RA Factor de sobrellenado"
+        },
+        {
+          "title": "Regeneración: Factor de Realimentación (RJ)",
+          "originalFilename": "RJ Factor de realimentación"
+        },
+        {
+          "title": "Regeneración: Perfil de Dean (Tabla A)",
+          "originalFilename": "Tabla valor de A (Perfil de Dean)"
+        },
+        {
+          "title": "Diques Exentos: Teoría",
+          "originalFilename": "diques exentos"
+        },
+        {
+          "title": "Diques Exentos: Normativa 01.11.02.07",
+          "originalFilename": "01.11.02.07 DIQUES EXENTOS"
+        },
+        {
+          "title": "Obras Marítimas: Diseño Defensa Costera",
+          "originalFilename": "Introduccion al diseno de obras de defensa de formas costeras de deposito"
+        },
+        {
+          "title": "Secciones: Dique Escollera",
+          "originalFilename": "Sección dique escollera (Yuri Rubio)"
+        },
+        {
+          "title": "Secciones: Dique Vertical",
+          "originalFilename": "Sección dique vertical (Yuri Rubio)"
+        },
+        {
+          "title": "Secciones: Diques Práctico",
+          "originalFilename": "Secciones diques práctico (Vicente Negro)"
+        },
+        {
+          "title": "Atlas de Inundación del Litoral Español",
+          "originalFilename": "Atlas de inundacion del litoral español"
+        },
+        {
+          "title": "Cálculo Avanzado: Bloque Costas",
+          "originalFilename": "Contenido cálculo avanzado Bloque Costas"
+        }
+      ]
+    },
+    {
+      "title": "Carreteras y Transportes",
+      "icon": "Truck",
+      "description": "Trazado, firmes, señalización, conservación y normativa técnica de carreteras.",
+      "topics": [
+        {
+          "title": "Ley 9/1991 de Carreteras de Canarias",
+          "originalFilename": "Ley 9-1991, de 8 de mayo, de Carreteras de Canarias"
+        },
+        {
+          "title": "Reglamento de Carreteras de Canarias (Decreto 131/1995)",
+          "originalFilename": "Decreto 131-1995, de 11 de mayo, por el que se aprueba el Reglamento de Carreteras de Canarias"
+        },
+        {
+          "title": "Reglamento Orgánico Consejería de Obras Públicas",
+          "originalFilename": "Reglamento orgánico de la Consejería competente en materia de carreteras, ferrocarriles y puertos"
+        },
+        {
+          "title": "Dominio Público Carretero y Limitaciones",
+          "originalFilename": "Dominio Público Carretero y Limitaciones a la Propiedad"
+        },
+        {
+          "title": "Estudios y Planificación de Carreteras",
+          "originalFilename": "Estudios de carreteras. Clases, contenidos y utilización de dichos estudios en la planificación y proyecto de carreteras."
+        },
+        {
+          "title": "Proyecto de Construcción: Documentos y Supervisión",
+          "originalFilename": "Proyecto de construcción de una carretera. Documentos del proyecto. Dirección del proyecto. Supervisión"
+        },
+        {
+          "title": "Norma 3.1-IC Trazado",
+          "originalFilename": "Trazado (3.1-IC)"
+        },
+        {
+          "title": "Teoría de Trazado: Planta, Alzado y Sección",
+          "originalFilename": "Trazado de carreteras. Norma 3.1-I.C de trazado. Planta, alzado y sección transversal. Carriles adicionales."
+        },
+        {
+          "title": "Recomendaciones 2+1 y Carriles Adicionales (OC 01/2021)",
+          "originalFilename": "Rexomendaciones diseño de carreteras 2+1 y carriles adicionales adelantamiento (O.C.01.2021)"
+        },
+        {
+          "title": "Movimiento de Tierras y Explanaciones",
+          "originalFilename": "Movimientos de tierras en carreteras. Clasificación y características según el PG-3. Construcción de Explanaciones de carreteras. Capacidad de soporte de las mismas"
+        },
+        {
+          "title": "PG-3: Pliego de Prescripciones Técnicas Generales",
+          "originalFilename": "Pliego de prescripciones técnicas generales para obras de carreteras y puentes (PG-3)"
+        },
+        {
+          "title": "PG-3: Documento Normativo",
+          "originalFilename": "PG-3"
+        },
+        {
+          "title": "Cimentaciones y Mejora del Terreno",
+          "originalFilename": "Cimentaciones. Técnicas de mejora del terreno. Soluciones de cimentación en terrenos de baja capacidad portante"
+        },
+        {
+          "title": "Guía Cimentaciones en Carreteras",
+          "originalFilename": "Guia cimentaciones obras de carreteras"
+        },
+        {
+          "title": "Taludes y Estabilidad de Laderas",
+          "originalFilename": "Taludes. Protección de la carretera frente a la caída de rocas. Problemas de estabilidad de laderas y taludes"
+        },
+        {
+          "title": "Firmes: Constitución y Materiales",
+          "originalFilename": "Firmes constitución y conceptos generales; materiales de firmes; mezclas bituminosas y firmes de hormigón..."
+        },
+        {
+          "title": "Norma 6.1-IC Firmes",
+          "originalFilename": "Firmes (6.1-IC)"
+        },
+        {
+          "title": "Norma 6.1-IC Firmes (Actualización)",
+          "originalFilename": "Firmes (6.1- IC) Actualización"
+        },
+        {
+          "title": "Norma 6.3-IC Rehabilitación de Firmes",
+          "originalFilename": "Rehabilitación de firmes (6.3-IC)"
+        },
+        {
+          "title": "Catálogo de Secciones de Firme Canarias (CSFC-20)",
+          "originalFilename": "Catálogo de Secciones de Firme para la red de carreteras de Canarias (CSFC-20)"
+        },
+        {
+          "title": "Guía de Rehabilitación",
+          "originalFilename": "REHABILITACIÓN"
+        },
+        {
+          "title": "Drenaje Superficial y Subterráneo (Teoría)",
+          "originalFilename": "Drenaje superficial y subterráneo"
+        },
+        {
+          "title": "Norma 5.2-IC Drenaje Superficial",
+          "originalFilename": "Drenaje Superficial (5.2-IC)"
+        },
+        {
+          "title": "Obras de Paso: Conceptos y Tipologías",
+          "originalFilename": "Obras de paso conceptos generales. Tipologías y materiales. Métodos constructivos y medios auxiliares. Normativa aplicable"
+        },
+        {
+          "title": "Obras de Paso: Nueva Construcción",
+          "originalFilename": "Obras de paso de nueva construcción (Conceptos Generales)"
+        },
+        {
+          "title": "Túneles de Carreteras: Construcción y Seguridad",
+          "originalFilename": "Túneles de carreteras. métodos constructivos. Sostenimiento, revestimiento y drenaje. Equipamiento e instalaciones. Seguridad en los túneles de carreteras. Normativa aplicable"
+        },
+        {
+          "title": "Nudos Viarios (OC 32/2012)",
+          "originalFilename": "Nudos Viarios (O.C.32.2012)"
+        },
+        {
+          "title": "Nudos, Enlaces e Intersecciones",
+          "originalFilename": "Nudos. Enlaces e intersecciones. Orden Circular 32-2012 MFOM, Guía de nuedo sviarios. Programas integrados de trazado"
+        },
+        {
+          "title": "Señalización, Balizamiento y Contención",
+          "originalFilename": "Señalización, balizamiento y sistemas de contención de carreteras"
+        },
+        {
+          "title": "Norma 8.1-IC Señalización Vertical",
+          "originalFilename": "Señalización vertical (8.1-IC)"
+        },
+        {
+          "title": "Norma 8.2-IC Señalización Horizontal",
+          "originalFilename": "Señalización horizontal (8.2-IC)"
+        },
+        {
+          "title": "Norma 8.3-IC Señalización de Obra",
+          "originalFilename": "Señalización de obra (8.3-IC)"
+        },
+        {
+          "title": "Sistemas de Contención (OC 35/2014)",
+          "originalFilename": "Sistemas de contención (O.C.35.2014)"
+        },
+        {
+          "title": "Tipologías de Muros",
+          "originalFilename": "Tipologías de muros"
+        },
+        {
+          "title": "Guía de Muros de Escollera",
+          "originalFilename": "Guía muros de escollera"
+        },
+        {
+          "title": "Base de Precios 2023",
+          "originalFilename": "Base de precios 20223"
+        },
+        {
+          "title": "Ensayo: Cono de Abrams",
+          "originalFilename": "Cono de Abrams (se preguntó en la última convocatoria)"
+        },
+        {
+          "title": "Ensayo: CBR",
+          "originalFilename": "Ensayo CBR"
+        },
+        {
+          "title": "Ensayo: SPT",
+          "originalFilename": "Ensayo SPT"
+        },
+        {
+          "title": "Ensayo: Carga con Placa (NLT-357)",
+          "originalFilename": "NLT-357 Carga con placa"
+        },
+        {
+          "title": "Ensayo: Proctor Normal (UNE 103-500-94)",
+          "originalFilename": "UNE 103-500-94. Proctor Normal"
+        },
+        {
+          "title": "Ensayo: Proctor Modificado (UNE 103-501-94)",
+          "originalFilename": "UNE 103-501-94 Proctor Modificado"
+        },
+        {
+          "title": "Ensayo: Marshall (UNE-EN 12697-34)",
+          "originalFilename": "UNE-EN 12697-34. Ensayo Marshall"
+        }
+      ]
+    },
+    {
+      "title": "Medio Ambiente y Territorio",
+      "icon": "Leaf",
+      "description": "Evaluación ambiental, Ley del Suelo y Cambio Climático.",
+      "topics": [
+        {
+          "title": "Ley 4/2017 del Suelo y Espacios Protegidos (Canarias)",
+          "originalFilename": "Ley 4-2017, de 13 de julio, del Suelo y Espacios Naturales Protegidos de Canarias"
+        },
+        {
+          "title": "Legislación Evaluación Ambiental",
+          "originalFilename": "Legislación en materia de evaluación ambiental"
+        },
+        {
+          "title": "Tema: Evaluación de Impacto Ambiental",
+          "originalFilename": "Tema de Evaluación de Impacto Ambiental"
+        },
+        {
+          "title": "Guía Evaluación Ambiental (RA.PE.S2)",
+          "originalFilename": "RA.PE.S2.Evaluación Ambiental"
+        },
+        {
+          "title": "Ley 21/2013 EIA (Anexos Subrayados)",
+          "originalFilename": "RA.PE.S2.T3.T4. Ley 21-2013 (ANEXOS I y II SUBRAYADOS)"
+        },
+        {
+          "title": "Procedimiento EIA Ordinaria",
+          "originalFilename": "RA.PE.S2.T4 Procedimiento de Evaluación de Impacto Ambiental Ordinaria EIA.o"
+        },
+        {
+          "title": "Estrategia Española de Adaptación al Cambio Climático",
+          "originalFilename": "Estrategía española de adaptación al cambio climático"
+        }
+      ]
+    },
+    {
+      "title": "Supuestos Prácticos y Exámenes",
+      "icon": "Clipboard",
+      "description": "Casos prácticos de redacción de informes, ejercicios numéricos y exámenes anteriores.",
+      "topics": [
+        {
+          "title": "Índice de Contenidos Prácticos",
+          "originalFilename": "Indice de contenido"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 1 (Enunciado)",
+          "originalFilename": "SUPUESTO Nº1 ENUNCIADO"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 1 (Solución)",
+          "originalFilename": "SUPUESTO Nº1 SOLUCIÓN"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 2 (Enunciado)",
+          "originalFilename": "SUPUESTO Nº2 ENUNCIADO"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 2 (Solución)",
+          "originalFilename": "SUPUESTO Nº2 SOLUCIÓN"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 3 (Enunciado)",
+          "originalFilename": "SUPUESTO Nº3 ENUNCIADO"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 3 (Solución)",
+          "originalFilename": "SUPUESTO Nº3 SOLUCIÓN"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 4 (Enunciado)",
+          "originalFilename": "SUPUESTO Nº4 ENUNCIADO"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 4 (Solución)",
+          "originalFilename": "SUPUESTO Nº4 SOLUCIÓN"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 5 (Enunciado)",
+          "originalFilename": "SUPUESTO Nº5 ENUNCIADO"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 5 (Solución)",
+          "originalFilename": "SUPUESTO Nº5 SOLUCIÓN"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 6 (Enunciado)",
+          "originalFilename": "SUPUESTO Nº6 ENUNCIADO"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 6 (Solución)",
+          "originalFilename": "SUPUESTO Nº6 SOLUCIÓN"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 7 (Enunciado)",
+          "originalFilename": "SUPUESTO Nº7 ENUNCIADO"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 7 (Solución)",
+          "originalFilename": "SUPUESTO Nº7 SOLUCIÓN"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 8 (Enunciado)",
+          "originalFilename": "SUPUESTO Nº8 ENUNCIADO"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 8 (Solución)",
+          "originalFilename": "SUPUESTO Nº8 SOLUCIÓN"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 9 (Enunciado)",
+          "originalFilename": "SUPUESTO Nº9 ENUNCIADO"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 9 (Solución)",
+          "originalFilename": "SUPUESTO Nº9 SOLUCIÓN"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 10 (Enunciado)",
+          "originalFilename": "SUPUESTO Nº10. ENUNCIADO"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 10 (Solución)",
+          "originalFilename": "SUPUESTO Nº10. SOLUCIÓN"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 11 (Enunciado)",
+          "originalFilename": "SUPUESTO Nº11 ENUNCIADO"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 11 (Solución)",
+          "originalFilename": "SUPUESTO Nº11 SOLUCIÓN"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 12 (Enunciado)",
+          "originalFilename": "SUPUESTO Nº12 ENUNCIADO"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 12 (Solución)",
+          "originalFilename": "SUPUESTO Nº12 SOLUCIÓN"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 13 (Enunciado)",
+          "originalFilename": "SUPUESTO Nº13 ENUNCIADO"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 13 (Solución)",
+          "originalFilename": "SUPUESTO Nº13 SOLUCIÓN"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 14 (Enunciado)",
+          "originalFilename": "SUPUESTO Nº14 ENUNCIADO"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 14 (Solución)",
+          "originalFilename": "SUPUESTO Nº14 SOLUCIÓN"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 15 (Enunciado)",
+          "originalFilename": "SUPUESTO Nº15 ENUNCIADO"
+        },
+        {
+          "title": "Redacción Informes: Supuesto 15 (Solución)",
+          "originalFilename": "SUPUESTO Nº15 SOLUCIÓN"
+        },
+        {
+          "title": "Ejercicio Propuesto 1",
+          "originalFilename": "SUPUESTO Nº1"
+        },
+        {
+          "title": "Ejercicio Propuesto 2",
+          "originalFilename": "SUPUESTO Nº2"
+        },
+        {
+          "title": "Ejercicio Propuesto 3",
+          "originalFilename": "SUPUESTO Nº3"
+        },
+        {
+          "title": "Ejercicio Propuesto 4",
+          "originalFilename": "SUPUESTO Nº4"
+        },
+        {
+          "title": "Ejercicio Propuesto 5",
+          "originalFilename": "SUPUESTO Nº5"
+        },
+        {
+          "title": "Ejercicio Propuesto 6",
+          "originalFilename": "SUPUESTO Nº6"
+        },
+        {
+          "title": "Ejercicio Propuesto 7",
+          "originalFilename": "SUPUESTO Nº7"
+        },
+        {
+          "title": "Ejercicio Propuesto 8",
+          "originalFilename": "SUPUESTO Nº8"
+        },
+        {
+          "title": "Ejercicio Propuesto 9",
+          "originalFilename": "SUPUESTO Nº9"
+        },
+        {
+          "title": "Ejercicio Propuesto 10",
+          "originalFilename": "SUPUESTO Nº10"
+        },
+        {
+          "title": "Ejercicio Propuesto 11",
+          "originalFilename": "SUPUESTO Nº11"
+        },
+        {
+          "title": "Ejercicio Propuesto 12",
+          "originalFilename": "SUPUESTO Nº12"
+        },
+        {
+          "title": "Ejercicio Propuesto 13",
+          "originalFilename": "SUPUESTO Nº13"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 1",
+          "originalFilename": "Supuesto1 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 2",
+          "originalFilename": "Supuesto2 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 3",
+          "originalFilename": "Supuesto3 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 4",
+          "originalFilename": "Supuesto4 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 5",
+          "originalFilename": "Supuesto5 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 6",
+          "originalFilename": "Supuesto6 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 7",
+          "originalFilename": "Supuesto7 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 8",
+          "originalFilename": "Supuesto8 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 9",
+          "originalFilename": "Supuesto9 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 10",
+          "originalFilename": "Supuesto10 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 11",
+          "originalFilename": "Supuesto11 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 12",
+          "originalFilename": "Supuesto12 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 13",
+          "originalFilename": "Supuesto13 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 14",
+          "originalFilename": "Supuesto14 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 15",
+          "originalFilename": "Supuesto15 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 16",
+          "originalFilename": "Supuesto16 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 17",
+          "originalFilename": "Supuesto17 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 18",
+          "originalFilename": "Supuesto18 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 19",
+          "originalFilename": "Supuesto19 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 20",
+          "originalFilename": "Supuesto20 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 21",
+          "originalFilename": "Supuesto21 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 22",
+          "originalFilename": "Supuesto22 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 23",
+          "originalFilename": "Supuesto23 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 24",
+          "originalFilename": "Supuesto24 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 25",
+          "originalFilename": "Supuesto25 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 26",
+          "originalFilename": "Supuesto26 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 27",
+          "originalFilename": "Supuesto27 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 28",
+          "originalFilename": "Supuesto28 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 29",
+          "originalFilename": "Supuesto29 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 30",
+          "originalFilename": "Supuesto30 resuelto"
+        },
+        {
+          "title": "Banco Resueltos: Supuesto 31",
+          "originalFilename": "Supuesto31 resuelto"
+        },
+        {
+          "title": "Supuesto: Examen CIATF (ODT)",
+          "originalFilename": "(ODT) Supuesto Examen CIATF"
+        },
+        {
+          "title": "Supuesto: Estación de Bombeo",
+          "originalFilename": "Supuesto Estación Bombeo. Libro Granados"
+        },
+        {
+          "title": "Supuesto: Contratación",
+          "originalFilename": "Supuesto Contratación"
+        },
+        {
+          "title": "Exámenes Anteriores: Ej. 1 Carreteras",
+          "originalFilename": "Ejercicio nº1 Carreteras+Anexos"
+        },
+        {
+          "title": "Exámenes Anteriores: Ej. 2 Aguas",
+          "originalFilename": "Ejercicio nº2 Aguas+Anexos "
+        },
+        {
+          "title": "Exámenes Anteriores: Ej. 3 Costas",
+          "originalFilename": "Ejercicio nº3 Costas"
+        },
+        {
+          "title": "Exámenes Anteriores: Supuesto ITOP 1",
+          "originalFilename": "Supuesto practico 1 ITOP"
+        },
+        {
+          "title": "Exámenes Anteriores: Supuesto ITOP 2",
+          "originalFilename": "Supuesto Practico 2 ITOP"
+        },
+        {
+          "title": "Exámenes Anteriores: Supuesto ITOP 3",
+          "originalFilename": "Supuesto practico 3 ITOP"
+        },
+        {
+          "title": "Supuesto: Aguas ICCP 2020",
+          "originalFilename": "Aguas ICCP 2020"
+        },
+        {
+          "title": "Supuesto: Carreteras ICCP 2011 (Act. 2024)",
+          "originalFilename": "Carreteras ICCP 2011 (Actualizado 2024)"
+        },
+        {
+          "title": "Supuesto: Carreteras ICCP 2011 (Plano)",
+          "originalFilename": "Plano ICCP 2011"
+        },
+        {
+          "title": "Supuesto: Carreteras ICCP 2018 (Act. 2024)",
+          "originalFilename": "Carreteras ICCP 2018 (actualizado 2024)"
+        },
+        {
+          "title": "Supuesto: Carreteras ICCP 2020 PI",
+          "originalFilename": "Carreteras ICCP 2020 PI"
+        },
+        {
+          "title": "Supuesto: Certificación ICCP 2020 PI",
+          "originalFilename": "Certificación ICCP 2020 PI"
+        },
+        {
+          "title": "Supuesto: Certificación ICCP 2020 PI (Solución)",
+          "originalFilename": "Certificación ICCP 2020 PI Solución"
+        },
+        {
+          "title": "Supuesto: Revisión de Precios ICCP 2020",
+          "originalFilename": "Revisión de precios ICCP 2020"
+        },
+        {
+          "title": "Supuesto: Puertos ICCP 2011 (Enunciado)",
+          "originalFilename": "Puertos ICCP 2011 Enunciado"
+        },
+        {
+          "title": "Supuesto: Puertos ICCP 2011 (Solución)",
+          "originalFilename": "Puertos ICCP 2011 Solución"
+        },
+        {
+          "title": "Supuesto: Costas ITOP 2021 (Revisado 2024)",
+          "originalFilename": "Supuesto Costas ITOP 2021 (Revisado 2024)"
+        },
+        {
+          "title": "Supuesto: Costas ITOP 2021 (Plano)",
+          "originalFilename": "Supuesto Costas ITOP 2021 Plano de deslinde (Solución)"
+        }
+      ]
+    }
+  ]
+}
