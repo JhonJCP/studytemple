@@ -12,10 +12,11 @@ async function fetchFilesFromDatabase() {
     console.log("🔍 Fetching files from Supabase...");
     const supabase = await createClient();
     try {
-        // Fetch metadata to get filename and category (assuming stored there)
+        // Fetch metadata ONLY for the first chunk of each file to avoid duplicates (20k chunks -> ~200 files)
         const { data, error } = await supabase
             .from("library_documents")
-            .select("metadata");
+            .select("metadata")
+            .contains("metadata", { chunk_index: 0 }); // Filter JSONB
 
         if (error) {
             console.error("❌ Supabase DB Error:", error);
