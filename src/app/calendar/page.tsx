@@ -181,15 +181,37 @@ export default function CalendarPage() {
         setBrainStatus('thinking');
 
         // CHECK: Is the prompt actually a JSON? (User pasted plan manually)
-        const promptInput = diagnostics?.prompt?.trim() || "";
-        if (promptInput.startsWith("{") && (promptInput.includes("daily_schedule") || promptInput.includes("strategic_analysis"))) {
+        const rawPrompt = diagnostics?.prompt || "";
+        
+        // Clean the text more aggressively
+        const cleanedPrompt = rawPrompt
+            .replace(/^\uFEFF/, '') // Remove BOM
+            .replace(/^[\s\n\r]+/, '') // Remove leading whitespace
+            .trim();
+        
+        // Try to extract JSON from markdown code blocks or raw text
+        let jsonText = cleanedPrompt;
+        const jsonMatch = cleanedPrompt.match(/```json\s*([\s\S]*?)\s*```/);
+        if (jsonMatch) {
+            jsonText = jsonMatch[1].trim();
+        } else if (cleanedPrompt.includes('{') && (cleanedPrompt.includes('daily_schedule') || cleanedPrompt.includes('strategic_analysis'))) {
+            // Find the first { and last }
+            const firstBrace = cleanedPrompt.indexOf('{');
+            const lastBrace = cleanedPrompt.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                jsonText = cleanedPrompt.substring(firstBrace, lastBrace + 1);
+            }
+        }
+        
+        // Check if it looks like a plan JSON
+        if (jsonText.startsWith("{") && (jsonText.includes("daily_schedule") || jsonText.includes("strategic_analysis"))) {
             try {
                 console.log("Detected JSON Input. Parsing directly...");
-                const manualPlan = JSON.parse(promptInput);
+                const manualPlan = JSON.parse(jsonText);
                 // Validate minimally
-                if (manualPlan.daily_schedule) {
+                if (manualPlan.daily_schedule && Array.isArray(manualPlan.daily_schedule)) {
                     await new Promise(r => setTimeout(r, 1000)); // Fake processing delay
-                    parseAndLoadPlan(manualPlan, "JSON MANUAL PEGADO");
+                    parseAndLoadPlan(manualPlan, "JSON MANUAL PEGADO EN PROMPT");
                     return; // BYPASS AI
                 }
             } catch (e) {
@@ -270,6 +292,58 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
         });
     };
 
+    // *** Paste from Clipboard ***
+    const handlePasteFromClipboard = async () => {
+        try {
+            setBrainStatus('thinking');
+            const clipboardText = await navigator.clipboard.readText();
+            
+            // Clean the text: remove BOM, trim whitespace
+            const cleanedText = clipboardText
+                .replace(/^\uFEFF/, '') // Remove BOM
+                .replace(/^[\s\n\r]+/, '') // Remove leading whitespace/newlines
+                .trim();
+            
+            // Try to find JSON object in the text (in case there's markdown code blocks)
+            let jsonText = cleanedText;
+            const jsonMatch = cleanedText.match(/```json\s*([\s\S]*?)\s*```/);
+            if (jsonMatch) {
+                jsonText = jsonMatch[1].trim();
+            } else if (cleanedText.includes('{')) {
+                // Find the first { and last }
+                const firstBrace = cleanedText.indexOf('{');
+                const lastBrace = cleanedText.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                    jsonText = cleanedText.substring(firstBrace, lastBrace + 1);
+                }
+            }
+
+            // Validate it's valid JSON with daily_schedule
+            const planData = JSON.parse(jsonText);
+            
+            if (!planData.daily_schedule || !Array.isArray(planData.daily_schedule)) {
+                throw new Error("El JSON no contiene 'daily_schedule' válido");
+            }
+
+            console.log("✅ JSON válido detectado desde portapapeles", planData);
+            
+            // Small delay for UX feedback
+            await new Promise(r => setTimeout(r, 500));
+            
+            parseAndLoadPlan(planData, "PLAN PEGADO DESDE PORTAPAPELES");
+            console.log("✅ Plan cargado desde portapapeles. Recuerda guardar.");
+            
+        } catch (error) {
+            console.error("Error al pegar desde portapapeles:", error);
+            setBrainStatus('error');
+            setDiagnostics(prev => ({
+                prompt: prev?.prompt || "",
+                rawResponse: `ERROR AL PEGAR DESDE PORTAPAPELES:\n\n${error instanceof Error ? error.message : String(error)}\n\nAsegúrate de que:\n1. Has copiado el JSON completo del plan\n2. El JSON contiene "daily_schedule" con un array de días\n3. El formato de fechas es "DD-MM-YYYY"`,
+                analysis: undefined
+            }));
+        }
+    };
+
     return (
         <div className="min-h-screen p-8 bg-background flex flex-col">
             <PlannerBrainConsole
@@ -281,6 +355,7 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
                 onSave={handleApplyPlan}
                 onPromptChange={handlePromptChange}
                 onLoadBlitzkrieg={handleLoadBlitzkrieg}
+                onPasteFromClipboard={handlePasteFromClipboard}
             />
 
             <Link href="/dashboard" className="flex items-center text-white/50 hover:text-white mb-8 transition-colors w-fit">
