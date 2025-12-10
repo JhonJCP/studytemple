@@ -10,7 +10,7 @@ import { CalendarGrid } from "@/components/CalendarGrid";
 import { generateDeepPlan, getPlannerPrompt } from "@/app/actions/ai-planner";
 import { debugGeminiModels } from "@/app/actions/debug-models";
 import { PlannerBrainConsole } from "@/components/PlannerBrainConsole";
-import { saveStudyPlan } from "@/app/actions/save-plan";
+import { saveStudyPlan, getLatestStudyPlan } from "@/app/actions/save-plan";
 
 export default function CalendarPage() {
     // State
@@ -50,12 +50,44 @@ export default function CalendarPage() {
             d.getFullYear() === selectedDate.getFullYear();
     });
 
+
     // Handlers
     const handleMonthNav = (dir: 1 | -1) => {
         const newDate = new Date(viewDate);
         newDate.setMonth(newDate.getMonth() + dir);
         setViewDate(newDate);
     };
+
+    // Load Plan from DB on Mount
+    useEffect(() => {
+        async function loadPlan() {
+            try {
+                const res = await getLatestStudyPlan();
+                if (res.success && res.plan && res.plan.schedule) {
+                    console.log("✅ Loaded plan from DB", res.plan);
+
+                    // Transform dates
+                    const loadedSchedule: ScheduledSession[] = (res.plan.schedule as any[]).map(s => ({
+                        ...s,
+                        date: new Date(s.date)
+                    }));
+
+                    setAiPlan(loadedSchedule);
+
+                    // Restore metadata if available
+                    if (res.plan.ai_metadata) {
+                        setDiagnostics(prev => ({
+                            ...(prev || { prompt: "", rawResponse: "" }),
+                            analysis: res.plan.ai_metadata.strategic_analysis
+                        }));
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load plan", e);
+            }
+        }
+        loadPlan();
+    }, []);
 
 
 

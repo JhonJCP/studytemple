@@ -27,3 +27,27 @@ export async function saveStudyPlan(masterPlan: any, constraints: any) {
         return { success: false, error: String(error) };
     }
 }
+
+export async function getLatestStudyPlan() {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: "Not authenticated" };
+
+    try {
+        const { data, error } = await supabase
+            .from('study_plans')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (error && error.code !== 'PGRST116') return { success: false, error: String(error.message) }; // PGs error 116 is no rows found
+        if (!data) return { success: true, plan: null }; // No plan found
+
+        return { success: true, plan: data };
+    } catch (error) {
+        return { success: false, error: String(error) };
+    }
+}
