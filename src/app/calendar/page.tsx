@@ -10,6 +10,7 @@ import { CalendarGrid } from "@/components/CalendarGrid";
 import { generateDeepPlan } from "@/app/actions/ai-planner";
 import { debugGeminiModels } from "@/app/actions/debug-models";
 import { PlannerBrainConsole } from "@/components/PlannerBrainConsole";
+import { saveStudyPlan } from "@/app/actions/save-plan";
 
 export default function CalendarPage() {
     // State
@@ -21,7 +22,8 @@ export default function CalendarPage() {
     // AI State
     const [isConsoleOpen, setIsConsoleOpen] = useState(false);
     const [brainStatus, setBrainStatus] = useState<'idle' | 'thinking' | 'success' | 'error'>('idle');
-    const [aiPlan, setAiPlan] = useState<ScheduledSession[] | null>(null);
+    const [aiPlan, setAiPlan] = useState<ScheduledSession[] | null>(null); // This is the PREVIEW
+    const [masterPlanData, setMasterPlanData] = useState<any>(null); // This is the Data waiting to be saved
     const [diagnostics, setDiagnostics] = useState<{ prompt: string, rawResponse: string, analysis?: string } | undefined>(undefined);
 
     // Default Plan (Local Fallback)
@@ -55,6 +57,24 @@ export default function CalendarPage() {
         setViewDate(newDate);
     };
 
+    const handleApplyPlan = async () => {
+        if (!masterPlanData) return;
+
+        // Save to DB
+        const res = await saveStudyPlan(masterPlanData.daily_schedule, {
+            availability: planConfig.availability,
+            goalDate: planConfig.goalDate
+        });
+
+        if (res.success) {
+            setAiPlan(masterPlanData.daily_schedule);
+            // Maybe show toast success?
+            setIsConsoleOpen(false);
+        } else {
+            alert("Error saving plan: " + res.error);
+        }
+    };
+
     const handleBrainExecution = async () => {
         setBrainStatus('thinking');
         setDiagnostics(undefined); // Clear previous logs
@@ -71,11 +91,8 @@ export default function CalendarPage() {
         });
 
         if (result.success && result.schedule) {
-            const hydrated = result.schedule.map((s: any) => ({
-                ...s,
-                date: new Date(s.date)
-            }));
-            setAiPlan(hydrated);
+            setAiPlan(result.schedule); // Show preview
+            setMasterPlanData(result.masterPlan); // Store for saving
             setDiagnostics(result.diagnostics);
             setBrainStatus('success');
         } else {
@@ -87,9 +104,9 @@ export default function CalendarPage() {
 ERROR: ${result.error}
 RAW RESPONSE: ${result.diagnostics?.rawResponse}
 
---- DEBUG: AVAILABLE MODELS (API KEY CHECK) ---
-${debug.success ? debug.models.join('\n') : 'Could not list models: ' + debug.error}
-            `.trim();
+--- DEBUG: AVAILABLE MODELS(API KEY CHECK)-- -
+    ${debug.success ? debug.models.join('\n') : 'Could not list models: ' + debug.error}
+`.trim();
 
             setDiagnostics({
                 prompt: result.diagnostics?.prompt || "No prompt generated.",
@@ -244,7 +261,7 @@ ${debug.success ? debug.models.join('\n') : 'Could not list models: ' + debug.er
                                                 {isActive && <span className="text-sm font-mono font-bold">29:59</span>}
                                             </button>
 
-                                            <Link href={`/library?open=${encodeURIComponent(session.topicId)}`} className="flex-1 md:flex-none">
+                                            <Link href={`/ library ? open = ${encodeURIComponent(session.topicId)} `} className="flex-1 md:flex-none">
                                                 <button className="w-full md:w-auto px-6 py-3 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
                                                     <Play className="w-4 h-4 fill-current" />
                                                     {session.type.includes('test') ? 'Hacer Test' : 'Estudiar'}
