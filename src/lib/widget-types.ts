@@ -120,6 +120,7 @@ export interface GeneratedTopicContent {
     title: string;
     metadata: TopicMetadata;
     sections: TopicSection[];
+    widgets?: WidgetDefinition[]; // placeholders o widgets generados
 }
 
 // ============================================
