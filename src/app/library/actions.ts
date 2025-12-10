@@ -51,16 +51,27 @@ export async function triggerAnalysis(customPrompt: string) {
     };
     fs.writeFileSync(STATUS_FILE, JSON.stringify(initialState));
 
-    // 2. Perform analysis (This blocks the action, but client can poll status if they disconnect)
-    // In Vercel Serverless, this must complete before the function freezes, so we await it here.
-    // The client will get the "processing" state from the *previous* polling or optimism, 
-    // but effectively this function waits. 
-    // To truly decouple, we'd need Inngest/Queues. 
-    // For now, increasing maxDuration allows the request to assume "background" behavior from user PoV.
+    // 2. Perform analysis
+    // In Vercel Serverless, this must complete before the function freezes.
 
     try {
         console.log("🚀 Starting DEEP analysis with Gemini 3 Pro...");
-        const files = getFileList();
+
+        // Prepare rich file list with context
+        const files = getFileList().map(f => {
+            // Find which group in the current syllabus contains this file
+            // to give the AI a hint of its current categorization (e.g. Supplementary)
+            let currentGroup = "Uncategorized";
+
+            // Iterate properly to find the group
+            for (const g of currentSyllabus.groups) {
+                if (g.topics.some((t: any) => t.originalFilename === f)) {
+                    currentGroup = g.title;
+                    break;
+                }
+            }
+            return { filename: f, currentCategory: currentGroup };
+        });
 
         // Using the most capable model available
         const model = genai.getGenerativeModel({ model: "models/gemini-3-pro-preview" });
@@ -68,7 +79,7 @@ export async function triggerAnalysis(customPrompt: string) {
         const fullPrompt = `
         ${customPrompt}
 
-        Here is the list of ${files.length} filenames:
+        Here is the database of files to organize. Each entry has the filename and its current/legacy category tag which you should use to identify 'Supplementary' material if asked:
         ${JSON.stringify(files)}
 
         RETURN ONLY JSON.
