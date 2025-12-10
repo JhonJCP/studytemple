@@ -83,38 +83,54 @@ export async function triggerAnalysis(customPrompt: string) {
         const model = genai.getGenerativeModel({ model: "models/gemini-3-pro-preview" });
 
         // Initialize classification containers
+        const boeFiles: any[] = [];
+        const practiceFiles: any[] = [];
         const coreFiles: any[] = [];
         const supplementaryFiles: any[] = [];
 
-        // Pre-classify based on DB truth
+        // Pre-classify based on DB truth (Strict Buckets)
         files.forEach(f => {
             const cat = f.currentCategory?.toUpperCase() || "";
             if (cat.includes("SUPPLEMENTARY")) {
                 supplementaryFiles.push(f);
+            } else if (cat.includes("BOE") || cat.includes("BASES")) {
+                boeFiles.push(f);
+            } else if (cat.includes("PRACTICE") || cat.includes("PRÁCTICA")) {
+                practiceFiles.push(f);
             } else {
                 coreFiles.push(f);
             }
         });
 
-        console.log(`🤖 Pre-classification: ${coreFiles.length} Core, ${supplementaryFiles.length} Supplementary`);
+        console.log(`🤖 Buckets: ${boeFiles.length} BOE, ${practiceFiles.length} Practice, ${coreFiles.length} Core, ${supplementaryFiles.length} Supp`);
 
         const fullPrompt = `
         ${customPrompt}
 
-        I have split the files into two lists for you.
+        I have pre-sorted the files into 4 LISTS for you. Follow these specific rules for each list:
 
-        LIST 1: CORE STUDY MATERIAL (Organize these carefully by topic)
+        === LIST 1: BASES & NORMATIVA (BOE) ===
+        ${JSON.stringify(boeFiles)}
+        -> INSTRUCTION: Create a group called "Bases de la Oposición". Put these files there. Use them to understand the context of the exam.
+
+        === LIST 2: PRACTICE & METHODOLOGY ===
+        ${JSON.stringify(practiceFiles)}
+        -> INSTRUCTION: Create a group called "Herramientas Prácticas". Put these files there.
+
+        === LIST 3: CORE ENGINEERING STUDY MATERIAL (THE MAIN CONTENT) ===
         ${JSON.stringify(coreFiles)}
+        -> INSTRUCTION: This is the most important part. You must intelligently group these into the official Engineering Domains:
+           - Aguas y Obras Hidráulicas
+           - Costas y Puertos
+           - Carreteras y Transportes
+           - Medio Ambiente
+           (You may create sub-groups or rename these slightly if the content demands it, but keep the structure logical).
 
-        LIST 2: SUPPLEMENTARY MATERIAL (Force ALL of these into a single group called "Material Suplementario")
+        === LIST 4: SUPPLEMENTARY MATERIAL ===
         ${JSON.stringify(supplementaryFiles)}
+        -> INSTRUCTION: Simply put ALL these files into a single group called "Material Suplementario". Do not mix them with the Core material.
 
-        INSTRUCTIONS:
-        1. Analyze LIST 1 and group them into the engineering domains (Aguas, Costas, Carreteras, Medio Ambiente, etc.).
-        2. Create a separate group called "Material Suplementario" and put EVERY file from LIST 2 into it.
-        3. Do NOT mix them. List 2 files MUST go to "Material Suplementario".
-
-        RETURN ONLY JSON.
+        RETURN ONLY JSON structure.
         `;
 
         const result = await model.generateContent(fullPrompt);
