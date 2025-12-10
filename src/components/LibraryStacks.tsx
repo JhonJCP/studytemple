@@ -8,7 +8,13 @@ import {
     Download,
     Eye,
     FolderOpen,
-    BookOpen
+    Scale,
+    HardHat,
+    Anchor,
+    Droplets,
+    Leaf,
+    Book,
+    Truck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,18 +32,46 @@ interface WrapperProps {
     data: { groups: SyllabusGroup[] };
 }
 
+// Icon mapping logic
+const getIconForTitle = (title: string) => {
+    const t = title.toLowerCase();
+    if (t.includes("bases") || t.includes("oposición")) return Scale;
+    if (t.includes("prácticas") || t.includes("herramientas")) return HardHat;
+    if (t.includes("carreteras")) return Truck;
+    if (t.includes("costas") || t.includes("puertos")) return Anchor;
+    if (t.includes("aguas")) return Droplets;
+    if (t.includes("ambiente")) return Leaf;
+    return Book;
+};
+
 export function LibraryStacks({ data }: WrapperProps) {
-    // Accordion state: which category is open? Default: first one
     const [openCategory, setOpenCategory] = useState<string | null>(data.groups[0]?.title || null);
 
     const toggleCategory = (title: string) => {
         setOpenCategory(prev => prev === title ? null : title);
     };
 
+    const handleOpenFile = (filename: string, download = false) => {
+        // Construct public URL for Supabase Storage
+        // Assuming bucket is 'library_documents' based on prior context/scripts
+        const baseUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/library_documents/`;
+        // Encode only the filename part
+        const url = `${baseUrl}${encodeURIComponent(filename)}`;
+
+        if (download) {
+            // Forcing download often requires proxy or specific header, but opening in new tab is usually sufficient for PDFs.
+            // We can try adding ?download= to Supabase URL if supported, or just open it.
+            window.open(url + "?download=", '_blank');
+        } else {
+            window.open(url, '_blank');
+        }
+    };
+
     return (
         <div className="max-w-5xl mx-auto space-y-4 pb-20">
             {data.groups.map((group, idx) => {
                 const isOpen = openCategory === group.title;
+                const GroupIcon = getIconForTitle(group.title);
 
                 return (
                     <motion.div
@@ -62,7 +96,7 @@ export function LibraryStacks({ data }: WrapperProps) {
                                     "p-3 rounded-xl transition-colors",
                                     isOpen ? "bg-primary text-black" : "bg-white/10 text-white/50"
                                 )}>
-                                    <FolderOpen className="w-6 h-6" />
+                                    <GroupIcon className="w-6 h-6" />
                                 </div>
                                 <div>
                                     <h3 className={cn("text-xl font-bold", isOpen ? "text-white" : "text-white/80")}>
@@ -111,12 +145,14 @@ export function LibraryStacks({ data }: WrapperProps) {
 
                                                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                         <button
+                                                            onClick={(e) => { e.stopPropagation(); handleOpenFile(topic.originalFilename); }}
                                                             className="p-2 rounded-lg bg-white/5 hover:bg-primary hover:text-black text-white/60 transition-colors"
                                                             title="Ver Documento"
                                                         >
                                                             <Eye className="w-4 h-4" />
                                                         </button>
                                                         <button
+                                                            onClick={(e) => { e.stopPropagation(); handleOpenFile(topic.originalFilename, true); }}
                                                             className="p-2 rounded-lg bg-white/5 hover:bg-white/20 text-white/60 transition-colors"
                                                             title="Descargar Original"
                                                         >

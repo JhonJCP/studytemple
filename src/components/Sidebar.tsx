@@ -15,19 +15,35 @@ import {
     Scale,
     Wallet,
     ChevronRight,
-    ChevronDown
+    ChevronDown,
+    Truck,
+    Leaf
 } from "lucide-react";
 import { useState } from "react";
-import { SYLLABUS_DATA, getTopicsByZone } from "@/lib/syllabus-data";
+import { DEFAULT_SYLLABUS } from "@/lib/default-syllabus";
 
-const ZONES = [
-    { id: "A", title: "Carreteras", icon: HardHat, color: "text-orange-400" },
-    { id: "B", title: "Aguas", icon: Droplets, color: "text-blue-400" },
-    { id: "C", title: "Costas", icon: Anchor, color: "text-cyan-400" },
-    { id: "D", title: "Medio Ambiente", icon: Book, color: "text-green-400" },
-    { id: "E", title: "Administrativo", icon: Scale, color: "text-slate-400" },
-    { id: "F", title: "Práctica", icon: Wallet, color: "text-purple-400" },
-];
+// Helper to map AI icons to Lucide icons
+const getIconForTitle = (title: string) => {
+    const t = title.toLowerCase();
+    if (t.includes("bases") || t.includes("oposición")) return Scale;
+    if (t.includes("prácticas") || t.includes("herramientas")) return HardHat;
+    if (t.includes("carreteras")) return Truck;
+    if (t.includes("costas") || t.includes("puertos")) return Anchor;
+    if (t.includes("aguas")) return Droplets;
+    if (t.includes("ambiente")) return Leaf;
+    return Book;
+};
+
+// Helper to map AI categories to color themes
+const getColorForTitle = (title: string) => {
+    const t = title.toLowerCase();
+    if (t.includes("bases")) return "text-amber-400";
+    if (t.includes("prácticas")) return "text-purple-400";
+    if (t.includes("carreteras")) return "text-orange-400";
+    if (t.includes("costas")) return "text-cyan-400";
+    if (t.includes("aguas")) return "text-blue-400";
+    return "text-green-400";
+};
 
 export function Sidebar() {
     const pathname = usePathname();
@@ -39,6 +55,17 @@ export function Sidebar() {
     const toggleZone = (zoneId: string) => {
         setExpandedZone(expandedZone === zoneId ? null : zoneId);
     };
+
+    // Filter out "Material Suplementario" and map structure
+    const smartZones = DEFAULT_SYLLABUS.groups
+        .filter((g: any) => !g.title.toLowerCase().includes("suplementario"))
+        .map((g: any, idx: number) => ({
+            id: `block-${idx}`,
+            title: g.title,
+            icon: getIconForTitle(g.title),
+            color: getColorForTitle(g.title),
+            topics: g.topics
+        }));
 
     return (
         <aside className="fixed left-0 top-0 h-screen w-72 bg-black/90 border-r border-white/10 backdrop-blur-xl flex flex-col z-50 overflow-y-auto custom-scrollbar">
@@ -67,14 +94,13 @@ export function Sidebar() {
             <div className="px-6 py-4">
                 <h3 className="text-xs font-bold text-white/30 uppercase tracking-widest mb-4 flex items-center gap-2">
                     <span className="w-full h-px bg-white/10" />
-                    Temario
+                    Temario Inteligente
                     <span className="w-full h-px bg-white/10" />
                 </h3>
 
                 <div className="space-y-1">
-                    {ZONES.map((zone) => {
+                    {smartZones.map((zone) => {
                         const isExpanded = expandedZone === zone.id;
-                        const topics = getTopicsByZone(zone.id);
 
                         return (
                             <div key={zone.id} className="rounded-xl overflow-hidden">
@@ -87,27 +113,27 @@ export function Sidebar() {
                                 >
                                     <div className="flex items-center gap-3">
                                         <zone.icon className={cn("w-4 h-4", zone.color)} />
-                                        <span>Bloque {zone.id}</span>
+                                        <span className="truncate max-w-[140px]" title={zone.title}>{zone.title}</span>
                                     </div>
                                     {isExpanded ? <ChevronDown className="w-3 h-3 opacity-50" /> : <ChevronRight className="w-3 h-3 opacity-50" />}
                                 </button>
 
                                 {isExpanded && (
                                     <div className="bg-black/40 border-l border-white/5 ml-4 pl-2 py-2 space-y-1">
-                                        {topics.map(topic => (
-                                            <Link
-                                                key={topic.id}
-                                                href={`/syllabus/topic/${topic.id}`}
+                                        {zone.topics.map((topic: any, tIdx: number) => (
+                                            <a
+                                                key={tIdx}
+                                                // Link to library opening logic
+                                                href={`/library`}
+                                                // Note: Linking to /library?open=... would be better if LibraryPage handled it, 
+                                                // but for now just getting them to the library is cleaner than a broken anchor.
                                                 className={cn(
-                                                    "block text-xs py-2 px-3 rounded-lg transition-colors leading-relaxed line-clamp-2",
-                                                    pathname === `/syllabus/topic/${topic.id}`
-                                                        ? "bg-primary/20 text-primary border border-primary/10"
-                                                        : "text-white/40 hover:text-white hover:bg-white/5"
+                                                    "block text-xs py-2 px-3 rounded-lg transition-colors leading-relaxed line-clamp-2 text-white/40 hover:text-white hover:bg-white/5"
                                                 )}
                                                 title={topic.title}
                                             >
                                                 {topic.title}
-                                            </Link>
+                                            </a>
                                         ))}
                                     </div>
                                 )}
