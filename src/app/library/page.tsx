@@ -5,14 +5,17 @@ import { Search, Book } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { LibraryStacks } from "@/components/LibraryStacks";
 import { SyllabusBrain } from "@/components/SyllabusBrain";
+import { DEFAULT_SYLLABUS } from "@/lib/default-syllabus";
 
 export default function LibraryPage() {
     const supabase = createClient();
     const [searchQuery, setSearchQuery] = useState("");
-    const [libraryData, setLibraryData] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
 
-    // Fetch dynamic syllabus from Supabase
+    // Initialize with the perfect AI structure by default (Instant Load)
+    const [libraryData, setLibraryData] = useState<any>(DEFAULT_SYLLABUS);
+    // const [loading, setLoading] = useState(true); // Don't block UI
+
+    // Fetch dynamic syllabus from Supabase (to override default if newer version exists)
     useEffect(() => {
         async function fetchSyllabus() {
             try {
@@ -23,23 +26,21 @@ export default function LibraryPage() {
                     .single();
 
                 if (data && data.value) {
+                    console.log("✅ Loaded dynamic syllabus from DB");
                     setLibraryData(data.value);
+                } else {
+                    console.warn("⚠️ No syllabus in DB, using default AI structure.");
                 }
             } catch (e) {
                 console.error("Failed to load syllabus", e);
-            } finally {
-                setLoading(false);
             }
         }
         fetchSyllabus();
     }, []);
 
-    // Fallback while loading
-    if (loading) return <div className="p-20 text-center text-white/50">Cargando el conocimiento...</div>;
-
-    // Use fetched data or empty structure
-    const data = libraryData || { groups: [] };
-    const totalDocs = data && data.groups ? data.groups.reduce((acc: any, g: any) => acc + g.topics.length, 0) : 0;
+    // Use fetched data or default structure
+    const data = libraryData || DEFAULT_SYLLABUS;
+    const totalDocs = data.groups?.reduce((acc: any, g: any) => acc + g.topics.length, 0) || 0;
 
     return (
         <div className="min-h-screen bg-background p-8 pb-32">
