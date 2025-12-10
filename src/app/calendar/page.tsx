@@ -2,40 +2,56 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { ArrowLeft, Calendar as CalendarIcon, CheckCircle, Clock, Flame, Play, BrainCircuit } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, Play, BrainCircuit, Timer, FileQuestion, BookOpen, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
-import { generateSchedule, StudyPlan } from "@/lib/planner-brain";
+import { motion } from "framer-motion";
+import { generateSmartSchedule, StudyPlan, ScheduledSession } from "@/lib/planner-brain";
 
 export default function CalendarPage() {
     const [intensity, setIntensity] = useState<StudyPlan['intensity']>('balanced');
-    const [isSimulating, setIsSimulating] = useState(false);
+    const [examDate, setExamDate] = useState("2026-06-15"); // Default future date
+    const [activeTimer, setActiveTimer] = useState<string | null>(null);
 
-    // Default Plan Config (Mock User Input)
+    // Default Plan Config (Sprint: Dec 15 - Jan 15)
+    // In a real app, these dates would come from user settings/onboarding.
     const plan: StudyPlan = useMemo(() => ({
         availability: {
-            monday: 60, tuesday: 60, wednesday: 60, thursday: 60, friday: 60, saturday: 180, sunday: 0
+            monday: 90, tuesday: 90, wednesday: 90, thursday: 90, friday: 90, saturday: 180, sunday: 0
         },
-        goalDate: new Date(new Date().setDate(new Date().getDate() + 30)), // 30 days out
+        startDate: new Date("2025-12-15"),
+        goalDate: new Date("2026-01-15"),
         intensity: intensity
     }), [intensity]);
 
     // The Brain Calculation
-    const schedule = useMemo(() => generateSchedule(plan), [plan]);
+    const schedule = useMemo(() => generateSmartSchedule(plan), [plan]);
 
-    // Filter for "Today" (Using first scheduled day as proxy for demo)
-    const today = new Date();
-    // Simplified date matching for demo purposes
-    const todaysMissions = schedule.slice(0, 3);
-    const upcomingCount = Math.max(0, schedule.length - todaysMissions.length);
-
-    const handleOptimize = (newIntensity: StudyPlan['intensity']) => {
-        setIsSimulating(true);
-        setTimeout(() => {
-            setIntensity(newIntensity);
-            setIsSimulating(false);
-        }, 800);
+    // UI Helpers
+    const getIconForType = (type: ScheduledSession['type']) => {
+        switch (type) {
+            case 'study': return BookOpen;
+            case 'review_flashcards': return Layers;
+            case 'test_practice': return FileQuestion;
+            default: return CalendarIcon;
+        }
     };
+
+    const getLabelForType = (type: ScheduledSession['type']) => {
+        switch (type) {
+            case 'study': return 'Estudio Profundo';
+            case 'review_flashcards': return 'Flashcards SRS';
+            case 'test_practice': return 'Simulacro Test';
+            case 'comprehensive_review': return 'Repaso General';
+            default: return 'Sesión';
+        }
+    };
+
+    // Filter "Today" (Simulating we are on Dec 15 for demo purposes, or showing first Plan day)
+    const demoDate = new Date("2025-12-15");
+    const todaysMissions = schedule.filter(s => s.date.getDate() === demoDate.getDate() && s.date.getMonth() === demoDate.getMonth());
+
+    // Group upcoming
+    const upcomingSessions = schedule.slice(todaysMissions.length, todaysMissions.length + 10);
 
     return (
         <div className="min-h-screen p-8 bg-background flex flex-col">
@@ -44,32 +60,25 @@ export default function CalendarPage() {
                 Volver al Templo
             </Link>
 
-            <div className="flex items-center justify-between mb-12">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-12 gap-6">
                 <div>
                     <h1 className="text-5xl font-black text-green-400 mb-2 flex items-center gap-3">
                         EL CALENDARIO <BrainCircuit className="w-10 h-10 text-white/20" />
                     </h1>
                     <p className="text-xl text-white/60">
-                        Cortez Planning Brain v1.0 • {schedule.length} sesiones generadas.
+                        Estrategia SRS Activa: <span className="text-green-400 font-bold">Sprint 30 Días</span> (15 Dic - 15 Ene)
                     </p>
                 </div>
 
-                {/* Stats / Controls */}
-                <div className="flex items-center gap-4">
-                    <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
-                        {(['relaxed', 'balanced', 'intense'] as const).map((level) => (
-                            <button
-                                key={level}
-                                onClick={() => handleOptimize(level)}
-                                className={cn(
-                                    "px-4 py-2 rounded-lg text-sm font-bold capitalize transition-all",
-                                    intensity === level ? "bg-green-500 text-black shadow-lg shadow-green-500/20" : "text-white/40 hover:text-white"
-                                )}
-                            >
-                                {level}
-                            </button>
-                        ))}
-                    </div>
+                {/* Exam Date Input */}
+                <div className="bg-white/5 p-4 rounded-xl border border-white/10 flex flex-col gap-2">
+                    <label className="text-xs text-white/40 uppercase font-bold">Fecha de Examen (Estimada)</label>
+                    <input
+                        type="date"
+                        value={examDate}
+                        onChange={(e) => setExamDate(e.target.value)}
+                        className="bg-black/20 border border-white/10 rounded px-3 py-1 text-white text-sm focus:outline-none focus:border-green-500"
+                    />
                 </div>
             </div>
 
@@ -78,99 +87,114 @@ export default function CalendarPage() {
                 <div className="lg:col-span-2 space-y-6">
                     <div className="flex items-center justify-between">
                         <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                            <Flame className="text-orange-500" /> Misiones de Hoy
+                            <CalendarIcon className="text-orange-500" /> Agenda: 15 de Diciembre (Inicio)
                         </h2>
-                        {todaysMissions.length > 0 && (
-                            <button className="px-6 py-2 bg-green-500 text-black font-bold rounded-lg hover:scale-105 transition-transform flex items-center gap-2">
-                                <Play className="w-4 h-4 fill-current" />
-                                Iniciar Sesión de Estudio
-                            </button>
-                        )}
                     </div>
 
-                    <AnimatePresence mode="wait">
-                        {isSimulating ? (
-                            <motion.div
-                                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                className="h-64 flex flex-col items-center justify-center text-white/50 space-y-4"
-                            >
-                                <BrainCircuit className="w-12 h-12 animate-pulse text-green-500" />
-                                <p>Optimizando ruta de aprendizaje...</p>
-                            </motion.div>
-                        ) : (
-                            <div className="grid gap-4">
-                                {todaysMissions.map((session, i) => (
-                                    <motion.div
-                                        key={i}
-                                        initial={{ opacity: 0, x: -20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: i * 0.1 }}
-                                        className="glass-card p-6 flex items-center justify-between group border-l-4 border-l-green-500"
-                                    >
+                    <div className="grid gap-4">
+                        {todaysMissions.map((session, i) => {
+                            const Icon = getIconForType(session.type);
+                            const isActive = activeTimer === session.id;
+
+                            return (
+                                <motion.div
+                                    key={session.id}
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: i * 0.1 }}
+                                    className={cn(
+                                        "glass-card p-6 flex items-center justify-between group border-l-4",
+                                        activeTimer === session.id ? "border-l-green-400 bg-green-500/5" : "border-l-white/10"
+                                    )}
+                                >
+                                    <div className="flex gap-4 items-center">
+                                        <div className="p-3 bg-white/5 rounded-lg">
+                                            <Icon className="w-6 h-6 text-white/70" />
+                                        </div>
                                         <div>
                                             <div className="flex items-center gap-2 mb-1">
                                                 <span className={cn(
-                                                    "text-xs font-bold px-2 py-0.5 rounded bg-white/10 text-white/60",
-                                                    session.mode === 'summary' && "bg-amber-500/20 text-amber-500"
+                                                    "text-xs font-bold px-2 py-0.5 rounded bg-white/10 text-white/60 uppercase",
+                                                    session.type.includes("test") && "bg-purple-500/20 text-purple-300",
+                                                    session.type === "study" && "bg-blue-500/20 text-blue-300"
                                                 )}>
-                                                    MODO: {session.mode.toUpperCase().replace('_', ' ')}
+                                                    {getLabelForType(session.type)}
                                                 </span>
                                                 <span className="text-xs font-mono text-white/30 flex items-center gap-1">
-                                                    <Clock className="w-3 h-3" /> {session.durationMinutes} min
+                                                    <Timer className="w-3 h-3" /> {session.durationMinutes} min
                                                 </span>
                                             </div>
                                             <h3 className="text-xl font-bold text-white group-hover:text-green-400 transition-colors">
                                                 {session.topicTitle}
                                             </h3>
                                             <p className="text-xs text-white/40 mt-1 italic">
-                                                🤖 IA: "{session.reason}"
+                                                "{session.notes}"
                                             </p>
                                         </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        {/* Timer Button */}
+                                        <button
+                                            onClick={() => setActiveTimer(isActive ? null : session.id)}
+                                            className={cn(
+                                                "p-3 rounded-lg border transition-all flex items-center gap-2",
+                                                isActive
+                                                    ? "bg-red-500/20 border-red-500/50 text-red-500 animate-pulse"
+                                                    : "bg-white/5 border-white/10 hover:bg-white/10 text-white"
+                                            )}
+                                            title="Temporizador"
+                                        >
+                                            <Timer className="w-5 h-5" />
+                                            {isActive && <span className="text-sm font-mono font-bold">29:59</span>}
+                                        </button>
+
+                                        {/* Action Button */}
                                         <Link href={`/library?open=${encodeURIComponent(session.topicId)}`}>
-                                            <button className="px-4 py-2 border border-white/10 rounded hover:bg-white/10 text-white transition-colors">
-                                                Estudiar
+                                            <button className="px-4 py-3 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2">
+                                                <Play className="w-4 h-4 fill-current" />
+                                                {session.type.includes('test') ? 'Hacer Test' : 'Estudiar'}
                                             </button>
                                         </Link>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        )}
-                    </AnimatePresence>
-
-                    {/* Empty State */}
-                    {!isSimulating && todaysMissions.length === 0 && (
-                        <div className="p-12 text-center border border-dashed border-white/10 rounded-xl">
-                            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                            <h3 className="text-2xl font-bold text-white">¡Día Libre!</h3>
-                            <p className="text-white/50">El cerebro no ha programado nada para hoy según tus restricciones.</p>
-                        </div>
-                    )}
+                                    </div>
+                                </motion.div>
+                            );
+                        })}
+                    </div>
                 </div>
 
                 {/* RIGHT: Forecast */}
                 <div className="space-y-8">
                     <div className="glass-card p-6">
                         <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                            <CalendarIcon className="w-5 h-5 text-purple-400" /> Proyección IA
+                            <BrainCircuit className="w-5 h-5 text-purple-400" /> Próximos Repasos (SRS)
                         </h3>
-                        <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-                            <div className="p-4 bg-white/5 rounded-lg border border-white/10">
-                                <div className="text-3xl font-bold text-white">{upcomingCount}</div>
-                                <div className="text-sm text-white/40">Sesiones Pendientes</div>
-                            </div>
-
-                            <div className="text-xs text-white/30 p-2">
-                                Próximos 5 hitos del plan:
-                            </div>
-                            {schedule.slice(3, 8).map((s, idx) => (
-                                <div key={idx} className="flex flex-col gap-1 pb-3 border-b border-white/5 last:border-0">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-green-400 font-bold text-xs">{s.date.toLocaleDateString()}</span>
-                                        <span className="text-white/20 text-[10px] uppercase">{s.mode}</span>
+                        <div className="space-y-4 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+                            {upcomingSessions.map((s, idx) => (
+                                <div key={idx} className="flex gap-3 pb-3 border-b border-white/5 last:border-0 group hover:bg-white/5 p-2 rounded transition-colors">
+                                    <div className="flex flex-col items-center justify-center min-w-[50px] bg-white/5 rounded px-2 py-1">
+                                        <span className="text-xs text-white/40">{s.date.toLocaleDateString(undefined, { month: 'short' })}</span>
+                                        <span className="text-lg font-bold text-white">{s.date.getDate()}</span>
                                     </div>
-                                    <span className="text-white/70 text-sm truncate">{s.topicTitle}</span>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className={cn(
+                                                "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded",
+                                                s.type === 'study' ? "bg-blue-500/10 text-blue-400" : "bg-purple-500/10 text-purple-400"
+                                            )}>
+                                                {s.type === 'study' ? 'NUEVO' : 'REPASO'}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm text-white/80 truncate leading-tight" title={s.topicTitle}>{s.topicTitle}</p>
+                                    </div>
                                 </div>
                             ))}
+                        </div>
+
+                        <div className="mt-4 pt-4 border-t border-white/10 text-center">
+                            <p className="text-xs text-white/30">
+                                El algoritmo ajusta automáticamente estas fechas según tu rendimiento en los tests simulados.
+                            </p>
                         </div>
                     </div>
                 </div>

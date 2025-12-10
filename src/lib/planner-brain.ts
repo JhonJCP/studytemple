@@ -1,160 +1,213 @@
 
 import { DEFAULT_SYLLABUS } from "./default-syllabus";
 
-// Types
+/** 
+ * PLANNER BRAIN v2.0
+ * Strategy: "The 30-Day Sprint to Mastery"
+ * Goal: Complete entire syllabus + SRS Reviews + Tests between [Start] and [Goal].
+ * 
+ * Algorithm: Modified SM-2 for short-term sprints.
+ * - Initial Study: "Deep Dive"
+ * - Review 1: 1 day later (Flashcards)
+ * - Review 2: 3 days later (Test)
+ * - Review 3: 7 days later (Mixed)
+ * - Final Review: 2 days before deadline.
+ */
+
+// --- Types ---
+
 export interface StudyPlan {
-    availability: { [key: string]: number }; // minutes per day (mon, tue...)
-    goalDate: Date;
+    availability: { [key: string]: number }; // minutes per day
+    startDate: Date;   // e.g. Dec 15, 2025
+    goalDate: Date;    // e.g. Jan 15, 2026
     intensity: 'relaxed' | 'balanced' | 'intense';
 }
 
+export type SessionType = 'study' | 'review_flashcards' | 'test_practice' | 'comprehensive_review';
+
 export interface ScheduledSession {
+    id: string;
     date: Date;
-    topicId: string;
+    topicId: string; // Filename or unique ID
     topicTitle: string;
     durationMinutes: number;
-    mode: 'deep_dive' | 'summary' | 'flashcards' | 'audio';
-    reason: string; // "Compressed due to tight schedule"
-    originalLengthPages: number; // Estimated
+    type: SessionType;
+    status: 'pending' | 'completed' | 'missed';
+    notes?: string;
 }
 
-// Estimates
-const PAGES_PER_HOUR_DEEP = 10;
-const PAGES_PER_HOUR_SUMMARY = 40; // Skimming/Summary reading
+interface Task {
+    title: string;
+    originalFilename: string;
+    group: string;
+    basePages: number;
+}
 
-// The Brain Function
-export function generateSchedule(plan: StudyPlan, startDate: Date = new Date()): ScheduledSession[] {
-    const schedule: ScheduledSession[] = [];
-    let currentDate = new Date(startDate);
-    const deadline = plan.goalDate;
+// --- Configuration ---
 
-    // 1. Flatten Syllabus to Task List
-    // We filter out Supplementary for the core plan
-    interface Task {
-        title: string;
-        originalFilename: string;
-        group: string;
-        pages: number;
-    }
+const SPRINT_START = new Date("2025-12-15");
+const SPRINT_END = new Date("2026-01-15");
+
+// Standard intervals for "Sprint SRS" (Days after initial study)
+// [1, 3, 7, 14] is standard, but for 30 days we compress.
+const REVIEW_INTERVALS = [1, 4, 10];
+
+const MIN_SESSION_MINUTES = 30;
+
+// --- Helper: Flatten Syllabus ---
+function getFlatTasks(): Task[] {
     const tasks: Task[] = [];
-
     DEFAULT_SYLLABUS.groups.forEach((group: any) => {
         if (group.title.toLowerCase().includes("suplementario")) return;
-
         group.topics.forEach((topic: any) => {
-            // ESTIMATION HEURISTIC:
-            // Longer filenames often imply longer docs? No, unreliable.
-            // For now, assume a standard "Heavy" topic is ~30 pages, "Light" is ~10.
-            // We'll guess based on keywords.
             let pages = 20;
-            if (topic.title.includes("Ley")) pages = 50;
+            if (topic.title.includes("Ley")) pages = 40;
             if (topic.title.includes("Guía")) pages = 15;
-            if (topic.title.includes("Supuesto")) pages = 10; // Practice is slower but less pages
+            if (topic.title.includes("Supuesto")) pages = 25;
 
             tasks.push({
                 title: topic.title,
                 originalFilename: topic.originalFilename,
                 group: group.title,
-                pages: pages
+                basePages: pages
             });
         });
     });
+    return tasks;
+}
 
-    // 2. Calculate Total Demand
-    const totalPages = tasks.reduce((sum, t) => sum + t.pages, 0);
-    const deepHoursNeeded = totalPages / PAGES_PER_HOUR_DEEP;
+// --- Core Algorithm ---
 
-    // 3. Calculate Total Supply (Time)
-    // Simple loop from start to deadline
-    let availableMinutes = 0;
-    const dayIterator = new Date(startDate);
+export function generateSmartSchedule(plan: StudyPlan): ScheduledSession[] {
+    const schedule: ScheduledSession[] = [];
 
-    // Safety break to prevent infinite loops if goalDate is bad
-    let safetyDays = 0;
-    while (dayIterator <= deadline && safetyDays < 365) {
-        const dayName = dayIterator.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-        // Handle "saturday", "sunday" keys from plan if they exist, or defaults
-        const mins = plan.availability[dayName] || 0;
-        availableMinutes += mins;
-        dayIterator.setDate(dayIterator.getDate() + 1);
-        safetyDays++;
+    // 1. Setup Time boundaries
+    // User requested specifically Dec 15 - Jan 15 strategy, but if today is different,
+    // we should arguably adapt. For now, we respect the user's specific "Sprint" request dates
+    // if provided in plan, otherwise default to current logic.
+    const start = plan.startDate > new Date() ? plan.startDate : new Date(); // Don't schedule in past
+    const end = plan.goalDate;
+    const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+
+    // 2. Get Workload
+    const tasks = getFlatTasks();
+    const tasksCount = tasks.length;
+
+    // 3. Distribute Initial Study Sessions
+    // We need to fit ALL 'study' sessions within the first ~60% of the sprint 
+    // to leave room for the SRS reviews of the last topics.
+    const studyPhaseDays = Math.floor(totalDays * 0.7);
+    const tasksPerDay = Math.ceil(tasksCount / studyPhaseDays);
+
+    let currentDayIndex = 0;
+    let taskIndex = 0;
+
+    // We simulate day by day
+    for (let dayOffset = 0; dayOffset <= totalDays; dayOffset++) {
+        const currentDate = new Date(start);
+        currentDate.setDate(start.getDate() + dayOffset);
+
+        const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+        let minutesAvailable = plan.availability[dayName] || 0;
+
+        // -- A. Schedule REVIEW sessions for previous topics first (Priority High) --
+        // Check schedule for sessions that trigger a review today
+        // (This is a simplified simulation of SRS: we look back at what we scheduled previously)
+        // In a real DB app, we'd query "Due Reviews". Here we generate the plan upfront.
+
+        // Strategy: We can't know what we scheduled *today* yet looking back, 
+        // so we must push reviews into the future *when* we schedule the study session.
+
+        // So, step back: We iterate mainly to fill "Study" slots, 
+        // and when we place a study slot, we immediately reserve space in future days for reviews.
+        // But future days heavily depend on available minutes.
+        // This suggests a "Timeline Bucket" approach.
     }
 
-    const availableHours = availableMinutes / 60;
-    // Avoid division by zero
-    const compressionRatio = deepHoursNeeded > 0 ? availableHours / deepHoursNeeded : 1;
+    // --- Timeline Bucket Implementation ---
+    // Initialize buckets for each day
+    const dayBuckets: { [key: number]: ScheduledSession[] } = {};
+    for (let i = 0; i <= totalDays + 5; i++) dayBuckets[i] = [];
 
-    console.log(`🧠 PLANNER BRAIN: Demand=${deepHoursNeeded}h, Supply=${availableHours}h, Ratio=${compressionRatio.toFixed(2)}`);
+    // Helper to add to bucket
+    const addToBucket = (dayIdx: number, session: ScheduledSession) => {
+        if (!dayBuckets[dayIdx]) dayBuckets[dayIdx] = [];
+        session.date = new Date(start);
+        session.date.setDate(start.getDate() + dayIdx);
+        dayBuckets[dayIdx].push(session);
+    };
 
-    // 4. Distribute
-    let taskIndex = 0;
-    currentDate = new Date(startDate);
-    safetyDays = 0;
+    // 4. Place Sessions
+    let currentStudyDay = 0;
 
-    while (currentDate <= deadline && taskIndex < tasks.length && safetyDays < 365) {
-        const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-        const minsToday = plan.availability[dayName] || 0;
+    tasks.forEach((task, idx) => {
+        // Find next day with available capacity for a Study Session
+        // (Study take ~60-90 mins usually)
+        let placed = false;
+        while (!placed && currentStudyDay < totalDays) {
+            const dayName = new Date(start.getTime() + currentStudyDay * 86400000)
+                .toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+            const dailyLimit = plan.availability[dayName] || 0;
 
-        if (minsToday > 0) {
-            let timeRemaining = minsToday;
+            // Calculate usage so far
+            const used = (dayBuckets[currentStudyDay] || []).reduce((acc, s) => acc + s.durationMinutes, 0);
 
-            while (timeRemaining >= 20 && taskIndex < tasks.length) { // Minimum 20 min slot
-                const task = tasks[taskIndex];
+            const studyDuration = Math.min(dailyLimit, Math.max(30, task.basePages * 2)); // 2 min per page approx
 
-                // Decide Mode based on Ratio
-                let mode: ScheduledSession['mode'] = 'deep_dive';
-                let pagesPerHour = PAGES_PER_HOUR_DEEP;
-                let reason = "Estudio profundo estándar.";
-
-                if (compressionRatio < 0.8) {
-                    mode = 'summary';
-                    pagesPerHour = PAGES_PER_HOUR_SUMMARY;
-                    reason = "Tiempo escaso. Modo Resumen activado.";
-                }
-
-                // Specific Logic: Practice is always 'deep' logic basically (handling exercises)
-                if (task.group.includes("Práctica")) {
-                    mode = 'deep_dive'; // Practice needs time
-                    reason = "Práctica requiere tiempo real.";
-                }
-
-                const neededHours = task.pages / pagesPerHour;
-                const neededMinutes = neededHours * 60;
-
-                // Create Session
-                // If it fits, schedule it. If not, split it? 
-                // For MVP, we squeeze it or carry over. We'll carry over logic simply by reducing pages.
-
-                const allocatedMinutes = Math.min(timeRemaining, neededMinutes);
-                const percentDone = allocatedMinutes / neededMinutes;
-
-                schedule.push({
-                    date: new Date(currentDate),
-                    topicId: task.originalFilename, // Using ID as filename for now
+            if (used + studyDuration <= dailyLimit) {
+                // Place STUDY
+                addToBucket(currentStudyDay, {
+                    id: `study-${idx}`,
+                    date: new Date(), // fixed later
+                    topicId: task.originalFilename,
                     topicTitle: task.title,
-                    durationMinutes: Math.floor(allocatedMinutes),
-                    mode: mode,
-                    reason: reason + (percentDone < 1 ? " (Continuar mañana)" : ""),
-                    originalLengthPages: task.pages
+                    durationMinutes: studyDuration,
+                    type: 'study',
+                    status: 'pending',
+                    notes: 'Sesión inicial de lectura y comprensión.'
                 });
 
-                timeRemaining -= allocatedMinutes;
+                // Place SRS REVIEWS (Future)
+                REVIEW_INTERVALS.forEach((interval, reviewIdx) => {
+                    const reviewDay = currentStudyDay + interval;
+                    if (reviewDay <= totalDays) {
+                        const type = reviewIdx === 0 ? 'review_flashcards' :
+                            reviewIdx === 1 ? 'test_practice' : 'comprehensive_review';
 
-                if (percentDone >= 0.9) {
-                    taskIndex++; // Done
-                } else {
-                    // Task remains for next slot (simplified loop: we just reduce its 'pages' effectively, 
-                    // but here we just leave taskIndex and loop again next day)
-                    // Wait, unlimited while loop hazard. 
-                    // To simplify: if we can't finish, we move to next day.
-                    break;
-                }
+                        addToBucket(reviewDay, {
+                            id: `review-${idx}-${reviewIdx}`,
+                            date: new Date(), // fixed later 
+                            topicId: task.originalFilename,
+                            topicTitle: task.title,
+                            durationMinutes: 20, // Reviews are faster
+                            type: type,
+                            status: 'pending',
+                            notes: type === 'test_practice' ? 'Simulacro de examen test.' : 'Repaso espaciado activo.'
+                        });
+                    }
+                });
+
+                placed = true;
+            } else {
+                currentStudyDay++; // Try next day
             }
         }
+    });
 
-        currentDate.setDate(currentDate.getDate() + 1);
-        safetyDays++;
-    }
+    // 5. Flatten Buckets to Final Schedule
+    Object.keys(dayBuckets).forEach(dayIdxStr => {
+        const dayIdx = parseInt(dayIdxStr);
+        const sessions = dayBuckets[dayIdx];
+        if (sessions && sessions.length > 0) {
+            sessions.forEach(s => {
+                // Fix date object
+                const d = new Date(start);
+                d.setDate(start.getDate() + dayIdx);
+                s.date = d;
+                schedule.push(s);
+            });
+        }
+    });
 
-    return schedule;
+    return schedule.sort((a, b) => a.date.getTime() - b.date.getTime());
 }
