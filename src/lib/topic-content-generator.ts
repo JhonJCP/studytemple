@@ -17,7 +17,7 @@ import type {
 } from "./widget-types";
 import { getTopicById, generateBaseHierarchy, TopicWithGroup } from "./syllabus-hierarchy";
 
-const API_KEY = process.env.GEMINI_API_KEY || "";
+const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
 const MODEL = "gemini-3-pro-preview";
 const genAI = new GoogleGenerativeAI(API_KEY);
 
