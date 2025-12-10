@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Book, Anchor, Droplets, Wallet, Scale, HardHat, Calendar, BookOpen, Swords, Truck, Leaf } from "lucide-react";
+import { Book, Anchor, Droplets, Scale, HardHat, Calendar, BookOpen, Swords, Truck, Leaf } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { DEFAULT_SYLLABUS } from "@/lib/default-syllabus";

@@ -30,11 +30,18 @@ export function generateSchedule(plan: StudyPlan, startDate: Date = new Date()):
 
     // 1. Flatten Syllabus to Task List
     // We filter out Supplementary for the core plan
-    const tasks = [];
-    DEFAULT_SYLLABUS.groups.forEach(group => {
+    interface Task {
+        title: string;
+        originalFilename: string;
+        group: string;
+        pages: number;
+    }
+    const tasks: Task[] = [];
+
+    DEFAULT_SYLLABUS.groups.forEach((group: any) => {
         if (group.title.toLowerCase().includes("suplementario")) return;
 
-        group.topics.forEach(topic => {
+        group.topics.forEach((topic: any) => {
             // ESTIMATION HEURISTIC:
             // Longer filenames often imply longer docs? No, unreliable.
             // For now, assume a standard "Heavy" topic is ~30 pages, "Light" is ~10.
@@ -45,7 +52,8 @@ export function generateSchedule(plan: StudyPlan, startDate: Date = new Date()):
             if (topic.title.includes("Supuesto")) pages = 10; // Practice is slower but less pages
 
             tasks.push({
-                ...topic,
+                title: topic.title,
+                originalFilename: topic.originalFilename,
                 group: group.title,
                 pages: pages
             });
@@ -60,31 +68,37 @@ export function generateSchedule(plan: StudyPlan, startDate: Date = new Date()):
     // Simple loop from start to deadline
     let availableMinutes = 0;
     const dayIterator = new Date(startDate);
-    while (dayIterator <= deadline) {
+
+    // Safety break to prevent infinite loops if goalDate is bad
+    let safetyDays = 0;
+    while (dayIterator <= deadline && safetyDays < 365) {
         const dayName = dayIterator.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
         // Handle "saturday", "sunday" keys from plan if they exist, or defaults
         const mins = plan.availability[dayName] || 0;
         availableMinutes += mins;
         dayIterator.setDate(dayIterator.getDate() + 1);
+        safetyDays++;
     }
 
     const availableHours = availableMinutes / 60;
-    const compressionRatio = availableHours / deepHoursNeeded;
+    // Avoid division by zero
+    const compressionRatio = deepHoursNeeded > 0 ? availableHours / deepHoursNeeded : 1;
 
     console.log(`🧠 PLANNER BRAIN: Demand=${deepHoursNeeded}h, Supply=${availableHours}h, Ratio=${compressionRatio.toFixed(2)}`);
 
     // 4. Distribute
     let taskIndex = 0;
     currentDate = new Date(startDate);
+    safetyDays = 0;
 
-    while (currentDate <= deadline && taskIndex < tasks.length) {
+    while (currentDate <= deadline && taskIndex < tasks.length && safetyDays < 365) {
         const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
         const minsToday = plan.availability[dayName] || 0;
 
         if (minsToday > 0) {
             let timeRemaining = minsToday;
 
-            while (timeRemaining > 20 && taskIndex < tasks.length) { // Minimum 20 min slot
+            while (timeRemaining >= 20 && taskIndex < tasks.length) { // Minimum 20 min slot
                 const task = tasks[taskIndex];
 
                 // Decide Mode based on Ratio
@@ -139,6 +153,7 @@ export function generateSchedule(plan: StudyPlan, startDate: Date = new Date()):
         }
 
         currentDate.setDate(currentDate.getDate() + 1);
+        safetyDays++;
     }
 
     return schedule;

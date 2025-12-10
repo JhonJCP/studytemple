@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { ArrowLeft, Calendar as CalendarIcon, CheckCircle, Clock, Flame, Play, Settings, BrainCircuit } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, CheckCircle, Clock, Flame, Play, BrainCircuit } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { generateSchedule, StudyPlan } from "@/lib/planner-brain";
