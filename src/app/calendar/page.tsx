@@ -294,15 +294,38 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
 
     // *** Paste from Clipboard ***
     const handlePasteFromClipboard = async () => {
+        setBrainStatus('thinking');
+        
+        // Show immediate feedback
+        setDiagnostics(prev => ({
+            prompt: prev?.prompt || "",
+            rawResponse: "",
+            analysis: "⏳ Leyendo portapapeles..."
+        }));
+        
         try {
-            setBrainStatus('thinking');
+            // Request clipboard permission explicitly
             const clipboardText = await navigator.clipboard.readText();
+            
+            if (!clipboardText || clipboardText.trim().length === 0) {
+                throw new Error("El portapapeles está vacío. Copia el JSON del plan primero.");
+            }
             
             // Clean the text: remove BOM, trim whitespace
             const cleanedText = clipboardText
                 .replace(/^\uFEFF/, '') // Remove BOM
                 .replace(/^[\s\n\r]+/, '') // Remove leading whitespace/newlines
                 .trim();
+            
+            // Show the raw content in the prompt area first
+            setDiagnostics(prev => ({
+                prompt: cleanedText.substring(0, 5000) + (cleanedText.length > 5000 ? "\n\n... (truncado para visualización)" : ""),
+                rawResponse: "",
+                analysis: "⏳ Procesando JSON... Por favor espera."
+            }));
+            
+            // Small delay so user sees the content
+            await new Promise(r => setTimeout(r, 300));
             
             // Try to find JSON object in the text (in case there's markdown code blocks)
             let jsonText = cleanedText;
@@ -322,24 +345,32 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
             const planData = JSON.parse(jsonText);
             
             if (!planData.daily_schedule || !Array.isArray(planData.daily_schedule)) {
-                throw new Error("El JSON no contiene 'daily_schedule' válido");
+                throw new Error("El JSON no contiene 'daily_schedule' válido. Asegúrate de copiar el JSON completo del plan.");
             }
 
             console.log("✅ JSON válido detectado desde portapapeles", planData);
             
-            // Small delay for UX feedback
-            await new Promise(r => setTimeout(r, 500));
-            
+            // Parse and load the plan
             parseAndLoadPlan(planData, "PLAN PEGADO DESDE PORTAPAPELES");
             console.log("✅ Plan cargado desde portapapeles. Recuerda guardar.");
             
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error al pegar desde portapapeles:", error);
             setBrainStatus('error');
+            
+            // Check for specific clipboard permission error
+            let errorMessage = error?.message || String(error);
+            if (errorMessage.includes("denied") || errorMessage.includes("permission") || errorMessage.includes("NotAllowed")) {
+                errorMessage = "⚠️ PERMISO DENEGADO\n\nEl navegador bloqueó el acceso al portapapeles.\n\nSOLUCIÓN ALTERNATIVA:\n1. Pega manualmente el JSON en el área de texto de la izquierda (Ctrl+V)\n2. Haz clic en 'Ejecutar Análisis'\n\nO permite el acceso al portapapeles en la configuración del navegador.";
+            } else {
+                errorMessage = `ERROR AL PROCESAR:\n\n${errorMessage}\n\n---\nAsegúrate de que:\n1. Has copiado el JSON completo del plan\n2. El JSON contiene "daily_schedule" con un array de días\n3. El formato de fechas es "DD-MM-YYYY"`;
+            }
+            
+            // Use 'analysis' field to show error in result panel (not rawResponse)
             setDiagnostics(prev => ({
                 prompt: prev?.prompt || "",
-                rawResponse: `ERROR AL PEGAR DESDE PORTAPAPELES:\n\n${error instanceof Error ? error.message : String(error)}\n\nAsegúrate de que:\n1. Has copiado el JSON completo del plan\n2. El JSON contiene "daily_schedule" con un array de días\n3. El formato de fechas es "DD-MM-YYYY"`,
-                analysis: undefined
+                rawResponse: "",
+                analysis: errorMessage
             }));
         }
     };
