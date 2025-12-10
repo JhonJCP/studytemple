@@ -11,6 +11,7 @@ export const metadata: Metadata = {
 };
 
 import { Sidebar } from "@/components/Sidebar";
+import { ChatDock } from "@/components/ChatDock";
 
 export default function RootLayout({
   children,
@@ -26,6 +27,7 @@ export default function RootLayout({
 
         <main className="ml-72 min-h-screen relative">
           {children}
+          <ChatDock />
         </main>
       </body>
     </html>
