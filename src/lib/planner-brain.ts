@@ -31,6 +31,9 @@ export interface ScheduledSession {
     status: 'pending' | 'completed' | 'missed';
     complexity: 'High' | 'Medium' | 'Low';
     aiReasoning: string;
+    startTime?: string;
+    endTime?: string;
+    breaks?: string;
 }
 
 interface AnalyzedTask {

@@ -13,9 +13,10 @@ interface PlannerBrainConsoleProps {
     onActivate: () => void;
     onSave: () => void;
     onPromptChange: (newPrompt: string) => void;
+    onLoadBlitzkrieg?: () => void;
 }
 
-export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onActivate, onSave, onPromptChange }: PlannerBrainConsoleProps) {
+export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onActivate, onSave, onPromptChange, onLoadBlitzkrieg }: PlannerBrainConsoleProps) {
     // Auto-scroll logic
     const consoleRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -44,9 +45,16 @@ export function PlannerBrainConsole({ isOpen, onClose, status, diagnostics, onAc
                             <p className="text-[10px] text-white/40 font-mono">Planificador Estratégico de Oposiciones</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-                        <X className="w-5 h-5 text-white/50" />
-                    </button>
+                    <div className="flex gap-2">
+                        {onLoadBlitzkrieg && (
+                            <button onClick={onLoadBlitzkrieg} className="px-3 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-bold rounded border border-red-500/30 uppercase tracking-wider transition-colors">
+                                Importar Blitzkrieg
+                            </button>
+                        )}
+                        <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                            <X className="w-5 h-5 text-white/50" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Main Split Grid */}
