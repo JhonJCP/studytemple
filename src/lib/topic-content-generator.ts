@@ -435,6 +435,10 @@ async function generateJSONWithRetry(
             ? prompt
             : `${prompt}\n\nRESPONDE SOLO CON JSON PLANO. SIN markdown, SIN comentarios, SIN explicaciones. Empieza con { y termina con }.`;
 
+        // Update step input with prompt preview if possible (hacky access to state/updateStep needed, or pass callback)
+        // For now just logging
+        logDebug(`${label}: Prompt Preview`, { prompt: attemptPrompt.slice(0, 500) });
+
         try {
             const result = await withTimeout(
                 model.generateContent(attemptPrompt),
@@ -554,7 +558,7 @@ export class TopicContentGenerator {
         this.updateStep('librarian', {
             status: 'running',
             startedAt: new Date(),
-            input: { topic: topic.title, filename: topic.originalFilename },
+            input: { topic: topic.title, filename: topic.originalFilename, prompt_preview: "Buscando en Supabase..." },
             reasoning: 'Buscando documentos en la biblioteca (Supabase)...'
         });
 
@@ -596,7 +600,7 @@ export class TopicContentGenerator {
         } catch (err) {
             this.telemetry.log('librarian', 'error', `RAG error: ${err instanceof Error ? err.message : 'error'}`);
             this.updateStep('librarian', {
-                reasoning: `Error buscando en Supabase (${err instanceof Error ? err.message : 'error'}). Usando conocimiento del modelo.`
+                reasoning: `Error buscando en Supabase (${err instanceof Error ? err.message : 'error'}). Intentando fallback con modelo.`
             });
         }
 
@@ -711,7 +715,18 @@ RESPONDE EXCLUSIVAMENTE CON JSON VÁLIDO (sin markdown, sin \`\`\`):
 
         const finalReasoning = evidence.length > 0
             ? `Estructura generada con ${evidence.length} fragmentos de evidencia de ${documents.length} documento(s).`
-            : 'Estructura base generada. El contenido se completará con el modelo.';
+            : 'FALLO CRÍTICO: No se encontró evidencia ni en biblioteca ni mediante generación LLM.';
+
+        if (evidence.length === 0) {
+            const msg = "Librarian falló: No se encontró evidencia (RAG falló y LLM fallback falló). Revisa configuración de API Key y Supabase.";
+            this.telemetry.log('librarian', 'error', msg);
+            this.updateStep('librarian', {
+                status: 'error',
+                reasoning: finalReasoning,
+                error: msg
+            });
+            throw new Error(msg);
+        }
 
         this.updateStep('librarian', {
             status: 'completed',
@@ -827,7 +842,7 @@ Responde SOLO JSON:
         this.updateStep('timekeeper', {
             status: 'running',
             startedAt: new Date(),
-            input: { topic: topic.title },
+            input: { topic: topic.title, time_heuristic: "default: 90min" },
             reasoning: 'Planificador: calculando estrategia de tiempo...'
         });
 
@@ -929,7 +944,8 @@ RESPUESTA SOLO JSON:
                 gaps: auditorData.gaps,
                 strategy: timeDecision.strategy,
                 tokenLimit: timeDecision.recommendedTokens,
-                widgetBudget: timeDecision.widgetBudget
+                widgetBudget: timeDecision.widgetBudget,
+                prompt_preview: prompt.slice(0, 1000) + "..."
             },
             reasoning: 'Estratega: generando outline y widgets con pensamiento incluido...'
         });
@@ -952,11 +968,12 @@ RESPUESTA SOLO JSON:
                 this.telemetry.log('strategist', 'complete', `LLM respondió en ${Date.now() - llmStart}ms (secciones: ${parsed.sections?.length || 0}, widgets: ${(parsed.widgets || []).length})`);
             }
         } catch (err) {
-            this.telemetry.log('strategist', 'timeout', `LLM timeout después de ${Date.now() - llmStart}ms: ${err instanceof Error ? err.message : 'error'}`);
             this.updateStep('strategist', {
-                reasoning: `Estratega sin respuesta (${err instanceof Error ? err.message : 'error'}). Usando estructura base.`
+                reasoning: `Estratega sin respuesta (${err instanceof Error ? err.message : 'error'}).`
             });
-            parsed = { sections: structure, widgets: [] };
+            // Critical failure for strategist
+            throw new Error(`Strategist LLM Failure: ${err instanceof Error ? err.message : 'timeout/error'}`);
+            // parsed = { sections: structure, widgets: [] }; // Don't fallback to empty structure blindly
         }
 
         this.checkCancelled();
