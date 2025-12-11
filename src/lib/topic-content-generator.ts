@@ -1049,8 +1049,8 @@ El sistema no pudo generar contenido completo para esta sección. Puedes:
         });
 
         // Métricas de salud del contenido
-        const totalWords = safeSections.reduce((acc, s) => acc + countWords(s.content?.text || ''), 0);
-        const sectionsBelowThreshold = safeSections.filter(s => countWords(s.content?.text || '') < MIN_WORDS_PER_SECTION).length;
+        const totalWords = safeSections.reduce((acc: number, s: any) => acc + countWords(s.content?.text || ''), 0);
+        const sectionsBelowThreshold = safeSections.filter((s: any) => countWords(s.content?.text || '') < MIN_WORDS_PER_SECTION).length;
         const health = {
             totalWords,
             avgWordsPerSection: safeSections.length ? Math.round(totalWords / safeSections.length) : 0,
