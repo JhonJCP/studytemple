@@ -23,7 +23,7 @@ const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API
 const MODEL = "gemini-3-pro-preview";
 const genAI = new GoogleGenerativeAI(API_KEY);
 const TEMARIO_ROOT = path.resolve(process.cwd(), "..", "Temario");
-const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "45000", 10); // timeout genérico por cerebro
+const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "90000", 10); // timeout genérico por cerebro (por defecto 90s)
 
 // ============================================
 // UTILIDADES GENERALES
@@ -181,7 +181,7 @@ export class TopicContentGenerator {
         const structure = generateBaseHierarchy(topic);
         let docPath: string | null = null;
         try {
-            docPath = await withTimeout(findDocumentPath(topic.originalFilename), 20000, "Búsqueda de PDF");
+            docPath = await withTimeout(findDocumentPath(topic.originalFilename), Math.min(STEP_TIMEOUT_MS, 60000), "Búsqueda de PDF");
         } catch (err) {
             docPath = null;
             this.updateStep('librarian', {
@@ -202,7 +202,7 @@ export class TopicContentGenerator {
         // 1) Intentar cargar evidencia real desde el PDF
         if (docPath) {
             try {
-                evidence = await withTimeout(loadPdfEvidence(docPath), 20000, "Parseo PDF");
+                evidence = await withTimeout(loadPdfEvidence(docPath), Math.min(STEP_TIMEOUT_MS, 60000), "Parseo PDF");
                 this.updateStep('librarian', {
                     reasoning: `Evidencia cargada desde PDF (${evidence.length} fragmentos).`
                 });
