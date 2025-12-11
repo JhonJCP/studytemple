@@ -20,9 +20,8 @@ import type {
 import { getTopicById, generateBaseHierarchy, TopicWithGroup } from "./syllabus-hierarchy";
 
 const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-// Modelo Gemini Estable (1.5 Pro)
-// Fallback a 3-pro-preview solo si se requiere explícitamente, pero por defecto usamos el estable para evitar 404s
-let MODEL = process.env.GEMINI_MODEL || "gemini-1.5-pro";
+// Modelo Gemini 3 Pro (o fallback a 1.5 en caso de error)
+let MODEL = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
 
 // Initialized lazily
 let genAI: GoogleGenerativeAI | null = null;
@@ -33,11 +32,11 @@ function getGenAI() {
     return genAI;
 }
 
-// Función para cambiar a modelo fallback (aunque ahora el default ya es el "fallback" estable)
+// Función para cambiar a modelo fallback si el principal falla (ej: 404 Not Found)
 function switchToFallbackModel() {
-    if (MODEL !== "gemini-1.5-flash") { // Fallback del fallback a flash si pro falla
-        console.warn(`[GENERATOR] Switching model from ${MODEL} to gemini-1.5-flash.`);
-        MODEL = "gemini-1.5-flash";
+    if (MODEL !== "gemini-1.5-pro") {
+        console.warn(`[GENERATOR] Switching model from ${MODEL} to gemini-1.5-pro due to API error.`);
+        MODEL = "gemini-1.5-pro";
     }
 }
 
@@ -640,7 +639,14 @@ export class TopicContentGenerator {
         const structure = generateBaseHierarchy(topic);
 
         this.updateStep('librarian', {
-            input: { topic: topic.title, filename: topic.originalFilename, prompt_preview: "Buscando chunks en Supabase..." },
+            // Merge with previous check info, don't overwrite
+            input: {
+                topic: topic.title,
+                filename: topic.originalFilename,
+                model: MODEL,
+                prompt_preview: "Buscando chunks en Supabase...",
+                check: "Supabase client OK. Starting legacy + parallel search."
+            },
             reasoning: 'Buscando documentos en la biblioteca (Supabase)...'
         });
 
