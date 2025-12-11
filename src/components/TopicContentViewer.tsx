@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -10,14 +10,17 @@ import {
     FileText,
     Loader2,
     CheckCircle,
-    ChevronDown
+    ChevronDown,
+    XCircle,
+    AlertTriangle,
+    RefreshCw,
+    StopCircle
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { HierarchicalOutline } from "./HierarchicalOutline";
 import { OrchestratorFlow } from "./OrchestratorFlow";
 import { WidgetFactory } from "./WidgetFactory";
-import { generateTopicContentAction } from "@/app/actions/generate-topic-content";
 import type {
     TopicSection,
     GeneratedTopicContent,
@@ -35,8 +38,16 @@ interface TopicContentViewerProps {
     initialContent?: GeneratedTopicContent;
 }
 
+interface GenerationError {
+    message: string;
+    timestamp: Date;
+    telemetry?: Record<string, unknown>;
+    retryCount: number;
+}
+
 const contentStorageKey = (topicId: string) => `topic_content_${topicId}`;
 const traceStorageKey = (topicId: string) => `topic_trace_${topicId}`;
+const MAX_RETRIES = 3;
 
 function hydrateContent(data?: GeneratedTopicContent | null): GeneratedTopicContent | null {
     if (!data) return null;
@@ -94,6 +105,8 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
     const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
     const [showOrchestrator, setShowOrchestrator] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [error, setError] = useState<GenerationError | null>(null);
+    const retryCountRef = useRef(0);
 
     // Secciones a mostrar (generadas o base)
     const sections = content?.sections || generateBaseHierarchy(topic);
@@ -160,8 +173,41 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
         }
     }, [orchestrationState, topic.id]);
 
+    // Cancelar generación en curso
+    const handleCancel = useCallback(async () => {
+        if (eventSource) {
+            eventSource.close();
+            setEventSource(null);
+        }
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+            setTimeoutId(null);
+        }
+
+        // También notificar al servidor para limpiar recursos
+        try {
+            await fetch(`/api/generate-topic-stream?topicId=${encodeURIComponent(topic.id)}&action=cancel`, {
+                method: 'POST'
+            });
+        } catch {
+            // Ignorar errores de cancelación en servidor
+        }
+
+        setIsGenerating(false);
+        setOrchestrationState(prev => ({
+            ...prev,
+            status: 'error',
+            currentStep: null
+        }));
+        setError({
+            message: 'Generación cancelada por el usuario',
+            timestamp: new Date(),
+            retryCount: retryCountRef.current
+        });
+    }, [eventSource, timeoutId, topic.id]);
+
     // Generar contenido
-    const handleGenerate = useCallback(async () => {
+    const handleGenerate = useCallback(async (isRetry = false) => {
         // Cerrar cualquier stream previo
         if (eventSource) {
             eventSource.close();
@@ -172,10 +218,13 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
             setTimeoutId(null);
         }
 
-        const isForce = Boolean(content);
+        // Limpiar error previo
+        setError(null);
+
+        const isForce = Boolean(content) || isRetry;
 
         // Si es regeneración, limpiar estado local y trazas previas
-        if (isForce) {
+        if (isForce && !isRetry) {
             try {
                 localStorage.removeItem(contentStorageKey(topic.id));
                 localStorage.removeItem(traceStorageKey(topic.id));
@@ -183,6 +232,11 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                 // ignore storage cleanup
             }
             setContent(null);
+            retryCountRef.current = 0;
+        }
+
+        if (isRetry) {
+            retryCountRef.current += 1;
         }
 
         setIsGenerating(true);
@@ -228,8 +282,15 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                         currentStep: null,
                         result: hydratedContent || prev.result
                     }));
+                    setError(null);
+                    retryCountRef.current = 0;
                 } catch {
                     setOrchestrationState(prev => ({ ...prev, status: 'error' }));
+                    setError({
+                        message: 'Error al procesar la respuesta',
+                        timestamp: new Date(),
+                        retryCount: retryCountRef.current
+                    });
                 } finally {
                     es.close();
                     setEventSource(null);
@@ -243,7 +304,21 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
 
             es.addEventListener("error", (evt) => {
                 console.error("SSE error", evt);
+                // Intentar extraer mensaje de error del evento
+                let errorMessage = 'Error de conexión con el servidor';
+                try {
+                    const data = JSON.parse((evt as MessageEvent).data);
+                    errorMessage = data.message || errorMessage;
+                } catch {
+                    // usar mensaje por defecto
+                }
+                
                 setOrchestrationState(prev => ({ ...prev, status: 'error' }));
+                setError({
+                    message: errorMessage,
+                    timestamp: new Date(),
+                    retryCount: retryCountRef.current
+                });
                 es.close();
                 setEventSource(null);
                 setIsGenerating(false);
@@ -262,23 +337,42 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                 setIsGenerating(false);
                 setOrchestrationState(prev => ({
                     ...prev,
-                    status: 'error',
-                    reasoning: 'Tiempo de generación agotado en cliente (130s).'
+                    status: 'error'
                 }));
+                setError({
+                    message: 'Tiempo de generación agotado en cliente (130s)',
+                    timestamp: new Date(),
+                    retryCount: retryCountRef.current
+                });
             }, 130000);
             setTimeoutId(guard);
-        } catch (error) {
-            console.error("Error during topic generation", error);
+        } catch (err) {
+            console.error("Error during topic generation", err);
             setOrchestrationState(prev => ({ ...prev, status: 'error' }));
-        } finally {
-            // isGenerating se desactiva en listeners para no cortar el stream
+            setError({
+                message: err instanceof Error ? err.message : 'Error desconocido',
+                timestamp: new Date(),
+                retryCount: retryCountRef.current
+            });
+            setIsGenerating(false);
         }
-    }, [topic.id, topic.title, content, orchestrationState, eventSource, timeoutId]);
+    }, [topic.id, topic.title, content, eventSource, timeoutId]);
+
+    // Reintento automático (solo si no superó MAX_RETRIES)
+    const handleRetry = useCallback(() => {
+        if (retryCountRef.current < MAX_RETRIES) {
+            handleGenerate(true);
+        }
+    }, [handleGenerate]);
 
     // Status badge
     const getStatusBadge = () => {
         const busyStatuses: Array<OrchestrationState["status"]> = ['fetching', 'analyzing', 'planning', 'generating', 'queued'];
         const isBusy = isGenerating || busyStatuses.includes(orchestrationState.status);
+        
+        if (error || orchestrationState.status === 'error') {
+            return { icon: XCircle, text: 'Error', color: 'text-red-400 bg-red-500/20', animate: false };
+        }
         if (isBusy) {
             return { icon: Loader2, text: 'Generando...', color: 'text-purple-400 bg-purple-500/20', animate: true };
         }
@@ -289,6 +383,7 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
     };
 
     const status = getStatusBadge();
+    const canRetry = error && retryCountRef.current < MAX_RETRIES;
 
     return (
         <div className="min-h-screen flex flex-col bg-background">
@@ -322,9 +417,40 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                             {status.text}
                         </div>
 
+                        {/* Cancel Button - Solo visible durante generación */}
+                        {isGenerating && (
+                            <motion.button
+                                onClick={handleCancel}
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.9 }}
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-all"
+                            >
+                                <StopCircle className="w-4 h-4" />
+                                Cancelar
+                            </motion.button>
+                        )}
+
+                        {/* Retry Button - Solo visible en error */}
+                        {canRetry && !isGenerating && (
+                            <motion.button
+                                onClick={handleRetry}
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 transition-all"
+                            >
+                                <RefreshCw className="w-4 h-4" />
+                                Reintentar ({MAX_RETRIES - retryCountRef.current} restantes)
+                            </motion.button>
+                        )}
+
                         {/* Generate Button */}
                         <motion.button
-                            onClick={handleGenerate}
+                            onClick={() => handleGenerate(false)}
                             disabled={isGenerating}
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
@@ -358,6 +484,59 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                         />
                     </motion.div>
                 )}
+
+                {/* Error Banner */}
+                <AnimatePresence>
+                    {error && !isGenerating && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="mt-4"
+                        >
+                            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+                                <div className="flex items-start gap-3">
+                                    <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="text-sm font-bold text-red-400 mb-1">
+                                            Error en la generación
+                                        </h4>
+                                        <p className="text-xs text-red-300/80 mb-2">
+                                            {error.message}
+                                        </p>
+                                        <div className="flex items-center gap-4 text-[10px] text-red-300/60">
+                                            <span>
+                                                {error.timestamp.toLocaleTimeString()}
+                                            </span>
+                                            {error.retryCount > 0 && (
+                                                <span>
+                                                    Intentos: {error.retryCount}/{MAX_RETRIES}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {canRetry && (
+                                            <button
+                                                onClick={handleRetry}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs font-bold rounded-lg transition-colors"
+                                            >
+                                                <RefreshCw className="w-3 h-3" />
+                                                Reintentar
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => setError(null)}
+                                            className="p-1.5 hover:bg-red-500/20 rounded-lg transition-colors"
+                                        >
+                                            <XCircle className="w-4 h-4 text-red-400" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </header>
 
             {/* Main Layout */}
