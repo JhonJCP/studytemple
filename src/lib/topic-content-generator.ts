@@ -677,6 +677,11 @@ export class TopicContentGenerator {
         const ragStart = Date.now();
         logDebug('Librarian: Iniciando búsqueda RAG en Supabase...', { filename: topic.originalFilename, title: topic.title });
         
+        // Actualización progresiva de reasoning
+        this.updateStep('librarian', {
+            reasoning: '🔍 Buscando documentos en biblioteca (estrategia multi-nivel: filename → keywords → legal refs)...'
+        });
+        
         try {
             const chunks = await withTimeout(
                 fetchDocumentChunksFromSupabase(topic.originalFilename, topic.title, 15),
@@ -685,6 +690,11 @@ export class TopicContentGenerator {
             );
             
             logDebug('Librarian: RAG completado', { chunksFound: chunks.length, durationMs: Date.now() - ragStart });
+            
+            // Actualizar reasoning con resultado
+            this.updateStep('librarian', {
+                reasoning: `✅ Búsqueda completada en ${((Date.now() - ragStart) / 1000).toFixed(1)}s: ${chunks.length} fragmentos encontrados`
+            });
 
             if (chunks.length > 0) {
                 evidence = chunks.map(chunk => ({
@@ -797,10 +807,21 @@ RESPONDE EXCLUSIVAMENTE CON JSON VÁLIDO (sin markdown, sin \`\`\`):
 }`;
 
             const llmStart = Date.now();
+            
+            // Actualizar reasoning para mostrar que LLM está trabajando
+            this.updateStep('librarian', {
+                reasoning: `⏳ Generando contexto adicional con LLM (evidencia insuficiente: ${evidence.length}/${MIN_EVIDENCE_FRAGMENTS})...`
+            });
+            
             try {
                 logDebug('Librarian LLM: Enviando prompt fallback', { promptLength: prompt.length, timeout: STEP_TIMEOUT_MS });
                 const { json, raw, error: parseError } = await generateJSONWithRetry(prompt, 'Bibliotecario', 1);
                 logDebug('Librarian LLM: Respuesta recibida', { responseLength: raw.length, durationMs: Date.now() - llmStart });
+                
+                // Actualizar reasoning con progreso
+                this.updateStep('librarian', {
+                    reasoning: `✅ LLM generó contexto en ${((Date.now() - llmStart) / 1000).toFixed(1)}s (${raw.length} chars)`
+                });
 
                 if (!parseError && json && Array.isArray(json.evidence)) {
                     // Añadir evidencia del LLM a la existente
