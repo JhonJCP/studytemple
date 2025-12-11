@@ -68,7 +68,7 @@ function hydrateContent(data?: GeneratedTopicContent | null): GeneratedTopicCont
     };
 }
 
-function hydrateOrchestrationState(topicId: string, raw?: OrchestrationState): OrchestrationState {
+function hydrateOrchestrationState(topicId: string, raw?: OrchestrationState, hasContent?: boolean): OrchestrationState {
     if (!raw) {
         return {
             topicId,
@@ -78,11 +78,17 @@ function hydrateOrchestrationState(topicId: string, raw?: OrchestrationState): O
         };
     }
 
+    // Estados "ocupados" que no deberían persistir si no hay contenido generado
+    const busyStatuses: Array<OrchestrationState["status"]> = ['fetching', 'analyzing', 'planning', 'generating', 'queued'];
+    const wasStuck = busyStatuses.includes(raw.status) && !hasContent;
+    
     return {
         ...raw,
         topicId,
-        currentStep: raw.currentStep || null,
-        steps: (raw.steps || []).map(step => ({
+        // Si el estado estaba "ocupado" pero no hay contenido, resetear a idle
+        status: wasStuck ? 'idle' : raw.status,
+        currentStep: wasStuck ? null : (raw.currentStep || null),
+        steps: wasStuck ? [] : (raw.steps || []).map(step => ({
             ...step,
             startedAt: step.startedAt ? new Date(step.startedAt) : undefined,
             completedAt: step.completedAt ? new Date(step.completedAt) : undefined,
@@ -114,11 +120,13 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
 
     // Cargar persistencia local (si no hay contenido inicial desde Supabase)
     useEffect(() => {
+        let loadedContent: GeneratedTopicContent | null = null;
+        
         if (initialContent) {
-            const hydrated = hydrateContent(initialContent);
-            setContent(hydrated);
+            loadedContent = hydrateContent(initialContent);
+            setContent(loadedContent);
             try {
-                localStorage.setItem(contentStorageKey(topic.id), JSON.stringify(hydrated));
+                localStorage.setItem(contentStorageKey(topic.id), JSON.stringify(loadedContent));
             } catch {
                 // ignore storage errors
             }
@@ -128,6 +136,7 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                 if (stored) {
                     const parsed = hydrateContent(JSON.parse(stored));
                     if (parsed) {
+                        loadedContent = parsed;
                         setContent(parsed);
                     }
                 }
@@ -136,10 +145,12 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
             }
         }
 
+        // Cargar trace pasando si hay contenido para evitar estados "stuck"
         try {
             const storedTrace = localStorage.getItem(traceStorageKey(topic.id));
             if (storedTrace) {
-                const parsedTrace = hydrateOrchestrationState(topic.id, JSON.parse(storedTrace));
+                const hasContent = Boolean(loadedContent || initialContent);
+                const parsedTrace = hydrateOrchestrationState(topic.id, JSON.parse(storedTrace), hasContent);
                 setOrchestrationState(parsedTrace);
             }
         } catch {
@@ -365,18 +376,22 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
         }
     }, [handleGenerate]);
 
-    // Status badge
+    // Status badge - SOLO usa isGenerating para mostrar "Generando", NO orchestrationState.status
     const getStatusBadge = () => {
-        const busyStatuses: Array<OrchestrationState["status"]> = ['fetching', 'analyzing', 'planning', 'generating', 'queued'];
-        const isBusy = isGenerating || busyStatuses.includes(orchestrationState.status);
-        
-        if (error || orchestrationState.status === 'error') {
+        // Error tiene prioridad (pero solo si no estamos generando activamente)
+        if (!isGenerating && (error || orchestrationState.status === 'error')) {
             return { icon: XCircle, text: 'Error', color: 'text-red-400 bg-red-500/20', animate: false };
         }
-        if (isBusy) {
+        // Solo mostrar "Generando" cuando isGenerating es true (acción del usuario)
+        if (isGenerating) {
             return { icon: Loader2, text: 'Generando...', color: 'text-purple-400 bg-purple-500/20', animate: true };
         }
+        // Contenido generado exitosamente
         if (content && orchestrationState.status === 'completed') {
+            return { icon: CheckCircle, text: 'Generado', color: 'text-green-400 bg-green-500/20', animate: false };
+        }
+        // Hay contenido pero no sabemos el status (cargado de caché)
+        if (content) {
             return { icon: CheckCircle, text: 'Generado', color: 'text-green-400 bg-green-500/20', animate: false };
         }
         return { icon: FileText, text: 'Pendiente', color: 'text-white/40 bg-white/5', animate: false };

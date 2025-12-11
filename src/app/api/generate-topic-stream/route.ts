@@ -5,15 +5,17 @@ import { createClient } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
 const OVERALL_TIMEOUT_MS = parseInt(process.env.GENERATION_TIMEOUT_MS || "120000", 10);
-const DEBUG_LOG = process.env.NODE_ENV !== "production";
+// Siempre loguear para trazabilidad en Vercel
+const ENABLE_LOGGING = true;
 
 function sseEvent(event: string, data: unknown): string {
     return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
 function log(message: string, data?: unknown) {
-    if (DEBUG_LOG) {
-        console.log(`[SSE] ${new Date().toISOString()} - ${message}`, data ? JSON.stringify(data).slice(0, 200) : '');
+    if (ENABLE_LOGGING) {
+        const dataStr = data ? JSON.stringify(data, null, 0).slice(0, 500) : '';
+        console.log(`[SSE][${new Date().toISOString()}] ${message}`, dataStr);
     }
 }
 

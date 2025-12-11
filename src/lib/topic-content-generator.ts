@@ -41,10 +41,13 @@ const BASE_GENERATION_CONFIG = {
     maxOutputTokens: 8192,
     responseMimeType: "application/json"
 } as const;
-const DEBUG_LOG = process.env.NODE_ENV !== "production";
+// Siempre habilitar logs para trazabilidad en Vercel
+const DEBUG_LOG = true;
 
 function logDebug(message: string, data?: unknown) {
-    console.log(`[GENERATOR] ${message}`, data ? JSON.stringify(data).slice(0, 500) : '');
+    const timestamp = new Date().toISOString();
+    const dataStr = data ? JSON.stringify(data, null, 0).slice(0, 800) : '';
+    console.log(`[GENERATOR][${timestamp}] ${message}`, dataStr);
 }
 
 // ============================================
@@ -72,9 +75,9 @@ class GeneratorTelemetry {
             details
         };
         this.events.push(entry);
-        if (DEBUG_LOG) {
-            console.log(`[GENERATOR] ${entry.agent.toUpperCase()} ${entry.event}${details ? `: ${details}` : ''} (+${entry.durationMs}ms)`);
-        }
+        // Siempre loguear para trazabilidad
+        const timestamp = new Date().toISOString();
+        console.log(`[TELEMETRY][${timestamp}] ${entry.agent.toUpperCase()} ${entry.event}${details ? `: ${details}` : ''} (+${entry.durationMs}ms)`);
     }
 
     reset() {
@@ -148,8 +151,56 @@ interface DocumentChunk {
 }
 
 /**
- * Busca chunks relevantes en Supabase basándose en el filename del topic
- * Los documentos ya están chunkeados y almacenados en library_documents
+ * Genera múltiples variantes del nombre de archivo para búsqueda flexible
+ * Ej: "Ley 9-1991, de 8 de mayo, de Carreteras" -> ["ley_9-1991", "ley 9 1991", "carreteras", etc.]
+ */
+function generateFilenameVariants(filename: string): string[] {
+    const base = filename
+        .replace(/\.pdf$/i, '')
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, ""); // quitar acentos
+    
+    const variants: string[] = [];
+    
+    // Variante original sin extensión
+    variants.push(base);
+    
+    // Variante con guiones bajos en vez de espacios/comas
+    variants.push(base.replace(/[,\s]+/g, '_').replace(/_+/g, '_'));
+    
+    // Variante solo con guiones bajos (como está en Supabase)
+    variants.push(base.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_'));
+    
+    // Extraer referencias de ley (ej: "Ley 9-1991" -> "Ley_9-1991")
+    const lawMatch = base.match(/ley\s*(\d+[-/]?\d*)/i);
+    if (lawMatch) {
+        variants.push(`Ley_${lawMatch[1].replace('/', '-')}`);
+        variants.push(`ley ${lawMatch[1]}`);
+    }
+    
+    // Extraer decreto (ej: "Decreto 131-1995" -> "Decreto_131-1995")
+    const decretoMatch = base.match(/decreto\s*(\d+[-/]?\d*)/i);
+    if (decretoMatch) {
+        variants.push(`Decreto_${decretoMatch[1].replace('/', '-')}`);
+    }
+    
+    // Palabras clave importantes (más de 5 caracteres, no comunes)
+    const stopWords = ['de', 'del', 'la', 'el', 'los', 'las', 'por', 'que', 'para', 'con', 'en', 'una', 'uno', 'mayo', 'abril', 'marzo', 'junio', 'julio'];
+    const keywords = base
+        .toLowerCase()
+        .split(/[\s,\-_]+/)
+        .filter(w => w.length > 4 && !stopWords.includes(w));
+    
+    variants.push(...keywords);
+    
+    return [...new Set(variants)].filter(v => v.length > 2);
+}
+
+/**
+ * Busca chunks relevantes en Supabase con múltiples estrategias de búsqueda
+ * 1. Búsqueda por variantes normalizadas del filename
+ * 2. Búsqueda por palabras clave del título
+ * 3. Búsqueda por contenido con términos específicos
  */
 async function fetchDocumentChunksFromSupabase(
     originalFilename: string,
@@ -158,82 +209,131 @@ async function fetchDocumentChunksFromSupabase(
 ): Promise<DocumentChunk[]> {
     const supabase = getSupabaseClient();
     if (!supabase) {
-        logDebug('Supabase no configurado, no se puede hacer RAG');
+        logDebug('RAG: Supabase no configurado');
         return [];
     }
 
-    logDebug('Buscando chunks en Supabase', { originalFilename, topicTitle });
+    const variants = generateFilenameVariants(originalFilename);
+    logDebug('RAG: Buscando chunks', { 
+        originalFilename, 
+        topicTitle,
+        searchVariants: variants.slice(0, 5) // Log primeras 5 variantes
+    });
+
+    let chunks: DocumentChunk[] = [];
+    const seenIds = new Set<string>();
+
+    // Función helper para añadir chunks sin duplicados
+    const addChunks = (docs: any[], confidence: number) => {
+        for (const doc of docs) {
+            const id = `db-${doc.id}`;
+            if (!seenIds.has(id)) {
+                seenIds.add(id);
+                chunks.push({
+                    source_id: id,
+                    filename: doc.metadata?.filename || originalFilename,
+                    fragment: doc.content || '',
+                    category: doc.metadata?.category || 'UNKNOWN',
+                    chunk_index: doc.metadata?.chunk_index ?? chunks.length,
+                    confidence
+                });
+            }
+        }
+    };
 
     try {
-        // 1. Buscar por filename exacto o parcial
-        const filenameSearch = originalFilename.replace(/\.pdf$/i, '');
-        
-        const { data: byFilename, error: err1 } = await supabase
-            .from('library_documents')
-            .select('id, content, metadata')
-            .ilike('metadata->>filename', `%${filenameSearch}%`)
-            .order('metadata->chunk_index', { ascending: true })
-            .limit(maxChunks);
+        // ESTRATEGIA 1: Buscar por cada variante del filename
+        for (const variant of variants.slice(0, 6)) { // Limitar a 6 variantes
+            if (chunks.length >= maxChunks) break;
+            
+            const { data, error } = await supabase
+                .from('library_documents')
+                .select('id, content, metadata')
+                .ilike('metadata->>filename', `%${variant}%`)
+                .order('metadata->chunk_index', { ascending: true })
+                .limit(Math.min(10, maxChunks - chunks.length));
 
-        if (err1) {
-            logDebug('Error buscando por filename', err1);
+            if (!error && data && data.length > 0) {
+                logDebug(`RAG: Variante "${variant}" -> ${data.length} chunks`);
+                addChunks(data, 0.95);
+            }
         }
 
-        let chunks: DocumentChunk[] = [];
-
-        if (byFilename && byFilename.length > 0) {
-            logDebug(`Encontrados ${byFilename.length} chunks por filename`);
-            chunks = byFilename.map((doc: any, i: number) => ({
-                source_id: `db-${doc.id}`,
-                filename: doc.metadata?.filename || originalFilename,
-                fragment: doc.content || '',
-                category: doc.metadata?.category || 'UNKNOWN',
-                chunk_index: doc.metadata?.chunk_index ?? i,
-                confidence: 0.95
-            }));
-        }
-
-        // 2. Si no hay suficientes chunks, buscar por palabras clave del título
+        // ESTRATEGIA 2: Buscar por keywords del título si no hay suficientes chunks
         if (chunks.length < 5) {
-            const keywords = topicTitle
+            const titleKeywords = topicTitle
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
                 .toLowerCase()
-                .replace(/[^a-záéíóúñ\s]/g, '')
-                .split(/\s+/)
-                .filter(w => w.length > 4)
-                .slice(0, 3);
+                .split(/[\s,\-_]+/)
+                .filter(w => w.length > 4 && !['parte', 'tema', 'general', 'especifica'].includes(w))
+                .slice(0, 4);
 
-            logDebug('Buscando por keywords', keywords);
+            logDebug('RAG: Buscando por keywords del título', titleKeywords);
 
-            for (const keyword of keywords) {
+            for (const keyword of titleKeywords) {
                 if (chunks.length >= maxChunks) break;
 
-                const { data: byKeyword, error: err2 } = await supabase
+                // Buscar en filename
+                const { data: byFilename, error: err1 } = await supabase
+                    .from('library_documents')
+                    .select('id, content, metadata')
+                    .ilike('metadata->>filename', `%${keyword}%`)
+                    .limit(5);
+
+                if (!err1 && byFilename) {
+                    addChunks(byFilename, 0.85);
+                }
+
+                // Buscar en contenido
+                const { data: byContent, error: err2 } = await supabase
                     .from('library_documents')
                     .select('id, content, metadata')
                     .ilike('content', `%${keyword}%`)
                     .limit(5);
 
-                if (!err2 && byKeyword) {
-                    const newChunks = byKeyword
-                        .filter((doc: any) => !chunks.some(c => c.source_id === `db-${doc.id}`))
-                        .map((doc: any) => ({
-                            source_id: `db-${doc.id}`,
-                            filename: doc.metadata?.filename || 'unknown',
-                            fragment: doc.content || '',
-                            category: doc.metadata?.category || 'UNKNOWN',
-                            chunk_index: doc.metadata?.chunk_index ?? 0,
-                            confidence: 0.75
-                        }));
-                    chunks.push(...newChunks);
+                if (!err2 && byContent) {
+                    addChunks(byContent, 0.70);
                 }
             }
         }
 
-        logDebug(`Total chunks RAG: ${chunks.length}`);
-        return chunks.slice(0, maxChunks);
+        // ESTRATEGIA 3: Si aún no hay chunks, buscar términos legales específicos
+        if (chunks.length < 3) {
+            // Extraer números de ley/decreto del filename o título
+            const legalRefs = [originalFilename, topicTitle].join(' ')
+                .match(/(?:ley|decreto|orden|real decreto)\s*(\d+[-/]\d+|\d+)/gi) || [];
+            
+            logDebug('RAG: Buscando referencias legales', legalRefs);
+
+            for (const ref of legalRefs.slice(0, 3)) {
+                const { data, error } = await supabase
+                    .from('library_documents')
+                    .select('id, content, metadata')
+                    .or(`metadata->>filename.ilike.%${ref}%,content.ilike.%${ref}%`)
+                    .limit(5);
+
+                if (!error && data) {
+                    addChunks(data, 0.80);
+                }
+            }
+        }
+
+        // Ordenar por confidence y chunk_index
+        chunks.sort((a, b) => {
+            if (b.confidence !== a.confidence) return b.confidence - a.confidence;
+            return a.chunk_index - b.chunk_index;
+        });
+
+        const finalChunks = chunks.slice(0, maxChunks);
+        logDebug(`RAG: Total chunks encontrados: ${finalChunks.length}`, {
+            sources: [...new Set(finalChunks.map(c => c.filename))].slice(0, 5)
+        });
+
+        return finalChunks;
 
     } catch (error) {
-        logDebug('Error en fetchDocumentChunksFromSupabase', error);
+        logDebug('RAG: Error en fetchDocumentChunksFromSupabase', error);
         return [];
     }
 }
@@ -429,47 +529,114 @@ export class TopicContentGenerator {
 
         this.checkCancelled();
 
-        // 2) Si no hay evidencia de Supabase, pedir al LLM que genere contexto base
-        if (!evidence.length) {
-            this.telemetry.log('librarian', 'fallback', 'Sin evidencia Supabase, usando LLM para contexto base');
+        // 2) Si no hay evidencia de Supabase o hay muy poca, pedir al LLM que genere contexto base
+        const MIN_EVIDENCE_FRAGMENTS = 5;
+        if (evidence.length < MIN_EVIDENCE_FRAGMENTS) {
+            this.telemetry.log('librarian', 'fallback', `Evidencia insuficiente (${evidence.length}/${MIN_EVIDENCE_FRAGMENTS}), usando LLM para completar`);
+            this.updateStep('librarian', {
+                reasoning: `Evidencia RAG insuficiente (${evidence.length} fragmentos). Generando contexto adicional con LLM...`
+            });
+
             const prompt = `
-Eres el Bibliotecario de una plataforma de estudio de oposiciones (ITOP - Ingeniero Técnico de Obras Públicas).
-Genera un resumen estructurado del tema para usar como base de estudio.
+Eres el Bibliotecario experto de una plataforma de estudio de oposiciones (ITOP - Ingeniero Técnico de Obras Públicas en España).
 
-Tema: "${topic.title}"
-Grupo temático: "${topic.groupTitle}"
-Documento de referencia: "${topic.originalFilename}"
+TEMA A DOCUMENTAR: "${topic.title}"
+GRUPO TEMÁTICO: "${topic.groupTitle}"
+DOCUMENTO BASE: "${topic.originalFilename}"
 
-Proporciona información REAL y PRECISA sobre este tema de oposiciones españolas.
-Incluye referencias a artículos de ley, normativa aplicable y conceptos clave.
+Tu tarea es generar información REAL, PRECISA y DETALLADA sobre este tema de oposiciones españolas.
+IMPORTANTE: La información debe ser técnicamente correcta y útil para preparar oposiciones.
 
-Salida JSON:
+Debes generar EXACTAMENTE 5 fragmentos de evidencia que cubran:
+1. Objeto y ámbito de aplicación de la normativa
+2. Definiciones y conceptos fundamentales
+3. Competencias y órganos responsables
+4. Régimen jurídico y procedimientos principales
+5. Infracciones, sanciones y disposiciones específicas
+
+Para cada fragmento incluye:
+- Referencias específicas a artículos de ley (ej: "Art. 3 de la Ley 9/1991")
+- Definiciones técnicas exactas
+- Plazos y procedimientos cuando aplique
+
+RESPONDE EXCLUSIVAMENTE CON JSON VÁLIDO (sin markdown, sin \`\`\`):
 {
   "evidence": [
-    { "source_id": "base-1", "filename": "${topic.originalFilename}", "fragment": "resumen del contenido principal (máx 500 chars)", "law_refs": ["Ley X/YYYY", "RD Z"], "confidence": 0.7 },
-    { "source_id": "base-2", "filename": "${topic.originalFilename}", "fragment": "conceptos y definiciones clave", "law_refs": [], "confidence": 0.7 }
+    {
+      "source_id": "llm-1",
+      "filename": "${topic.originalFilename}",
+      "fragment": "[Texto detallado de 300-500 palabras sobre objeto y ámbito]",
+      "law_refs": ["Ley X/YYYY, Art. N"],
+      "confidence": 0.8,
+      "section_hint": "objeto_ambito"
+    },
+    {
+      "source_id": "llm-2",
+      "filename": "${topic.originalFilename}",
+      "fragment": "[Texto detallado sobre definiciones y conceptos]",
+      "law_refs": [],
+      "confidence": 0.8,
+      "section_hint": "definiciones"
+    },
+    {
+      "source_id": "llm-3",
+      "filename": "${topic.originalFilename}",
+      "fragment": "[Texto sobre competencias]",
+      "law_refs": [],
+      "confidence": 0.8,
+      "section_hint": "competencias"
+    },
+    {
+      "source_id": "llm-4",
+      "filename": "${topic.originalFilename}",
+      "fragment": "[Texto sobre régimen jurídico]",
+      "law_refs": [],
+      "confidence": 0.8,
+      "section_hint": "regimen_juridico"
+    },
+    {
+      "source_id": "llm-5",
+      "filename": "${topic.originalFilename}",
+      "fragment": "[Texto sobre infracciones y sanciones]",
+      "law_refs": [],
+      "confidence": 0.8,
+      "section_hint": "infracciones"
+    }
   ],
-  "documents": ["${topic.originalFilename}"],
-  "rationale": "He generado un resumen base del tema basándome en la normativa española aplicable"
+  "rationale": "[Explicación de cómo has estructurado la información]"
 }`;
 
             const llmStart = Date.now();
             try {
                 const model = getThinkingModel();
+                logDebug('Librarian LLM: Enviando prompt', { promptLength: prompt.length });
                 const res = await withTimeout(model.generateContent(prompt), STEP_TIMEOUT_MS, "Bibliotecario LLM");
                 const rawText = res.response.text();
-                const { json, error } = safeParseJSON(rawText);
+                logDebug('Librarian LLM: Respuesta recibida', { responseLength: rawText.length });
                 
-                if (!error && json) {
-                    evidence = json.evidence || [];
+                const { json, error: parseError } = safeParseJSON(rawText);
+                
+                if (!parseError && json && Array.isArray(json.evidence)) {
+                    // Añadir evidencia del LLM a la existente
+                    const llmEvidence = json.evidence.filter((e: any) => 
+                        e.fragment && e.fragment.length > 100 // Solo fragmentos con contenido real
+                    );
+                    
+                    // Combinar: primero RAG (más confiable), luego LLM
+                    evidence = [...evidence, ...llmEvidence].slice(0, 15);
+                    
                     const rationale = extractRationale(rawText, json);
                     this.updateStep('librarian', { 
-                        reasoning: rationale || `Modelo generó ${evidence.length} fragmentos de contexto base.` 
+                        reasoning: rationale || `LLM generó ${llmEvidence.length} fragmentos adicionales. Total: ${evidence.length}` 
                     });
-                    this.telemetry.log('librarian', 'complete', `LLM generó contexto en ${Date.now() - llmStart}ms`);
+                    this.telemetry.log('librarian', 'complete', `LLM añadió ${llmEvidence.length} fragmentos en ${Date.now() - llmStart}ms`);
+                } else {
+                    logDebug('Librarian LLM: Error parseando respuesta', { error: parseError, rawText: rawText.slice(0, 500) });
+                    this.telemetry.log('librarian', 'error', `LLM respuesta no válida: ${parseError}`);
                 }
             } catch (err) {
                 this.telemetry.log('librarian', 'error', `LLM error: ${err instanceof Error ? err.message : 'error'}`);
+                logDebug('Librarian LLM: Exception', err);
             }
         }
 
@@ -725,10 +892,101 @@ RESPUESTA SOLO JSON:
 
         this.checkCancelled();
 
-        // Asegurar que haya texto en content.text aunque sea placeholder
-        const safeSections = (parsed.sections || structure).map((s: any, idx: number) => {
+        // VALIDACIÓN: Asegurar que las secciones tienen contenido real
+        const MIN_WORDS_PER_SECTION = 50; // Mínimo 50 palabras por sección
+        const rawSections = parsed.sections || structure;
+        
+        // Contar palabras en una cadena
+        const countWords = (text: string) => text.split(/\s+/).filter(w => w.length > 0).length;
+        
+        // Verificar si las secciones tienen contenido suficiente
+        const sectionsWithContent = rawSections.filter((s: any) => {
+            const text = (s.content?.text || '').trim();
+            return countWords(text) >= MIN_WORDS_PER_SECTION;
+        });
+        
+        const contentCoverage = rawSections.length > 0 
+            ? (sectionsWithContent.length / rawSections.length) * 100 
+            : 0;
+        
+        logDebug('Strategist: Validación de contenido', {
+            totalSections: rawSections.length,
+            sectionsWithContent: sectionsWithContent.length,
+            coveragePercent: contentCoverage.toFixed(1)
+        });
+
+        // Si menos del 50% de secciones tienen contenido real, intentar regenerar o enriquecer
+        if (contentCoverage < 50 && rawSections.length > 0) {
+            this.telemetry.log('strategist', 'fallback', `Contenido insuficiente (${contentCoverage.toFixed(0)}% cobertura). Enriqueciendo secciones...`);
+            this.updateStep('strategist', {
+                reasoning: `Contenido generado insuficiente (${contentCoverage.toFixed(0)}% cobertura). Enriqueciendo secciones vacías...`
+            });
+
+            // Generar contenido para secciones vacías
+            for (let i = 0; i < rawSections.length; i++) {
+                const section = rawSections[i];
+                const sectionText = (section.content?.text || '').trim();
+                
+                if (countWords(sectionText) < MIN_WORDS_PER_SECTION) {
+                    try {
+                        const enrichPrompt = `
+Genera contenido educativo DETALLADO para esta sección de oposiciones ITOP.
+
+Tema general: "${topic.title}"
+Sección: "${section.title}"
+Nivel: ${section.level}
+
+Requisitos:
+- Mínimo 150 palabras de texto explicativo
+- Incluye definiciones, conceptos clave y ejemplos
+- Usa formato Markdown (negritas, listas, etc.)
+- Menciona artículos de ley o normativa cuando aplique
+- Lenguaje técnico pero accesible
+
+RESPONDE SOLO CON EL TEXTO EN MARKDOWN (sin JSON, sin \`\`\`):`;
+
+                        const model = getThinkingModel();
+                        const enrichResult = await withTimeout(
+                            model.generateContent(enrichPrompt), 
+                            30000, // 30s por sección
+                            `Enriquecer sección: ${section.title}`
+                        );
+                        const enrichedText = enrichResult.response.text().trim();
+                        
+                        if (enrichedText && countWords(enrichedText) >= 50) {
+                            rawSections[i].content = {
+                                text: enrichedText,
+                                widgets: section.content?.widgets || []
+                            };
+                            logDebug(`Strategist: Sección "${section.title}" enriquecida`, { words: countWords(enrichedText) });
+                        }
+                    } catch (err) {
+                        logDebug(`Strategist: Error enriqueciendo sección "${section.title}"`, err);
+                    }
+                }
+            }
+        }
+
+        // Asegurar que todas las secciones tengan al menos placeholder con texto descriptivo
+        const safeSections = rawSections.map((s: any, idx: number) => {
             const sectionText = (s.content?.text || '').trim();
-            const enrichedText = sectionText || `## ${s.title}\nContenido generado. Expande para ver detalles y completa con tus notas.`;
+            const hasRealContent = countWords(sectionText) >= MIN_WORDS_PER_SECTION;
+            
+            // Si no hay contenido real, crear placeholder informativo
+            const enrichedText = hasRealContent 
+                ? sectionText 
+                : `## ${s.title}
+
+Esta sección cubre aspectos fundamentales del tema **${topic.title}** relacionados con ${s.title.toLowerCase()}.
+
+### Contenido pendiente de generación
+
+El sistema no pudo generar contenido completo para esta sección. Puedes:
+- **Regenerar** el tema completo para intentar obtener mejor contenido
+- **Consultar** la documentación original en la biblioteca
+- **Añadir** tus propias notas manualmente
+
+*Tip: Si el problema persiste, verifica que el documento fuente esté correctamente indexado en la biblioteca.*`;
 
             return {
                 ...s,
