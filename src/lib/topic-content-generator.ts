@@ -23,6 +23,7 @@ const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API
 const MODEL = "gemini-3-pro-preview";
 const genAI = new GoogleGenerativeAI(API_KEY);
 const TEMARIO_ROOT = path.resolve(process.cwd(), "..", "Temario");
+const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "45000", 10); // timeout genérico por cerebro
 
 // ============================================
 // UTILIDADES GENERALES
@@ -180,7 +181,7 @@ export class TopicContentGenerator {
         const structure = generateBaseHierarchy(topic);
         let docPath: string | null = null;
         try {
-            docPath = await withTimeout(findDocumentPath(topic.originalFilename), 10000, "Búsqueda de PDF");
+            docPath = await withTimeout(findDocumentPath(topic.originalFilename), 20000, "Búsqueda de PDF");
         } catch (err) {
             docPath = null;
             this.updateStep('librarian', {
@@ -201,7 +202,7 @@ export class TopicContentGenerator {
         // 1) Intentar cargar evidencia real desde el PDF
         if (docPath) {
             try {
-                evidence = await withTimeout(loadPdfEvidence(docPath), 10000, "Parseo PDF");
+                evidence = await withTimeout(loadPdfEvidence(docPath), 20000, "Parseo PDF");
                 this.updateStep('librarian', {
                     reasoning: `Evidencia cargada desde PDF (${evidence.length} fragmentos).`
                 });
@@ -232,11 +233,14 @@ No inventes texto largo; resume en frases cortas.`;
 
             try {
                 const model = genAI.getGenerativeModel({ model: MODEL, generationConfig: { responseMimeType: "application/json" } });
-                const res = await model.generateContent(prompt);
+                const res = await withTimeout(model.generateContent(prompt), STEP_TIMEOUT_MS, "Bibliotecario LLM");
                 const json = JSON.parse(res.response.text().replace(/```json/g, "").replace(/```/g, "").trim());
                 evidence = json.evidence || [];
-            } catch {
+            } catch (err) {
                 evidence = [];
+                this.updateStep('librarian', {
+                    reasoning: `LLM sin respuesta (${err instanceof Error ? err.message : 'error'}).`
+                });
             }
         }
 
@@ -297,13 +301,16 @@ Responde SOLO JSON:
 
         try {
             const model = genAI.getGenerativeModel({ model: MODEL, generationConfig: { responseMimeType: "application/json" } });
-            const result = await model.generateContent(prompt);
+            const result = await withTimeout(model.generateContent(prompt), STEP_TIMEOUT_MS, "Auditor LLM");
             const text = result.response.text();
             const jsonMatch = text.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 parsed = { ...parsed, ...JSON.parse(jsonMatch[0]) };
             }
-        } catch {
+        } catch (err) {
+            this.updateStep('auditor', {
+                reasoning: `Auditor sin respuesta (${err instanceof Error ? err.message : 'error'}).`
+            });
             parsed = parsed;
         }
 
@@ -424,7 +431,7 @@ RESPUESTA SOLO JSON:
                 generationConfig: { responseMimeType: "application/json" }
             });
 
-            const result = await model.generateContent(prompt);
+            const result = await withTimeout(model.generateContent(prompt), STEP_TIMEOUT_MS, "Estratega LLM");
             const rawText = result.response.text();
             try {
                 const cleaned = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
@@ -435,7 +442,10 @@ RESPUESTA SOLO JSON:
             } catch {
                 parsed = { sections: structure, widgets: [] };
             }
-        } catch {
+        } catch (err) {
+            this.updateStep('strategist', {
+                reasoning: `Estratega sin respuesta (${err instanceof Error ? err.message : 'error'}).`
+            });
             parsed = { sections: structure, widgets: [] };
         }
 
