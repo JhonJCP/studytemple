@@ -978,10 +978,27 @@ RESPUESTA SOLO JSON:
 
         this.checkCancelled();
 
-        // VALIDACIÓN: Asegurar que las secciones tienen contenido real
-        const rawSections = Array.isArray(parsed.sections) && parsed.sections.length >= structure.length
-            ? parsed.sections
-            : structure;
+        // VALIDACIÓN RIGUROSA:
+        // Si el LLM devolvió un JSON válido pero las secciones están vacías (o son copias de la estructura base sin texto),
+        // esto es un fallo de generación, no un éxito parcial.
+
+        let rawSections = Array.isArray(parsed.sections) ? parsed.sections : [];
+
+        // Si no hay secciones parseadas o si detectamos que son placeholders vacíos
+        const hasGeneratedText = rawSections.some((s: any) => countWords(s.content?.text || '') > 30);
+
+        if (!hasGeneratedText) {
+            // Check legacy structure or flat structure
+            if (parsed.sections && parsed.sections.length > 0) {
+                // Maybe it kept the structure but didn't write text
+                this.telemetry.log('strategist', 'error', 'LLM devolvió estructura sin contenido de texto.');
+            } else {
+                this.telemetry.log('strategist', 'error', 'LLM no devolvió secciones válidas.');
+            }
+
+            // INTENTO DE RECUPERACIÓN: Usar la estructura base pero FORZAR enriquecimiento
+            rawSections = structure; // Fallback to base structure TO FILL IT
+        }
 
         // Verificar si las secciones tienen contenido suficiente
         const sectionsWithContent = rawSections.filter((s: any) => {
@@ -1000,10 +1017,11 @@ RESPUESTA SOLO JSON:
         });
 
         // Si menos del 70% de secciones tienen contenido real, intentar regenerar o enriquecer
-        if (contentCoverage < 70 && rawSections.length > 0) {
-            this.telemetry.log('strategist', 'fallback', `Contenido insuficiente (${contentCoverage.toFixed(0)}% cobertura). Enriqueciendo secciones...`);
+        // Si menos del 70% de secciones tienen contenido real, O si estamos en modo recuperación (texto vacío)
+        if (contentCoverage < 70 || !hasGeneratedText) {
+            this.telemetry.log('strategist', 'fallback', `Contenido insuficiente (${contentCoverage.toFixed(0)}% cobertura). Iniciando enriquecimiento agresivo...`);
             this.updateStep('strategist', {
-                reasoning: `Contenido generado insuficiente (${contentCoverage.toFixed(0)}% cobertura). Enriqueciendo secciones vacías...`
+                reasoning: `Generación inicial débil. Iniciando enriquecimiento paso a paso de todas las secciones...`
             });
 
             // Generar contenido para secciones vacías
@@ -1128,6 +1146,13 @@ Requisitos:
             totalSections: safeSections.length,
             wordGoalMet: totalWords >= MIN_TOTAL_WORDS && sectionsBelowThreshold === 0
         };
+
+        // FINAL CHECK: If after enrichment we still have < 100 words total, FAIL HARD.
+        if (totalWords < 100) {
+            const msg = `Fallo Crítico: El Estratega no pudo generar contenido (Total palabras: ${totalWords}). Posible saturación del modelo o fallo de prompt.`;
+            this.telemetry.log('strategist', 'error', msg);
+            throw new Error(msg);
+        }
 
         const warnings: string[] = [];
         if (!health.wordGoalMet) {
