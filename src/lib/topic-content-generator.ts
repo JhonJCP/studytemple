@@ -71,11 +71,12 @@ const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "120000", 
 const MIN_WORDS_PER_SECTION = 120; // Mínimo de palabras por sección para salud
 const MIN_TOTAL_WORDS = 800; // Objetivo mínimo global para evitar respuestas pobres (Aumentado de 700)
 const BASE_GENERATION_CONFIG = {
-    temperature: 0.6,  // Balanceado: genera contenido pero minimiza alucinaciones (0.2=factual, 1.0=creativo)
+    temperature: 0.6,  // Balanceado: genera contenido pero minimiza alucinaciones
     maxOutputTokens: 16384,  // gemini-3-pro-preview soporta hasta 65536
     responseMimeType: "application/json",
     topP: 0.85,  // Coherencia en respuestas largas
     topK: 40  // Limita tokens candidatos para precisión
+    // Nota: thinkingConfig requiere SDK más nuevo - pendiente de actualizar
 } as const;
 // Siempre habilitar logs para trazabilidad en Vercel
 const DEBUG_LOG = true;
@@ -932,7 +933,7 @@ Responde SOLO JSON:
         const llmStart = Date.now();
         try {
             const { json, raw, error } = await generateJSONWithRetry(prompt, 'Auditor', 1);
-
+            
             if (error) {
                 this.telemetry.log('auditor', 'error', `Parse JSON error: ${error}`);
                 logDebug('Auditor parse error', { error, raw: raw?.slice(0, 400) });
