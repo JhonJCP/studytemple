@@ -245,9 +245,8 @@ No inventes texto largo; resume en frases cortas.`;
                 const res = await withTimeout(model.generateContent(prompt), STEP_TIMEOUT_MS, "Bibliotecario LLM");
                 const json = JSON.parse(res.response.text().replace(/```json/g, "").replace(/```/g, "").trim());
                 evidence = json.evidence || [];
-                if (json.rationale) {
-                    this.updateStep('librarian', { reasoning: `LLM: ${json.rationale}` });
-                }
+                const rationale = json.rationale ? `LLM: ${json.rationale}` : 'LLM ejecutado sin rationale explícito';
+                this.updateStep('librarian', { reasoning: rationale });
             } catch (err) {
                 evidence = [];
                 this.updateStep('librarian', {
@@ -259,9 +258,11 @@ No inventes texto largo; resume en frases cortas.`;
         this.updateStep('librarian', {
             status: 'completed',
             completedAt: new Date(),
-            reasoning: docPath
-                ? `Estructura base generada y ${evidence.length} fragmentos reales desde PDF.`
-                : `Estructura base generada. Evidencias (LLM): ${evidence.length}.`,
+            reasoning: (() => {
+                if (docPath && evidence.length) return `Estructura base generada y ${evidence.length} fragmentos reales desde PDF.`;
+                if (docPath && !evidence.length) return `Estructura base generada. Sin evidencia del PDF, se usará LLM.`;
+                return `Estructura base generada. Evidencias (LLM): ${evidence.length}.`;
+            })(),
             output: { documentCount: documents.length, sectionCount: structure.length, evidence, docPath }
         });
 
@@ -302,7 +303,8 @@ Responde SOLO JSON:
                 topic: topic.title,
                 documents: library.documents,
                 prompt
-            }
+            },
+            reasoning: 'Auditor: analizando cobertura y riesgos...'
         });
 
         let parsed: { gaps: string[]; optimizations: string[]; widgets: any[]; quality_score: number } = {
@@ -333,7 +335,9 @@ Responde SOLO JSON:
         this.updateStep('auditor', {
             status: 'completed',
             completedAt: new Date(),
-            reasoning: `Gaps: ${parsed.gaps.length}, widgets: ${parsed.widgets.length}, score: ${parsed.quality_score}`,
+            reasoning: parsed.rationale
+                ? parsed.rationale
+                : `Gaps: ${parsed.gaps.length}, widgets: ${parsed.widgets.length}, score: ${parsed.quality_score}`,
             output: parsed
         });
         return parsed;
@@ -438,7 +442,8 @@ RESPUESTA SOLO JSON:
                 strategy: timeDecision.strategy,
                 tokenLimit: timeDecision.recommendedTokens,
                 prompt
-            }
+            },
+            reasoning: 'Estratega: generando outline y widgets con pensamiento incluido...'
         });
 
         let parsed: any = { sections: structure, widgets: [] };
@@ -498,7 +503,9 @@ RESPUESTA SOLO JSON:
         this.updateStep('strategist', {
             status: 'completed',
             completedAt: new Date(),
-            reasoning: `Secciones: ${parsed.sections?.length || 0}, widgets: ${(parsed.widgets || []).length}. Estrategia: ${timeDecision.strategy}.`,
+            reasoning: parsed.rationale
+                ? parsed.rationale
+                : `Secciones: ${parsed.sections?.length || 0}, widgets: ${(parsed.widgets || []).length}. Estrategia: ${timeDecision.strategy}.`,
             output: { sectionCount: parsed.sections?.length || 0, widgetCount: (parsed.widgets || []).length }
         });
 
