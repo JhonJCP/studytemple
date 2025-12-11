@@ -35,8 +35,8 @@ function safeGetAPIKey(): string | null {
     return process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || null;
 }
 
-// Modelo Gemini 3 Pro Preview (como estaba originalmente)
-let MODEL = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
+// Modelo Gemini 3 Pro (probando sin -preview según documentación)
+let MODEL = process.env.GEMINI_MODEL || "gemini-3-pro";
 
 // Initialized lazily
 let _genAI: GoogleGenerativeAI | null = null;

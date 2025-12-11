@@ -30,7 +30,7 @@ Pregunta: ${question.trim()}
 
     // Obtener instancia lazy
     const genAI = getGenAI();
-    const modelName = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
+    const modelName = process.env.GEMINI_MODEL || "gemini-3-pro";
     const model = genAI.getGenerativeModel({
       model: modelName,
       generationConfig: {
