@@ -92,7 +92,16 @@ const AGENT_CONFIG: Record<AgentRole, {
     },
 };
 
-const AGENT_ORDER: AgentRole[] = ['planner', 'expert-teorico', 'expert-practical', 'expert-tecnico', 'curator', 'strategist', 'librarian', 'auditor', 'timekeeper'];
+// Orden de agentes para V2 (sistema multi-agente paralelo)
+const AGENT_ORDER: AgentRole[] = [
+    'planner',           // Global Planner - Lee planning y analiza supuestos
+    'expert-teorico',    // Experto en leyes (CORE)
+    'expert-practical',  // Experto en supuestos (PRACTICE)
+    'expert-tecnico',    // Experto en fórmulas (CORE+SUPP)
+    'curator',           // Curator - Scoring de criticidad
+    'strategist'         // Strategist - Síntesis final
+    // NOTA: librarian, auditor, timekeeper son del V1 antiguo y ya no se usan
+];
 
 // ============================================
 // COMPONENTE PRINCIPAL
