@@ -121,6 +121,13 @@ export interface TopicMetadata {
         totalSections: number;
         wordGoalMet: boolean;
     };
+    practiceMetrics?: {
+        practiceReadiness?: number; // 0-1 (% de contenido útil para supuestos)
+        conceptsFromRealSupuestos?: number;
+        formulasIncluded?: number;
+        examplesProvided?: number;
+        appearsInSupuestos?: string[];
+    };
 }
 
 export interface GeneratedTopicContent {
@@ -151,7 +158,7 @@ export type GenerationStatus =
 // AGENTES DE ORQUESTACIÓN
 // ============================================
 
-export type AgentRole = 'librarian' | 'auditor' | 'timekeeper' | 'strategist';
+export type AgentRole = 'librarian' | 'auditor' | 'timekeeper' | 'strategist' | 'planner' | 'expert-teorico' | 'expert-practical' | 'expert-tecnico' | 'curator';
 
 export interface AgentStep {
     role: AgentRole;

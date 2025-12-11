@@ -60,9 +60,39 @@ const AGENT_CONFIG: Record<AgentRole, {
         color: 'text-purple-400 bg-purple-500/20 border-purple-500/30',
         description: 'Genera el contenido final y decide los widgets.',
     },
+    planner: {
+        label: 'Planificador Global',
+        icon: Clock,
+        color: 'text-cyan-400 bg-cyan-500/20 border-cyan-500/30',
+        description: 'Lee planning del usuario y analiza supuestos prácticos.',
+    },
+    'expert-teorico': {
+        label: 'Experto Teórico',
+        icon: BookOpen,
+        color: 'text-blue-400 bg-blue-500/20 border-blue-500/30',
+        description: 'Genera marco legal consultando CORE (leyes y decretos).',
+    },
+    'expert-practical': {
+        label: 'Experto Práctico',
+        icon: Brain,
+        color: 'text-pink-400 bg-pink-500/20 border-pink-500/30',
+        description: 'Analiza supuestos reales (PRACTICE) y genera guía de resolución.',
+    },
+    'expert-tecnico': {
+        label: 'Experto Técnico',
+        icon: Search,
+        color: 'text-indigo-400 bg-indigo-500/20 border-indigo-500/30',
+        description: 'Genera fórmulas y cálculos desde CORE+SUPPLEMENTARY.',
+    },
+    curator: {
+        label: 'Curador',
+        icon: Search,
+        color: 'text-orange-400 bg-orange-500/20 border-orange-500/30',
+        description: 'Analiza criticidad de conceptos basado en frecuencia en supuestos.',
+    },
 };
 
-const AGENT_ORDER: AgentRole[] = ['librarian', 'auditor', 'timekeeper', 'strategist'];
+const AGENT_ORDER: AgentRole[] = ['planner', 'expert-teorico', 'expert-practical', 'expert-tecnico', 'curator', 'strategist', 'librarian', 'auditor', 'timekeeper'];
 
 // ============================================
 // COMPONENTE PRINCIPAL

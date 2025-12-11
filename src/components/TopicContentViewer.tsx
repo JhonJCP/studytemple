@@ -632,19 +632,71 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
 
             {/* Metadata Footer */}
             {content && (
-                <footer className="border-t border-white/5 px-6 py-3 bg-black/20 flex items-center justify-between text-xs text-white/40">
-                    <div className="flex items-center gap-4">
-                        <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {content.metadata.estimatedStudyTime} min estimados
-                        </span>
+                <footer className="border-t border-white/5 px-6 py-3 bg-black/20 text-xs text-white/40">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-4">
+                            <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {content.metadata.estimatedStudyTime} min estimados
+                            </span>
+                            <span>
+                                Complejidad: {content.metadata.complexity}
+                            </span>
+                        </div>
                         <span>
-                            Complejidad: {content.metadata.complexity}
+                            Generado: {new Date(content.metadata.generatedAt).toLocaleString()}
                         </span>
                     </div>
-                    <span>
-                        Generado: {new Date(content.metadata.generatedAt).toLocaleString()}
-                    </span>
+                    
+                    {/* Practice Metrics */}
+                    {content.metadata.practiceMetrics && (
+                        <div className="pt-2 border-t border-white/5 flex items-center gap-6">
+                            {content.metadata.practiceMetrics.practiceReadiness !== undefined && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-white/60 font-semibold">🎯 Practice Ready:</span>
+                                    <span className={cn(
+                                        "font-bold",
+                                        content.metadata.practiceMetrics.practiceReadiness >= 0.9 ? "text-green-400" :
+                                        content.metadata.practiceMetrics.practiceReadiness >= 0.8 ? "text-yellow-400" :
+                                        "text-orange-400"
+                                    )}>
+                                        {(content.metadata.practiceMetrics.practiceReadiness * 100).toFixed(0)}%
+                                    </span>
+                                </div>
+                            )}
+                            
+                            {content.metadata.practiceMetrics.conceptsFromRealSupuestos !== undefined && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-white/60">📚 Conceptos de supuestos reales:</span>
+                                    <span className="text-white/80 font-semibold">
+                                        {content.metadata.practiceMetrics.conceptsFromRealSupuestos}
+                                    </span>
+                                </div>
+                            )}
+                            
+                            {content.metadata.practiceMetrics.formulasIncluded !== undefined && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-white/60">🧮 Fórmulas:</span>
+                                    <span className="text-white/80 font-semibold">
+                                        {content.metadata.practiceMetrics.formulasIncluded}
+                                    </span>
+                                </div>
+                            )}
+                            
+                            {content.metadata.practiceMetrics.appearsInSupuestos && 
+                             content.metadata.practiceMetrics.appearsInSupuestos.length > 0 && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-white/60">📋 Aparece en:</span>
+                                    <span className="text-white/80 font-semibold">
+                                        {content.metadata.practiceMetrics.appearsInSupuestos.slice(0, 3).join(', ')}
+                                        {content.metadata.practiceMetrics.appearsInSupuestos.length > 3 && 
+                                            ` +${content.metadata.practiceMetrics.appearsInSupuestos.length - 3} más`
+                                        }
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </footer>
             )}
         </div>

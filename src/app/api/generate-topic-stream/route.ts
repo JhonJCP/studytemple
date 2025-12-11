@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
-import { TopicContentGenerator } from "@/lib/topic-content-generator";
+import { TopicContentGeneratorV2 as TopicContentGenerator } from "@/lib/topic-content-generator-v2";
 import type { OrchestrationState, GeneratedTopicContent } from "@/lib/widget-types";
 import { createClient } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
-const OVERALL_TIMEOUT_MS = parseInt(process.env.GENERATION_TIMEOUT_MS || "240000", 10); // Aumentado a 4 minutos para evitar timeouts con LLM fallback
+const OVERALL_TIMEOUT_MS = parseInt(process.env.GENERATION_TIMEOUT_MS || "600000", 10); // 10 minutos para generación profunda
 // Siempre loguear para trazabilidad en Vercel
 const ENABLE_LOGGING = true;
 
@@ -113,12 +113,16 @@ export async function GET(req: NextRequest) {
                 }
 
                 // 2) Generación con streaming de estado
-                const generator = new TopicContentGenerator(topicId, (state: OrchestrationState) => {
-                    send("state", { 
-                        ...state, 
-                        telemetryEvents: generator.getTelemetry().length 
-                    });
-                });
+                const generator = new TopicContentGenerator(
+                    topicId, 
+                    new Date().toISOString().split('T')[0], // currentDate
+                    (state: OrchestrationState) => {
+                        send("state", { 
+                            ...state, 
+                            telemetryEvents: generator.getTelemetry().length 
+                        });
+                    }
+                );
                 
                 activeGenerators.set(topicId, generator);
                 log(`Generador creado y registrado`);
