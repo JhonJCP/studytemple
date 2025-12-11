@@ -498,12 +498,15 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
 
             console.log("✅ JSON válido detectado desde portapapeles", planData);
             
-            // DON'T process yet - just show the JSON for review
-            setBrainStatus('idle');
+            // Parsear y cargar el plan automáticamente (sin necesidad de ejecutar análisis)
+            parseAndLoadPlan(planData, "JSON PEGADO DESDE PORTAPAPELES");
+            
+            // Poner status en success para habilitar el botón de guardar
+            setBrainStatus('success');
             setDiagnostics({
                 prompt: jsonText,
-                rawResponse: "",
-                analysis: `✅ JSON PEGADO CORRECTAMENTE\n\n📊 RESUMEN DEL PLAN:\n• Días programados: ${numDays}\n• Tareas totales: ${numTasks}\n• Período: ${firstDate} → ${lastDate}\n• Análisis estratégico: ${planData.strategic_analysis ? "Incluido ✓" : "No incluido"}\n\n---\n\n👀 REVISA el JSON en el panel izquierdo.\n\n▶️ Si es correcto, haz clic en "EJECUTAR ANÁLISIS" para cargar el plan en el calendario.\n\n💾 Después de cargar, haz clic en "GUARDAR PLAN" para guardarlo en memoria.`
+                rawResponse: JSON.stringify(planData, null, 2),
+                analysis: `✅ PLAN CARGADO CORRECTAMENTE\n\n📊 RESUMEN:\n• Días programados: ${numDays}\n• Tareas totales: ${numTasks || planData.daily_schedule.length}\n• Período: ${firstDate} → ${lastDate}\n• Análisis estratégico: ${planData.strategic_analysis ? "Incluido ✓" : "No incluido"}\n\n---\n\n✓ El plan está listo en el calendario.\n\n💾 Haz clic en "GUARDAR PLAN" para guardarlo en la base de datos.`
             });
             
         } catch (error: any) {
