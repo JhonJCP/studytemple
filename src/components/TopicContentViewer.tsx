@@ -277,10 +277,12 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
 
     // Status badge
     const getStatusBadge = () => {
-        if (isGenerating) {
+        const busyStatuses: Array<OrchestrationState["status"]> = ['fetching', 'analyzing', 'planning', 'generating', 'queued'];
+        const isBusy = isGenerating || busyStatuses.includes(orchestrationState.status);
+        if (isBusy) {
             return { icon: Loader2, text: 'Generando...', color: 'text-purple-400 bg-purple-500/20', animate: true };
         }
-        if (content) {
+        if (content && orchestrationState.status === 'completed') {
             return { icon: CheckCircle, text: 'Generado', color: 'text-green-400 bg-green-500/20', animate: false };
         }
         return { icon: FileText, text: 'Pendiente', color: 'text-white/40 bg-white/5', animate: false };
