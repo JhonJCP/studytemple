@@ -20,9 +20,9 @@ import type {
 import { getTopicById, generateBaseHierarchy, TopicWithGroup } from "./syllabus-hierarchy";
 
 const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-// Modelo Gemini - usar el que tengas habilitado en tu API Key
-// Opciones comunes: "gemini-2.5-flash-preview-05-20", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-preview-05-20";
+// Modelo Gemini 3 Pro Preview - según documentación oficial de Google
+// Alternativas: "gemini-2.5-pro-preview-05-06", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"
+const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-pro-preview-05-06";
 const genAI = new GoogleGenerativeAI(API_KEY);
 const TEMARIO_ROOT = path.resolve(process.cwd(), "..", "Temario");
 const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "90000", 10); // timeout genérico por cerebro (por defecto 90s)
