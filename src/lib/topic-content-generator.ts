@@ -1,13 +1,13 @@
 /**
- * TOPIC CONTENT GENERATOR - Flujo multi-cerebro
+ * TOPIC CONTENT GENERATOR - Flujo multi-cerebro con RAG desde Supabase
  * Librarian -> Auditor -> TimeKeeper/Planificador -> Strategist -> Orchestrator (final)
- * Cada paso genera JSON y se guarda en el estado (se puede persistir fuera si se desea).
+ * 
+ * IMPORTANTE: Los documentos están almacenados y chunkeados en Supabase (tabla library_documents).
+ * El Librarian busca chunks relevantes basados en el filename del topic y los usa como contexto.
  */
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import fs from "fs/promises";
-import path from "path";
-import { PDFParse } from "pdf-parse";
+import { createClient } from "@supabase/supabase-js";
 import type {
     TopicSection,
     GeneratedTopicContent,
@@ -21,11 +21,21 @@ import { getTopicById, generateBaseHierarchy, TopicWithGroup } from "./syllabus-
 
 const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
 // Modelo Gemini 3 Pro - verificado en Google AI Studio
-// Alternativa: "gemini-2.0-flash" para tareas más rápidas
 const MODEL = process.env.GEMINI_MODEL || "gemini-3-pro";
 const genAI = new GoogleGenerativeAI(API_KEY);
-const TEMARIO_ROOT = path.resolve(process.cwd(), "..", "Temario");
-const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "90000", 10); // timeout genérico por cerebro (por defecto 90s)
+
+// Supabase para RAG (lazy initialization)
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
+function getSupabaseClient() {
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+        return null;
+    }
+    return createClient(SUPABASE_URL, SUPABASE_KEY);
+}
+
+const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "90000", 10);
 const BASE_GENERATION_CONFIG = { 
     temperature: 0.7,
     maxOutputTokens: 8192,
@@ -33,13 +43,8 @@ const BASE_GENERATION_CONFIG = {
 } as const;
 const DEBUG_LOG = process.env.NODE_ENV !== "production";
 
-// Detectar si estamos en entorno serverless (Vercel)
-const IS_SERVERLESS = process.env.VERCEL === "1" || process.env.AWS_LAMBDA_FUNCTION_NAME !== undefined;
-
 function logDebug(message: string, data?: unknown) {
-    if (DEBUG_LOG || IS_SERVERLESS) {
-        console.log(`[GENERATOR] ${message}`, data ? JSON.stringify(data).slice(0, 500) : '');
-    }
+    console.log(`[GENERATOR] ${message}`, data ? JSON.stringify(data).slice(0, 500) : '');
 }
 
 // ============================================
@@ -120,7 +125,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 // ============================================
-// UTILIDADES DE EVIDENCIA LOCAL (RAG SIMPLE)
+// RAG DESDE SUPABASE - Búsqueda de documentos chunkeados
 // ============================================
 
 function slugify(str: string): string {
@@ -133,88 +138,102 @@ function slugify(str: string): string {
         .replace(/^-+|-+$/g, "");
 }
 
-async function findDocumentPath(originalFilename: string): Promise<string | null> {
-    // En entorno serverless (Vercel), no hay acceso al sistema de archivos local
-    if (IS_SERVERLESS) {
-        logDebug('Entorno serverless detectado, saltando búsqueda de archivos locales');
-        return null;
-    }
-
-    const target = slugify(originalFilename);
-
-    // Estrategia: buscar en carpetas candidatas poco profundas, evitando recorrer todo el Temario
-    const candidates = [
-        path.join(TEMARIO_ROOT, "Legislacion y Material fundacional"),
-        path.join(TEMARIO_ROOT, "Legislación y Material fundacional"), // por si hay acento
-        TEMARIO_ROOT,
-        path.resolve(process.cwd(), "Temario"),
-    ];
-
-    async function walk(dir: string, depth = 0): Promise<string | null> {
-        if (depth > 3) return null; // límite para evitar cuelgues
-        let entries: any[] = [];
-        try {
-            entries = await fs.readdir(dir, { withFileTypes: true });
-        } catch {
-            return null;
-        }
-
-        for (const entry of entries) {
-            const fullPath = path.join(dir, entry.name);
-            if (entry.isDirectory()) {
-                const found = await walk(fullPath, depth + 1);
-                if (found) return found;
-            } else {
-                const norm = slugify(entry.name);
-                if (norm.includes(target) || target.includes(norm)) {
-                    return fullPath;
-                }
-            }
-        }
-        return null;
-    }
-
-    for (const base of candidates) {
-        const found = await walk(base);
-        if (found) return found;
-    }
-    return null;
+interface DocumentChunk {
+    source_id: string;
+    filename: string;
+    fragment: string;
+    category: string;
+    chunk_index: number;
+    confidence: number;
 }
 
-function chunkText(text: string, size = 1100, overlap = 120): string[] {
-    const clean = text.replace(/\s+/g, " ").trim();
-    const chunks: string[] = [];
-    let idx = 0;
-    while (idx < clean.length) {
-        const slice = clean.slice(idx, idx + size);
-        chunks.push(slice);
-        idx += size - overlap;
-    }
-    return chunks;
-}
-
-async function loadPdfEvidence(filePath: string): Promise<Array<{ source_id: string; filename: string; fragment: string; law_refs: string[]; confidence: number }>> {
-    // En entorno serverless, no podemos leer archivos locales
-    if (IS_SERVERLESS) {
-        logDebug('Entorno serverless detectado, saltando lectura de PDF');
+/**
+ * Busca chunks relevantes en Supabase basándose en el filename del topic
+ * Los documentos ya están chunkeados y almacenados en library_documents
+ */
+async function fetchDocumentChunksFromSupabase(
+    originalFilename: string,
+    topicTitle: string,
+    maxChunks: number = 15
+): Promise<DocumentChunk[]> {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+        logDebug('Supabase no configurado, no se puede hacer RAG');
         return [];
     }
 
+    logDebug('Buscando chunks en Supabase', { originalFilename, topicTitle });
+
     try {
-        const buffer = await fs.readFile(filePath);
-        const parser = new PDFParse({ data: buffer });
-        const textResult = await parser.getText({ pageJoiner: "\n" });
-        const text = textResult.text || "";
-        const pieces = chunkText(text).slice(0, 12);
-        return pieces.map((fragment, i) => ({
-            source_id: `pdf-${i + 1}`,
-            filename: path.basename(filePath),
-            fragment,
-            law_refs: [],
-            confidence: 0.92
-        }));
-    } catch (err) {
-        logDebug('Error leyendo PDF', err);
+        // 1. Buscar por filename exacto o parcial
+        const filenameSearch = originalFilename.replace(/\.pdf$/i, '');
+        
+        const { data: byFilename, error: err1 } = await supabase
+            .from('library_documents')
+            .select('id, content, metadata')
+            .ilike('metadata->>filename', `%${filenameSearch}%`)
+            .order('metadata->chunk_index', { ascending: true })
+            .limit(maxChunks);
+
+        if (err1) {
+            logDebug('Error buscando por filename', err1);
+        }
+
+        let chunks: DocumentChunk[] = [];
+
+        if (byFilename && byFilename.length > 0) {
+            logDebug(`Encontrados ${byFilename.length} chunks por filename`);
+            chunks = byFilename.map((doc: any, i: number) => ({
+                source_id: `db-${doc.id}`,
+                filename: doc.metadata?.filename || originalFilename,
+                fragment: doc.content || '',
+                category: doc.metadata?.category || 'UNKNOWN',
+                chunk_index: doc.metadata?.chunk_index ?? i,
+                confidence: 0.95
+            }));
+        }
+
+        // 2. Si no hay suficientes chunks, buscar por palabras clave del título
+        if (chunks.length < 5) {
+            const keywords = topicTitle
+                .toLowerCase()
+                .replace(/[^a-záéíóúñ\s]/g, '')
+                .split(/\s+/)
+                .filter(w => w.length > 4)
+                .slice(0, 3);
+
+            logDebug('Buscando por keywords', keywords);
+
+            for (const keyword of keywords) {
+                if (chunks.length >= maxChunks) break;
+
+                const { data: byKeyword, error: err2 } = await supabase
+                    .from('library_documents')
+                    .select('id, content, metadata')
+                    .ilike('content', `%${keyword}%`)
+                    .limit(5);
+
+                if (!err2 && byKeyword) {
+                    const newChunks = byKeyword
+                        .filter((doc: any) => !chunks.some(c => c.source_id === `db-${doc.id}`))
+                        .map((doc: any) => ({
+                            source_id: `db-${doc.id}`,
+                            filename: doc.metadata?.filename || 'unknown',
+                            fragment: doc.content || '',
+                            category: doc.metadata?.category || 'UNKNOWN',
+                            chunk_index: doc.metadata?.chunk_index ?? 0,
+                            confidence: 0.75
+                        }));
+                    chunks.push(...newChunks);
+                }
+            }
+        }
+
+        logDebug(`Total chunks RAG: ${chunks.length}`);
+        return chunks.slice(0, maxChunks);
+
+    } catch (error) {
+        logDebug('Error en fetchDocumentChunksFromSupabase', error);
         return [];
     }
 }
@@ -346,7 +365,7 @@ export class TopicContentGenerator {
     }
 
     // ============================================
-    // LIBRARIAN: estructura base + evidencia breve
+    // LIBRARIAN: estructura base + evidencia desde Supabase
     // ============================================
     private async runLibrarian(topic: TopicWithGroup): Promise<{
         structure: TopicSection[];
@@ -355,82 +374,84 @@ export class TopicContentGenerator {
     }> {
         this.checkCancelled();
         this.telemetry.log('librarian', 'start', topic.title);
-        logDebug('Librarian iniciando', { topic: topic.title, isServerless: IS_SERVERLESS });
+        logDebug('Librarian iniciando con RAG desde Supabase', { topic: topic.title, filename: topic.originalFilename });
         this.updateState({ currentStep: 'librarian' });
         const structure = generateBaseHierarchy(topic);
-        let docPath: string | null = null;
         
-        // En serverless, saltamos directamente a LLM
-        if (!IS_SERVERLESS) {
-            const pdfSearchStart = Date.now();
-            try {
-                docPath = await withTimeout(findDocumentPath(topic.originalFilename), Math.min(STEP_TIMEOUT_MS, 60000), "Búsqueda de PDF");
-                this.telemetry.log('librarian', 'complete', `PDF encontrado en ${Date.now() - pdfSearchStart}ms: ${docPath ? path.basename(docPath) : 'ninguno'}`);
-            } catch (err) {
-                docPath = null;
-                this.telemetry.log('librarian', 'timeout', `Búsqueda PDF timeout después de ${Date.now() - pdfSearchStart}ms`);
-                this.updateStep('librarian', {
-                    status: 'running',
-                    reasoning: `Búsqueda lenta o fallida (${err instanceof Error ? err.message : 'error desconocido'}). Uso fallback LLM.`
-                });
-            }
-        } else {
-            this.telemetry.log('librarian', 'fallback', 'Entorno serverless - usando LLM directamente');
-        }
-        
-        this.checkCancelled();
-        const documents = docPath ? [docPath] : [topic.originalFilename];
-        let evidence: any[] = [];
-
-        const reasoningMsg = IS_SERVERLESS 
-            ? 'Entorno cloud: generando contenido con IA (sin acceso a PDFs locales)'
-            : (docPath ? `Buscando evidencia en ${path.basename(docPath)}` : 'Sin PDF local, usando LLM');
-
         this.updateStep('librarian', {
             status: 'running',
             startedAt: new Date(),
-            input: { topic: topic.title, serverless: IS_SERVERLESS },
-            reasoning: reasoningMsg
+            input: { topic: topic.title, filename: topic.originalFilename },
+            reasoning: 'Buscando documentos en la biblioteca (Supabase)...'
         });
 
-        // 1) Intentar cargar evidencia real desde el PDF
-        if (docPath) {
-            const parseStart = Date.now();
-            try {
-                evidence = await withTimeout(loadPdfEvidence(docPath), Math.min(STEP_TIMEOUT_MS, 60000), "Parseo PDF");
-                this.telemetry.log('librarian', 'complete', `PDF parseado en ${Date.now() - parseStart}ms (${evidence.length} fragmentos)`);
+        let evidence: any[] = [];
+        const documents: string[] = [topic.originalFilename];
+
+        // 1) Buscar chunks en Supabase (RAG)
+        const ragStart = Date.now();
+        try {
+            const chunks = await withTimeout(
+                fetchDocumentChunksFromSupabase(topic.originalFilename, topic.title, 15),
+                Math.min(STEP_TIMEOUT_MS, 30000),
+                "RAG Supabase"
+            );
+
+            if (chunks.length > 0) {
+                evidence = chunks.map(chunk => ({
+                    source_id: chunk.source_id,
+                    filename: chunk.filename,
+                    fragment: chunk.fragment.slice(0, 1500), // Limitar tamaño
+                    category: chunk.category,
+                    confidence: chunk.confidence
+                }));
+
+                // Añadir documentos únicos encontrados
+                const uniqueFiles = [...new Set(chunks.map(c => c.filename))];
+                documents.push(...uniqueFiles.filter(f => f !== topic.originalFilename));
+
+                this.telemetry.log('librarian', 'complete', `RAG encontró ${chunks.length} chunks en ${Date.now() - ragStart}ms`);
                 this.updateStep('librarian', {
-                    reasoning: `Evidencia cargada desde PDF (${evidence.length} fragmentos) en ${Math.round((Date.now() - parseStart) / 1000)}s.`
+                    reasoning: `Encontrados ${chunks.length} fragmentos de ${uniqueFiles.length} documento(s) en Supabase.`
                 });
-            } catch (err) {
-                evidence = [];
-                this.telemetry.log('librarian', 'timeout', `Parseo PDF timeout después de ${Date.now() - parseStart}ms`);
+            } else {
+                this.telemetry.log('librarian', 'fallback', 'No se encontraron chunks en Supabase');
                 this.updateStep('librarian', {
-                    reasoning: `Fallo al leer PDF (${err instanceof Error ? err.message : 'error'}). Se intentará LLM.`
+                    reasoning: 'No se encontraron documentos en la biblioteca. Usando conocimiento del modelo.'
                 });
             }
+        } catch (err) {
+            this.telemetry.log('librarian', 'error', `RAG error: ${err instanceof Error ? err.message : 'error'}`);
+            this.updateStep('librarian', {
+                reasoning: `Error buscando en Supabase (${err instanceof Error ? err.message : 'error'}). Usando conocimiento del modelo.`
+            });
         }
 
         this.checkCancelled();
 
-        // 2) Fallback a prompt LLM si no hay evidencia local
+        // 2) Si no hay evidencia de Supabase, pedir al LLM que genere contexto base
         if (!evidence.length) {
-            this.telemetry.log('librarian', 'fallback', 'Sin evidencia PDF, usando LLM');
+            this.telemetry.log('librarian', 'fallback', 'Sin evidencia Supabase, usando LLM para contexto base');
             const prompt = `
-Eres el Bibliotecario. Devuelve evidencia breve (fragmentos) para el tema:
-- Título: "${topic.title}"
-- Grupo: "${topic.groupTitle}"
-- Archivo principal: "${topic.originalFilename}"
+Eres el Bibliotecario de una plataforma de estudio de oposiciones (ITOP - Ingeniero Técnico de Obras Públicas).
+Genera un resumen estructurado del tema para usar como base de estudio.
+
+Tema: "${topic.title}"
+Grupo temático: "${topic.groupTitle}"
+Documento de referencia: "${topic.originalFilename}"
+
+Proporciona información REAL y PRECISA sobre este tema de oposiciones españolas.
+Incluye referencias a artículos de ley, normativa aplicable y conceptos clave.
 
 Salida JSON:
 {
   "evidence": [
-    { "source_id": "doc-1", "filename": "${topic.originalFilename}", "fragment": "fragmento literal (<=400 chars)", "law_refs": ["ref1","ref2"], "confidence": 0.85 }
+    { "source_id": "base-1", "filename": "${topic.originalFilename}", "fragment": "resumen del contenido principal (máx 500 chars)", "law_refs": ["Ley X/YYYY", "RD Z"], "confidence": 0.7 },
+    { "source_id": "base-2", "filename": "${topic.originalFilename}", "fragment": "conceptos y definiciones clave", "law_refs": [], "confidence": 0.7 }
   ],
   "documents": ["${topic.originalFilename}"],
-  "rationale": "razonamiento breve (2 frases) sobre cómo seleccionaste los fragmentos"
-}
-No inventes texto largo; resume en frases cortas.`;
+  "rationale": "He generado un resumen base del tema basándome en la normativa española aplicable"
+}`;
 
             const llmStart = Date.now();
             try {
@@ -439,36 +460,33 @@ No inventes texto largo; resume en frases cortas.`;
                 const rawText = res.response.text();
                 const { json, error } = safeParseJSON(rawText);
                 
-                if (error) {
-                    this.telemetry.log('librarian', 'error', `Parse JSON error: ${error}`);
-                    evidence = [];
-                } else {
+                if (!error && json) {
                     evidence = json.evidence || [];
                     const rationale = extractRationale(rawText, json);
-                    const finalRationale = rationale ? `LLM: ${rationale}` : 'LLM ejecutado sin rationale explícito';
-                    this.updateStep('librarian', { reasoning: finalRationale });
-                    this.telemetry.log('librarian', 'complete', `LLM respondió en ${Date.now() - llmStart}ms (${evidence.length} evidencias)`);
+                    this.updateStep('librarian', { 
+                        reasoning: rationale || `Modelo generó ${evidence.length} fragmentos de contexto base.` 
+                    });
+                    this.telemetry.log('librarian', 'complete', `LLM generó contexto en ${Date.now() - llmStart}ms`);
                 }
             } catch (err) {
-                evidence = [];
-                this.telemetry.log('librarian', 'timeout', `LLM timeout después de ${Date.now() - llmStart}ms: ${err instanceof Error ? err.message : 'error'}`);
-                this.updateStep('librarian', {
-                    reasoning: `LLM sin respuesta (${err instanceof Error ? err.message : 'error'}).`
-                });
+                this.telemetry.log('librarian', 'error', `LLM error: ${err instanceof Error ? err.message : 'error'}`);
             }
         }
 
-        const finalReasoning = (() => {
-            if (docPath && evidence.length) return `Estructura base generada y ${evidence.length} fragmentos reales desde PDF.`;
-            if (docPath && !evidence.length) return `Estructura base generada. Sin evidencia del PDF, se usará LLM.`;
-            return `Estructura base generada. Evidencias (LLM): ${evidence.length}.`;
-        })();
+        const finalReasoning = evidence.length > 0
+            ? `Estructura generada con ${evidence.length} fragmentos de evidencia de ${documents.length} documento(s).`
+            : 'Estructura base generada. El contenido se completará con el modelo.';
 
         this.updateStep('librarian', {
             status: 'completed',
             completedAt: new Date(),
             reasoning: finalReasoning,
-            output: { documentCount: documents.length, sectionCount: structure.length, evidence, docPath }
+            output: { 
+                documentCount: documents.length, 
+                sectionCount: structure.length, 
+                evidenceCount: evidence.length,
+                sources: [...new Set(evidence.map((e: any) => e.filename))]
+            }
         });
 
         this.telemetry.log('librarian', 'complete', finalReasoning);
@@ -761,13 +779,13 @@ RESPUESTA SOLO JSON:
         
         logDebug('Iniciando generación', { 
             topicId: this.state.topicId, 
-            isServerless: IS_SERVERLESS,
             hasApiKey: !!API_KEY,
             apiKeyLength: API_KEY.length,
-            model: MODEL
+            model: MODEL,
+            supabaseConfigured: !!SUPABASE_URL
         });
-        console.log(`[GENERATOR] Usando modelo: ${MODEL}, API Key presente: ${!!API_KEY} (${API_KEY.slice(0,8)}...)`);
-        this.telemetry.log('global', 'start', `Iniciando generación para ${this.state.topicId} (serverless: ${IS_SERVERLESS})`);
+        console.log(`[GENERATOR] Usando modelo: ${MODEL}, API Key presente: ${!!API_KEY} (${API_KEY.slice(0,8)}...), Supabase: ${!!SUPABASE_URL}`);
+        this.telemetry.log('global', 'start', `Iniciando generación para ${this.state.topicId} (RAG: ${!!SUPABASE_URL})`);
         
         if (!API_KEY) {
             const errorMsg = "Falta GEMINI_API_KEY en las variables de entorno del servidor. Configúrala en Vercel Dashboard > Settings > Environment Variables.";
