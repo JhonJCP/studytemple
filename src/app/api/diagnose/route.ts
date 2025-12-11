@@ -130,43 +130,64 @@ export async function GET() {
     result.connectivity.geminiPingError = "No API Key disponible para test";
   }
 
-  // 3. Probar múltiples modelos comunes para encontrar uno que funcione
+  // 3. Probar múltiples modelos con configuración completa
   if (apiKey) {
-    const modelsToTest = ["gemini-3-pro-preview", "gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-pro"];
+    const modelsToTest = [
+      { name: "gemini-3-pro-preview", config: { maxOutputTokens: 2048, temperature: 1.0 } },  // Más tokens y temperatura
+      { name: "gemini-2.0-flash-exp", config: { maxOutputTokens: 100, temperature: 0.7 } },
+      { name: "gemini-1.5-flash", config: { maxOutputTokens: 100, temperature: 0.7 } },
+      { name: "gemini-pro", config: { maxOutputTokens: 100, temperature: 0.7 } }
+    ];
     const testResults: any[] = [];
     
-    for (const modelName of modelsToTest) {
+    for (const { name: modelName, config } of modelsToTest) {
       const testStart = Date.now();
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({
           model: modelName,
-          generationConfig: {
-            maxOutputTokens: 100,
-            temperature: 0.7,
-          },
+          generationConfig: config
         });
 
-        const response = await model.generateContent("Responde solo con la palabra OK");
+        // Prompt más detallado para gemini-3-pro-preview
+        const prompt = modelName === "gemini-3-pro-preview" 
+          ? "Eres un asistente útil. Responde a esta pregunta: ¿Cuál es la capital de España? Responde en una frase completa."
+          : "Responde solo con la palabra OK";
+        
+        const response = await model.generateContent(prompt);
+        
+        // Inspeccionar la respuesta completa
         const text = response.response.text();
+        const candidates = response.response.candidates || [];
+        const finishReason = candidates[0]?.finishReason || "unknown";
+        const safetyRatings = candidates[0]?.safetyRatings || [];
         
         testResults.push({
           modelName,
           success: text.trim().length > 0,
-          error: text.trim().length === 0 ? "Respuesta vacía" : null,
+          error: text.trim().length === 0 ? `Respuesta vacía (finishReason: ${finishReason})` : null,
           responseSample: text.slice(0, 100),
-          durationMs: Date.now() - testStart
+          durationMs: Date.now() - testStart,
+          finishReason,
+          blocked: safetyRatings.some((r: any) => r.blocked === true)
         });
         
-        console.log(`[DIAGNOSE] Test ${modelName}:`, { success: text.length > 0, sample: text.slice(0, 50) });
+        console.log(`[DIAGNOSE] Test ${modelName}:`, { 
+          success: text.length > 0, 
+          sample: text.slice(0, 50),
+          finishReason,
+          blocked: safetyRatings.some((r: any) => r.blocked === true)
+        });
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         testResults.push({
           modelName,
           success: false,
-          error: errorMsg.slice(0, 200),
+          error: errorMsg.slice(0, 250),
           responseSample: null,
-          durationMs: Date.now() - testStart
+          durationMs: Date.now() - testStart,
+          finishReason: "error",
+          blocked: false
         });
         console.log(`[DIAGNOSE] Test ${modelName} FAILED:`, errorMsg.slice(0, 150));
       }
