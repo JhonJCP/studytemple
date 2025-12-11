@@ -335,8 +335,8 @@ Responde SOLO JSON:
         this.updateStep('auditor', {
             status: 'completed',
             completedAt: new Date(),
-            reasoning: parsed.rationale
-                ? parsed.rationale
+            reasoning: (parsed as any).rationale
+                ? (parsed as any).rationale
                 : `Gaps: ${parsed.gaps.length}, widgets: ${parsed.widgets.length}, score: ${parsed.quality_score}`,
             output: parsed
         });
@@ -503,8 +503,8 @@ RESPUESTA SOLO JSON:
         this.updateStep('strategist', {
             status: 'completed',
             completedAt: new Date(),
-            reasoning: parsed.rationale
-                ? parsed.rationale
+            reasoning: (parsed as any).rationale
+                ? (parsed as any).rationale
                 : `Secciones: ${parsed.sections?.length || 0}, widgets: ${(parsed.widgets || []).length}. Estrategia: ${timeDecision.strategy}.`,
             output: { sectionCount: parsed.sections?.length || 0, widgetCount: (parsed.widgets || []).length }
         });
