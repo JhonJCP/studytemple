@@ -20,11 +20,15 @@ import type {
 import { getTopicById, generateBaseHierarchy, TopicWithGroup } from "./syllabus-hierarchy";
 
 const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-const MODEL = "gemini-2.0-flash";
+const MODEL = "gemini-1.5-flash"; // Modelo estable y rápido
 const genAI = new GoogleGenerativeAI(API_KEY);
 const TEMARIO_ROOT = path.resolve(process.cwd(), "..", "Temario");
 const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "90000", 10); // timeout genérico por cerebro (por defecto 90s)
-const BASE_GENERATION_CONFIG = { responseMimeType: "application/json" } as const;
+// Configuración básica - responseMimeType: "application/json" puede fallar en algunos modelos
+const BASE_GENERATION_CONFIG = { 
+    temperature: 0.7,
+    maxOutputTokens: 8192 
+} as const;
 const DEBUG_LOG = process.env.NODE_ENV !== "production";
 
 // Detectar si estamos en entorno serverless (Vercel)
