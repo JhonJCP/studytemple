@@ -20,12 +20,21 @@ import type {
 import { getTopicById, generateBaseHierarchy, TopicWithGroup } from "./syllabus-hierarchy";
 
 const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-const MODEL = "gemini-3-pro-preview";
+const MODEL = "gemini-2.0-flash";
 const genAI = new GoogleGenerativeAI(API_KEY);
 const TEMARIO_ROOT = path.resolve(process.cwd(), "..", "Temario");
 const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "90000", 10); // timeout genérico por cerebro (por defecto 90s)
-const BASE_GENERATION_CONFIG = { responseMimeType: "application/json", includeThoughts: true } as const;
+const BASE_GENERATION_CONFIG = { responseMimeType: "application/json" } as const;
 const DEBUG_LOG = process.env.NODE_ENV !== "production";
+
+// Detectar si estamos en entorno serverless (Vercel)
+const IS_SERVERLESS = process.env.VERCEL === "1" || process.env.AWS_LAMBDA_FUNCTION_NAME !== undefined;
+
+function logDebug(message: string, data?: unknown) {
+    if (DEBUG_LOG || IS_SERVERLESS) {
+        console.log(`[GENERATOR] ${message}`, data ? JSON.stringify(data).slice(0, 500) : '');
+    }
+}
 
 // ============================================
 // TELEMETRÍA Y LOGGING
@@ -119,6 +128,12 @@ function slugify(str: string): string {
 }
 
 async function findDocumentPath(originalFilename: string): Promise<string | null> {
+    // En entorno serverless (Vercel), no hay acceso al sistema de archivos local
+    if (IS_SERVERLESS) {
+        logDebug('Entorno serverless detectado, saltando búsqueda de archivos locales');
+        return null;
+    }
+
     const target = slugify(originalFilename);
 
     // Estrategia: buscar en carpetas candidatas poco profundas, evitando recorrer todo el Temario
@@ -173,6 +188,12 @@ function chunkText(text: string, size = 1100, overlap = 120): string[] {
 }
 
 async function loadPdfEvidence(filePath: string): Promise<Array<{ source_id: string; filename: string; fragment: string; law_refs: string[]; confidence: number }>> {
+    // En entorno serverless, no podemos leer archivos locales
+    if (IS_SERVERLESS) {
+        logDebug('Entorno serverless detectado, saltando lectura de PDF');
+        return [];
+    }
+
     try {
         const buffer = await fs.readFile(filePath);
         const parser = new PDFParse({ data: buffer });
@@ -186,7 +207,8 @@ async function loadPdfEvidence(filePath: string): Promise<Array<{ source_id: str
             law_refs: [],
             confidence: 0.92
         }));
-    } catch {
+    } catch (err) {
+        logDebug('Error leyendo PDF', err);
         return [];
     }
 }
@@ -327,32 +349,42 @@ export class TopicContentGenerator {
     }> {
         this.checkCancelled();
         this.telemetry.log('librarian', 'start', topic.title);
+        logDebug('Librarian iniciando', { topic: topic.title, isServerless: IS_SERVERLESS });
         this.updateState({ currentStep: 'librarian' });
         const structure = generateBaseHierarchy(topic);
         let docPath: string | null = null;
         
-        const pdfSearchStart = Date.now();
-        try {
-            docPath = await withTimeout(findDocumentPath(topic.originalFilename), Math.min(STEP_TIMEOUT_MS, 60000), "Búsqueda de PDF");
-            this.telemetry.log('librarian', 'complete', `PDF encontrado en ${Date.now() - pdfSearchStart}ms: ${docPath ? path.basename(docPath) : 'ninguno'}`);
-        } catch (err) {
-            docPath = null;
-            this.telemetry.log('librarian', 'timeout', `Búsqueda PDF timeout después de ${Date.now() - pdfSearchStart}ms`);
-            this.updateStep('librarian', {
-                status: 'running',
-                reasoning: `Búsqueda lenta o fallida (${err instanceof Error ? err.message : 'error desconocido'}). Uso fallback LLM.`
-            });
+        // En serverless, saltamos directamente a LLM
+        if (!IS_SERVERLESS) {
+            const pdfSearchStart = Date.now();
+            try {
+                docPath = await withTimeout(findDocumentPath(topic.originalFilename), Math.min(STEP_TIMEOUT_MS, 60000), "Búsqueda de PDF");
+                this.telemetry.log('librarian', 'complete', `PDF encontrado en ${Date.now() - pdfSearchStart}ms: ${docPath ? path.basename(docPath) : 'ninguno'}`);
+            } catch (err) {
+                docPath = null;
+                this.telemetry.log('librarian', 'timeout', `Búsqueda PDF timeout después de ${Date.now() - pdfSearchStart}ms`);
+                this.updateStep('librarian', {
+                    status: 'running',
+                    reasoning: `Búsqueda lenta o fallida (${err instanceof Error ? err.message : 'error desconocido'}). Uso fallback LLM.`
+                });
+            }
+        } else {
+            this.telemetry.log('librarian', 'fallback', 'Entorno serverless - usando LLM directamente');
         }
         
         this.checkCancelled();
         const documents = docPath ? [docPath] : [topic.originalFilename];
         let evidence: any[] = [];
 
+        const reasoningMsg = IS_SERVERLESS 
+            ? 'Entorno cloud: generando contenido con IA (sin acceso a PDFs locales)'
+            : (docPath ? `Buscando evidencia en ${path.basename(docPath)}` : 'Sin PDF local, usando LLM');
+
         this.updateStep('librarian', {
             status: 'running',
             startedAt: new Date(),
-            input: { docPath, topic: topic.title },
-            reasoning: docPath ? `Buscando evidencia en ${path.basename(docPath)}` : 'Buscando evidencia (sin ruta directa, usando LLM si no se encuentra PDF)'
+            input: { topic: topic.title, serverless: IS_SERVERLESS },
+            reasoning: reasoningMsg
         });
 
         // 1) Intentar cargar evidencia real desde el PDF
@@ -720,15 +752,24 @@ RESPUESTA SOLO JSON:
         this.telemetry.reset();
         this.cancelled = false;
         this.abortController = new AbortController();
-        this.telemetry.log('global', 'start', `Iniciando generación para ${this.state.topicId}`);
+        
+        logDebug('Iniciando generación', { 
+            topicId: this.state.topicId, 
+            isServerless: IS_SERVERLESS,
+            hasApiKey: !!API_KEY,
+            model: MODEL
+        });
+        this.telemetry.log('global', 'start', `Iniciando generación para ${this.state.topicId} (serverless: ${IS_SERVERLESS})`);
         
         if (!API_KEY) {
+            const errorMsg = "Falta GEMINI_API_KEY en las variables de entorno del servidor. Configúrala en Vercel Dashboard > Settings > Environment Variables.";
             this.telemetry.log('global', 'error', 'Falta API KEY');
+            logDebug('ERROR: API KEY no configurada');
             this.updateState({
                 status: 'error',
                 currentStep: null
             });
-            throw new Error("Falta GEMINI_API_KEY / NEXT_PUBLIC_GEMINI_API_KEY para generar el temario.");
+            throw new Error(errorMsg);
         }
 
         const topic = getTopicById(this.state.topicId);
@@ -736,6 +777,8 @@ RESPUESTA SOLO JSON:
             this.telemetry.log('global', 'error', `Topic no encontrado: ${this.state.topicId}`);
             throw new Error(`Topic not found: ${this.state.topicId}`);
         }
+        
+        logDebug('Topic encontrado', { title: topic.title, group: topic.groupTitle });
 
         this.updateState({ status: 'fetching' });
 
