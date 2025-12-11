@@ -22,7 +22,14 @@ import { getTopicById, generateBaseHierarchy, TopicWithGroup } from "./syllabus-
 const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
 // Modelo Gemini 3 Pro - verificado en Google AI Studio (Dec 2025)
 const MODEL = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
-const genAI = new GoogleGenerativeAI(API_KEY);
+// Initialized lazily
+let genAI: GoogleGenerativeAI | null = null;
+function getGenAI() {
+    if (!genAI) {
+        genAI = new GoogleGenerativeAI(API_KEY);
+    }
+    return genAI;
+}
 
 // Supabase para RAG (lazy initialization)
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -103,7 +110,7 @@ class GeneratorTelemetry {
 }
 
 function getThinkingModel() {
-    return genAI.getGenerativeModel({
+    return getGenAI().getGenerativeModel({
         model: MODEL,
         generationConfig: BASE_GENERATION_CONFIG
     });
@@ -111,7 +118,7 @@ function getThinkingModel() {
 
 // Modelo sin responseMimeType forzado, útil para prompts de texto libre/enriquecimiento
 function getTextModel() {
-    return genAI.getGenerativeModel({
+    return getGenAI().getGenerativeModel({
         model: MODEL,
         generationConfig: {
             temperature: 0.7,
@@ -551,15 +558,35 @@ export class TopicContentGenerator {
         evidence: any[];
     }> {
         this.checkCancelled();
+
+        // FASE 0: Diagnóstico de Conexión (Para debuguear el "bloqueo")
+        this.updateStep('librarian', {
+            status: 'running',
+            startedAt: new Date(),
+            input: {
+                topic: topic.title,
+                filename: topic.originalFilename,
+                model: MODEL,
+                check: "Verificando conexión con Supabase y Gemini..."
+            },
+            reasoning: 'Iniciando diagnóstico de servicios...'
+        });
+
+        // Verificar Supabase
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            this.updateStep('librarian', {
+                reasoning: 'ADVERTENCIA: Supabase no está configurado (variables de entorno faltantes). Se usará solo conocimiento del modelo.'
+            });
+        }
+
         this.telemetry.log('librarian', 'start', topic.title);
         logDebug('Librarian iniciando con RAG desde Supabase', { topic: topic.title, filename: topic.originalFilename });
         this.updateState({ currentStep: 'librarian' });
         const structure = generateBaseHierarchy(topic);
 
         this.updateStep('librarian', {
-            status: 'running',
-            startedAt: new Date(),
-            input: { topic: topic.title, filename: topic.originalFilename, prompt_preview: "Buscando en Supabase..." },
+            input: { topic: topic.title, filename: topic.originalFilename, prompt_preview: "Buscando chunks en Supabase..." },
             reasoning: 'Buscando documentos en la biblioteca (Supabase)...'
         });
 
