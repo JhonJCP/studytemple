@@ -1038,32 +1038,32 @@ Tema general: "${topic.title}"
 Sección: "${section.title}"
 Nivel: ${section.level}
 
-CONTEXTO / EVIDENCIA (Usa esta información):
+CONTEXTO CLAVE (Usar para precisión):
 ${evidenceSummary.slice(0, 3000)}
 
 Requisitos:
-- Mínimo 150 palabras de texto explicativo
-- Incluye definiciones, conceptos clave y ejemplos
-- Usa formato Markdown (negritas, listas, etc.)
-- Menciona artículos de ley o normativa cuando aplique
-- Lenguaje técnico pero accesible
-
-RESPONDE SOLO CON EL TEXTO EN MARKDOWN (sin JSON, sin \`\`\`):`;
+- Escribe al menos 200 palabras de contenido técnico.
+- Explica conceptos, procedimientos o artículos legales relevantes.
+- Usa formato Markdown limpio (listas, negritas) sin bloques de código.
+- NO devuelvas JSON, solo texto educativo.
+`;
+                        // Log enrichment attempt
+                        logDebug(`Strategist: Enriqueciendo "${section.title}" (length: ${countWords(sectionText)} words)`, { evidenceLen: evidenceSummary.length });
 
                         const model = getTextModel();
-                        const enrichResult = await withTimeout(
+                        const enrichRes = await withTimeout(
                             model.generateContent(enrichPrompt),
-                            30000, // 30s por sección
-                            `Enriquecer sección: ${section.title}`
+                            45000,
+                            `Enriquecimiento ${section.title}`
                         );
-                        const enrichedText = enrichResult.response.text().trim();
 
-                        if (enrichedText && countWords(enrichedText) >= 50) {
-                            rawSections[i].content = {
-                                text: enrichedText,
-                                widgets: section.content?.widgets || []
-                            };
-                            logDebug(`Strategist: Sección "${section.title}" enriquecida`, { words: countWords(enrichedText) });
+                        const enrichedContent = enrichRes.response.text().trim();
+
+                        if (countWords(enrichedContent) > 50) {
+                            rawSections[i].content.text = enrichedContent; // Replace empty/short content
+                            logDebug(`Strategist: Enriquecimiento EXITOSO para "${section.title}" (+${countWords(enrichedContent)} words)`);
+                        } else {
+                            logDebug(`Strategist: Enriquecimiento devolvió poco texto para "${section.title}": ${enrichedContent.slice(0, 50)}...`);
                         }
                     } catch (err) {
                         logDebug(`Strategist: Error enriqueciendo sección "${section.title}"`, err);
