@@ -20,8 +20,9 @@ import type {
 import { getTopicById, generateBaseHierarchy, TopicWithGroup } from "./syllabus-hierarchy";
 
 const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-// Modelo Gemini 3 Pro - verificado en Google AI Studio (Dec 2025)
-const MODEL = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
+// Modelo Gemini 3 Pro (o fallback a 1.5 en caso de error)
+let MODEL = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
+
 // Initialized lazily
 let genAI: GoogleGenerativeAI | null = null;
 function getGenAI() {
@@ -29,6 +30,14 @@ function getGenAI() {
         genAI = new GoogleGenerativeAI(API_KEY);
     }
     return genAI;
+}
+
+// Función para cambiar a modelo fallback si el principal falla (ej: 404 Not Found)
+function switchToFallbackModel() {
+    if (MODEL !== "gemini-1.5-pro") {
+        console.warn(`[GENERATOR] Switching model from ${MODEL} to gemini-1.5-pro due to API error.`);
+        MODEL = "gemini-1.5-pro";
+    }
 }
 
 // Supabase para RAG (lazy initialization)
@@ -462,11 +471,55 @@ async function generateJSONWithRetry(
             logDebug(`${label}: JSON parse failed (intento ${attempt + 1})`, { error: lastError, sample: raw.slice(0, 400) });
         } catch (err) {
             lastError = err instanceof Error ? err.message : 'LLM error';
+
+            // Detectar error 404 o Not Found e intentar con fallback
+            if (lastError.includes('404') || lastError.toLowerCase().includes('not found')) {
+                switchToFallbackModel();
+                // Reintentar inmediatamente con el nuevo modelo en la siguiente iteración si quedan intentos,
+                // o forzar uno extra si era el último
+                if (attempt === maxRetries) maxRetries++;
+            }
+
             logDebug(`${label}: LLM error (intento ${attempt + 1})`, lastError);
         }
     }
 
     return { json: null, raw, error: lastError };
+}
+
+async function generateTextWithRetry(
+    prompt: string,
+    label: string,
+    timeoutMs: number
+): Promise<string | null> {
+    const model = getTextModel();
+    try {
+        const res = await withTimeout(
+            model.generateContent(prompt),
+            timeoutMs,
+            label
+        );
+        return res.response.text().trim();
+    } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (errMsg.includes('404') || errMsg.toLowerCase().includes('not found')) {
+            switchToFallbackModel();
+            // Retry once with new model
+            try {
+                const modelFallback = getTextModel();
+                const res = await withTimeout(
+                    modelFallback.generateContent(prompt),
+                    timeoutMs,
+                    `${label} (fallback)`
+                );
+                return res.response.text().trim();
+            } catch (retryErr) {
+                logDebug(`${label}: Fallback LLM failed`, retryErr);
+            }
+        }
+        logDebug(`${label}: LLM failed`, err);
+        return null;
+    }
 }
 
 // ============================================
