@@ -101,6 +101,7 @@ export class TopicContentGeneratorV2 {
     private onStateChange?: (state: OrchestrationState) => void;
     private telemetry: GeneratorTelemetry;
     private cancelled: boolean = false;
+    private userId?: string;
     
     private globalPlanner: GlobalPlannerWithRealPlanning;
     private expertPractical: ExpertPractical;
@@ -112,7 +113,8 @@ export class TopicContentGeneratorV2 {
     constructor(
         topicId: string, 
         currentDate?: string,
-        onStateChange?: (state: OrchestrationState) => void
+        onStateChange?: (state: OrchestrationState) => void,
+        userId?: string
     ) {
         this.state = {
             topicId,
@@ -122,6 +124,7 @@ export class TopicContentGeneratorV2 {
         };
         this.onStateChange = onStateChange;
         this.telemetry = new GeneratorTelemetry();
+        this.userId = userId;
         
         // Inicializar expertos
         const apiKey = getAPIKey();
@@ -213,7 +216,8 @@ export class TopicContentGeneratorV2 {
             
             const strategicPlan = await this.globalPlanner.plan({
                 currentTopic: this.state.topicId,
-                currentDate: new Date().toISOString().split('T')[0]
+                currentDate: new Date().toISOString().split('T')[0],
+                userId: this.userId
             });
             
             this.updateStep('planner', {

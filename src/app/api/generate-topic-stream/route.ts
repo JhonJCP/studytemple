@@ -121,7 +121,8 @@ export async function GET(req: NextRequest) {
                             ...state, 
                             telemetryEvents: generator.getTelemetry().length 
                         });
-                    }
+                    },
+                    supabaseUser || undefined // userId para cargar planning desde DB
                 );
                 
                 activeGenerators.set(topicId, generator);

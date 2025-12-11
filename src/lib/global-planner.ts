@@ -114,14 +114,10 @@ export class GlobalPlannerWithRealPlanning {
     private boeAnalysisCache: BOEAnalysis | null = null;
     private practicePatternsCache: PracticePatterns | null = null;
     private supabase: ReturnType<typeof createClient> | null;
+    private planningLoadedFromDB: boolean = false;
     
     constructor() {
-        // Cargar planning del archivo JSON
-        const planningData = this.loadPlanningFile();
-        this.topicTimeEstimates = planningData.topic_time_estimates;
-        this.dailySchedule = planningData.daily_schedule;
-        
-        // Inicializar Supabase
+        // Inicializar Supabase primero
         const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
         const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
         
@@ -131,6 +127,22 @@ export class GlobalPlannerWithRealPlanning {
             this.supabase = null;
             console.warn('[PLANNER] Supabase not configured');
         }
+        
+        // Inicializar con valores vacíos (se cargarán después)
+        this.topicTimeEstimates = [];
+        this.dailySchedule = [];
+    }
+    
+    /**
+     * Cargar planning desde base de datos (si aún no está cargado)
+     */
+    private async ensurePlanningLoaded(userId?: string): Promise<void> {
+        if (this.planningLoadedFromDB) return;
+        
+        const planningData = await this.loadPlanningFromDB(userId);
+        this.topicTimeEstimates = planningData.topic_time_estimates;
+        this.dailySchedule = planningData.daily_schedule;
+        this.planningLoadedFromDB = true;
     }
     
     /**
@@ -139,9 +151,13 @@ export class GlobalPlannerWithRealPlanning {
     async plan(params: {
         currentTopic: string;
         currentDate?: string;
+        userId?: string;
     }): Promise<StrategicPlan> {
         
         console.log(`[PLANNER] Planning for topic: ${params.currentTopic}`);
+        
+        // PASO 0: Cargar planning desde DB si no está cargado
+        await this.ensurePlanningLoaded(params.userId);
         
         // PASO 1: Buscar el tema en topic_time_estimates
         const topicEstimate = this.findTopicEstimate(params.currentTopic);
@@ -363,21 +379,74 @@ export class GlobalPlannerWithRealPlanning {
     }
     
     /**
-     * Cargar planning desde archivo o variable de entorno
+     * Cargar planning desde base de datos
      */
-    private loadPlanningFile(): PlanningData {
-        // 1. Intentar desde variable de entorno (producción - Vercel)
-        try {
-            if (process.env.PLANNING_DATA) {
-                const data = JSON.parse(process.env.PLANNING_DATA);
-                console.log(`[PLANNER] Loaded planning from env var with ${data.topic_time_estimates?.length || 0} topics`);
-                return data;
-            }
-        } catch (err) {
-            console.error('[PLANNER] Error parsing PLANNING_DATA env var:', err);
+    private async loadPlanningFromDB(userId?: string): Promise<PlanningData> {
+        if (!this.supabase) {
+            console.warn('[PLANNER] Supabase not configured, trying filesystem fallback');
+            return this.loadPlanningFromFilesystem();
         }
         
-        // 2. Intentar leer desde el archivo en el proyecto (desarrollo local)
+        try {
+            // Si no hay userId, intentar obtener el usuario actual
+            let targetUserId = userId;
+            
+            if (!targetUserId) {
+                const { data: userData } = await this.supabase.auth.getUser();
+                targetUserId = userData.user?.id;
+            }
+            
+            if (!targetUserId) {
+                console.warn('[PLANNER] No user authenticated, using filesystem fallback');
+                return this.loadPlanningFromFilesystem();
+            }
+            
+            // Consultar planning activo del usuario
+            const { data, error } = await this.supabase
+                .from('user_planning')
+                .select('strategic_analysis, topic_time_estimates, daily_schedule')
+                .eq('user_id', targetUserId)
+                .eq('is_active', true)
+                .maybeSingle() as { 
+                    data: { 
+                        strategic_analysis: string; 
+                        topic_time_estimates: any; 
+                        daily_schedule: any; 
+                    } | null; 
+                    error: any 
+                };
+            
+            if (error) {
+                console.error('[PLANNER] Error loading planning from DB:', error);
+                return this.loadPlanningFromFilesystem();
+            }
+            
+            if (!data) {
+                console.warn('[PLANNER] No active planning found in DB for user, using filesystem fallback');
+                return this.loadPlanningFromFilesystem();
+            }
+            
+            const topicEstimates = data.topic_time_estimates || [];
+            const dailySchedule = data.daily_schedule || [];
+            
+            console.log(`[PLANNER] Loaded planning from DB with ${topicEstimates.length} topics`);
+            
+            return {
+                strategic_analysis: data.strategic_analysis || '',
+                topic_time_estimates: topicEstimates,
+                daily_schedule: dailySchedule
+            };
+            
+        } catch (err) {
+            console.error('[PLANNER] Exception loading planning from DB:', err);
+            return this.loadPlanningFromFilesystem();
+        }
+    }
+    
+    /**
+     * Fallback: Cargar planning desde filesystem (desarrollo local)
+     */
+    private loadPlanningFromFilesystem(): PlanningData {
         try {
             const planningPath = path.join(process.cwd(), '..', 'Temario', 'Planing.txt');
             
@@ -390,10 +459,10 @@ export class GlobalPlannerWithRealPlanning {
                 console.warn('[PLANNER] Planning file not found at:', planningPath);
             }
         } catch (err) {
-            console.error('[PLANNER] Error loading planning file:', err);
+            console.error('[PLANNER] Error loading planning from filesystem:', err);
         }
         
-        // 3. Fallback: datos por defecto
+        // Última opción: datos por defecto
         console.warn('[PLANNER] Using default planning data');
         return {
             strategic_analysis: '',
