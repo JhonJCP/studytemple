@@ -30,12 +30,13 @@ Pregunta: ${question.trim()}
 
     // Obtener instancia lazy
     const genAI = getGenAI();
-    const modelName = process.env.GEMINI_MODEL || "gemini-2.0-flash-exp";
+    const modelName = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
     const model = genAI.getGenerativeModel({
       model: modelName,
       generationConfig: {
         responseMimeType: "text/plain",
-        maxOutputTokens: 400,
+        maxOutputTokens: 2048,  // Aumentado de 400 a 2048 para gemini-3-pro-preview
+        temperature: 1.0,  // Crítico para gemini-3-pro-preview
       },
     });
 

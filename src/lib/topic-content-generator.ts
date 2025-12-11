@@ -35,8 +35,8 @@ function safeGetAPIKey(): string | null {
     return process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || null;
 }
 
-// Modelo Gemini 2.0 Flash Exp - ÚNICO modelo funcional en la cuenta (diagnóstico confirmado)
-let MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash-exp";
+// Modelo Gemini 3 Pro Preview - Requiere config especial (2048+ tokens, temp 1.0, prompts complejos)
+let MODEL = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
 
 // Initialized lazily
 let _genAI: GoogleGenerativeAI | null = null;
@@ -71,8 +71,8 @@ const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "120000", 
 const MIN_WORDS_PER_SECTION = 120; // Mínimo de palabras por sección para salud
 const MIN_TOTAL_WORDS = 800; // Objetivo mínimo global para evitar respuestas pobres (Aumentado de 700)
 const BASE_GENERATION_CONFIG = {
-    temperature: 0.7,
-    maxOutputTokens: 8192,
+    temperature: 1.0,  // Aumentado de 0.7 a 1.0 - requerido para gemini-3-pro-preview
+    maxOutputTokens: 8192,  // Ya es alto, mantener
     responseMimeType: "application/json"
 } as const;
 // Siempre habilitar logs para trazabilidad en Vercel
@@ -146,7 +146,7 @@ function getTextModel() {
     return getGenAI().getGenerativeModel({
         model: MODEL,
         generationConfig: {
-            temperature: 0.7,
+            temperature: 1.0,  // Aumentado de 0.7 a 1.0 - crítico para gemini-3-pro-preview
             maxOutputTokens: 2048 // Aumentado de 1024 a 2048 para mejor enriquecimiento
         }
     });
