@@ -24,6 +24,14 @@ const MODEL = "gemini-3-pro-preview";
 const genAI = new GoogleGenerativeAI(API_KEY);
 const TEMARIO_ROOT = path.resolve(process.cwd(), "..", "Temario");
 const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "90000", 10); // timeout genérico por cerebro (por defecto 90s)
+const BASE_GENERATION_CONFIG = { responseMimeType: "application/json", includeThoughts: true } as const;
+
+function getThinkingModel() {
+    return genAI.getGenerativeModel({
+        model: MODEL,
+        generationConfig: BASE_GENERATION_CONFIG
+    });
+}
 
 // ============================================
 // UTILIDADES GENERALES
@@ -233,7 +241,7 @@ Salida JSON:
 No inventes texto largo; resume en frases cortas.`;
 
             try {
-                const model = genAI.getGenerativeModel({ model: MODEL, generationConfig: { responseMimeType: "application/json" } });
+                const model = getThinkingModel();
                 const res = await withTimeout(model.generateContent(prompt), STEP_TIMEOUT_MS, "Bibliotecario LLM");
                 const json = JSON.parse(res.response.text().replace(/```json/g, "").replace(/```/g, "").trim());
                 evidence = json.evidence || [];
@@ -305,7 +313,7 @@ Responde SOLO JSON:
         };
 
         try {
-            const model = genAI.getGenerativeModel({ model: MODEL, generationConfig: { responseMimeType: "application/json" } });
+            const model = getThinkingModel();
             const result = await withTimeout(model.generateContent(prompt), STEP_TIMEOUT_MS, "Auditor LLM");
             const text = result.response.text();
             const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -435,10 +443,7 @@ RESPUESTA SOLO JSON:
 
         let parsed: any = { sections: structure, widgets: [] };
         try {
-            const model = genAI.getGenerativeModel({
-                model: MODEL,
-                generationConfig: { responseMimeType: "application/json" }
-            });
+            const model = getThinkingModel();
 
             const result = await withTimeout(model.generateContent(prompt), STEP_TIMEOUT_MS, "Estratega LLM");
             const rawText = result.response.text();
