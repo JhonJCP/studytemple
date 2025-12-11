@@ -260,23 +260,24 @@ async function fetchDocumentChunksFromSupabase(
     };
 
     try {
-        // ESTRATEGIA 1: Buscar por cada variante del filename
-        for (const variant of variants.slice(0, 6)) { // Limitar a 6 variantes
-            if (chunks.length >= maxChunks) break;
+        // ESTRATEGIA 1: Buscar por cada variante del filename (PARALELO para velocidad)
+        const variantPromises = variants.slice(0, 6).map(async (variant) => {
             const qStart = Date.now();
             const { data, error } = await supabase
                 .from('library_documents')
                 .select('id, content, metadata')
                 .ilike('metadata->>filename', `%${variant}%`)
                 .order('metadata->chunk_index', { ascending: true })
-                .limit(Math.min(10, maxChunks - chunks.length));
+                .limit(5); // Reducir límite individual para no saturar
 
             logDebug(`RAG Q1 filename variant "${variant}"`, { rows: data?.length || 0, error: error?.message, ms: Date.now() - qStart });
+            return !error && data ? data : [];
+        });
 
-            if (!error && data && data.length > 0) {
-                addChunks(data, 0.95);
-            }
-        }
+        const variantResults = await Promise.all(variantPromises);
+        variantResults.forEach(data => addChunks(data, 0.95));
+
+        if (chunks.length >= maxChunks) return chunks.slice(0, maxChunks);
 
         // ESTRATEGIA 2: Buscar por keywords del título si no hay suficientes chunks
         if (chunks.length < 5) {
