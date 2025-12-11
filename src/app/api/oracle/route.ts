@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { createClient } from "@supabase/supabase-js";
 
 // Forzar runtime Node.js (más estable que Edge)
 export const runtime = "nodejs";
@@ -14,6 +15,50 @@ function getGenAI() {
   return new GoogleGenerativeAI(apiKey);
 }
 
+// Supabase para RAG
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key);
+}
+
+// Buscar contexto relevante en la biblioteca
+async function searchRelevantContext(question: string, maxChunks: number = 5): Promise<string> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return "";
+
+  try {
+    // Extraer keywords de la pregunta
+    const keywords = question
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(w => w.length > 3 && !['cual', 'como', 'donde', 'cuando', 'quien', 'dice', 'sobre', 'para', 'esta'].includes(w))
+      .slice(0, 5);
+
+    if (keywords.length === 0) return "";
+
+    // Buscar en contenido
+    const { data, error } = await supabase
+      .from('library_documents')
+      .select('content, metadata')
+      .or(keywords.map(k => `content.ilike.%${k}%`).join(','))
+      .limit(maxChunks);
+
+    if (error || !data || data.length === 0) return "";
+
+    // Formatear evidencia
+    const evidence = data.map((doc, idx) => 
+      `[Fragmento ${idx + 1}] (${doc.metadata?.filename || 'Documento'})\n${doc.content.slice(0, 800)}`
+    ).join('\n\n---\n\n');
+
+    return evidence;
+  } catch (error) {
+    console.error("[ORACLE] RAG search error:", error);
+    return "";
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const { question } = await request.json();
@@ -21,16 +66,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Pregunta vacía" }, { status: 400 });
     }
 
+    // Buscar contexto relevante en la biblioteca (RAG)
+    const evidence = await searchRelevantContext(question, 5);
+    const hasEvidence = evidence.length > 100;
+
     const prompt = `
 Eres un asistente especializado en oposiciones de Obras Públicas (ITOP Canarias).
 
+${hasEvidence ? `
+=== EVIDENCIA DE LA BIBLIOTECA (USA ESTA INFORMACIÓN OBLIGATORIAMENTE) ===
+${evidence}
+=== FIN EVIDENCIA ===
+` : ''}
+
 INSTRUCCIONES CRÍTICAS:
-- Si conoces la respuesta con certeza, responde con precisión (máx. 6 frases).
-- Si NO tienes información verificada sobre el tema, di claramente "No tengo información verificada sobre esto".
-- NUNCA inventes datos, artículos de ley o contenidos técnicos.
-- Si la pregunta es ambigua, pide más contexto.
+${hasEvidence 
+  ? '- USA SOLO LA EVIDENCIA ARRIBA para responder. Cita artículos y números exactos que aparecen en los fragmentos.'
+  : '- No tienes acceso a documentos específicos. Responde con conocimiento general o recomienda consultar la biblioteca.'
+}
+- Si NO tienes información verificada, di claramente "No tengo información verificada sobre esto. Te recomiendo consultar la biblioteca del temario."
+- NUNCA inventes artículos de ley, números o datos técnicos que no estén en la evidencia.
+- Máximo 6 frases concisas.
 
 Pregunta: ${question.trim()}
+
+${hasEvidence ? 'IMPORTANTE: Basa tu respuesta SOLO en los fragmentos proporcionados arriba.' : ''}
 `;
 
     // Obtener instancia lazy
