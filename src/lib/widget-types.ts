@@ -113,6 +113,8 @@ export interface TopicMetadata {
     estimatedStudyTime: number; // minutos
     sourceDocuments: string[];
     generatedAt: Date;
+    audioUrl?: string; // URL del podcast generado
+    audioGeneratedAt?: string; // Timestamp de generación de audio
     health?: {
         totalWords: number;
         avgWordsPerSection: number;

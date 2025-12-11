@@ -14,7 +14,10 @@ import {
     XCircle,
     AlertTriangle,
     RefreshCw,
-    StopCircle
+    StopCircle,
+    Volume2,
+    Play,
+    Pause
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -113,6 +116,8 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState<GenerationError | null>(null);
     const retryCountRef = useRef(0);
+    const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+    const [audioError, setAudioError] = useState<string | null>(null);
 
     // Secciones a mostrar (generadas o base)
     const sections = content?.sections || generateBaseHierarchy(topic);
@@ -400,6 +405,45 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
             handleGenerate(true);
         }
     }, [handleGenerate]);
+    
+    // Generar audio/podcast
+    const handleGenerateAudio = useCallback(async () => {
+        if (!content) return;
+        
+        setIsGeneratingAudio(true);
+        setAudioError(null);
+        
+        try {
+            const res = await fetch('/api/generate-audio', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ topicId: topic.id })
+            });
+            
+            const data = await res.json();
+            
+            if (!res.ok) {
+                throw new Error(data.error || 'Error generating audio');
+            }
+            
+            // Actualizar content con audioUrl
+            setContent(prev => prev ? {
+                ...prev,
+                metadata: {
+                    ...prev.metadata,
+                    audioUrl: data.audioUrl
+                }
+            } : null);
+            
+            console.log('[VIEWER] Audio generated:', data.cached ? '(cached)' : '(new)');
+            
+        } catch (err) {
+            console.error('[VIEWER] Error generating audio:', err);
+            setAudioError(err instanceof Error ? err.message : 'Error desconocido');
+        } finally {
+            setIsGeneratingAudio(false);
+        }
+    }, [content, topic.id]);
 
     // Status badge - SOLO usa isGenerating para mostrar "Generando", NO orchestrationState.status
     const getStatusBadge = () => {
@@ -698,6 +742,57 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                         </div>
                     )}
                 </footer>
+            )}
+            
+            {/* Audio Player - Solo si ya está generado */}
+            {content && content.metadata.audioUrl && (
+                <div className="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-xl border-t border-white/10 p-4 z-50">
+                    <div className="max-w-4xl mx-auto">
+                        <audio 
+                            controls 
+                            className="w-full"
+                            src={content.metadata.audioUrl}
+                        >
+                            Tu navegador no soporta audio HTML5.
+                        </audio>
+                        <p className="text-xs text-white/40 text-center mt-2">
+                            🎧 Podcast resumen - Duración estimada: ~15 min
+                        </p>
+                    </div>
+                </div>
+            )}
+            
+            {/* Botón para generar audio si no existe */}
+            {content && !content.metadata.audioUrl && !isGeneratingAudio && (
+                <button
+                    onClick={handleGenerateAudio}
+                    className="fixed bottom-4 right-4 px-4 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-xl shadow-lg flex items-center gap-2 font-bold transition-colors z-40"
+                >
+                    <Volume2 className="w-4 h-4" />
+                    Generar Podcast
+                </button>
+            )}
+            
+            {/* Indicador de generación de audio */}
+            {isGeneratingAudio && (
+                <div className="fixed bottom-4 right-4 px-4 py-3 bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-xl shadow-lg flex items-center gap-2 font-bold z-40">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generando podcast...
+                </div>
+            )}
+            
+            {/* Error de audio */}
+            {audioError && (
+                <div className="fixed bottom-4 right-4 px-4 py-3 bg-red-500/20 border border-red-500/30 text-red-300 rounded-xl shadow-lg max-w-xs z-40">
+                    <p className="text-xs font-bold mb-1">Error al generar audio</p>
+                    <p className="text-xs">{audioError}</p>
+                    <button
+                        onClick={() => setAudioError(null)}
+                        className="text-xs underline mt-2"
+                    >
+                        Cerrar
+                    </button>
+                </div>
             )}
         </div>
     );

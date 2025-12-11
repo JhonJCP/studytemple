@@ -363,17 +363,28 @@ export class GlobalPlannerWithRealPlanning {
     }
     
     /**
-     * Cargar planning desde archivo
+     * Cargar planning desde archivo o variable de entorno
      */
     private loadPlanningFile(): PlanningData {
+        // 1. Intentar desde variable de entorno (producción - Vercel)
         try {
-            // Intentar leer desde el archivo en el proyecto
+            if (process.env.PLANNING_DATA) {
+                const data = JSON.parse(process.env.PLANNING_DATA);
+                console.log(`[PLANNER] Loaded planning from env var with ${data.topic_time_estimates?.length || 0} topics`);
+                return data;
+            }
+        } catch (err) {
+            console.error('[PLANNER] Error parsing PLANNING_DATA env var:', err);
+        }
+        
+        // 2. Intentar leer desde el archivo en el proyecto (desarrollo local)
+        try {
             const planningPath = path.join(process.cwd(), '..', 'Temario', 'Planing.txt');
             
             if (fs.existsSync(planningPath)) {
                 const content = fs.readFileSync(planningPath, 'utf-8');
                 const data = JSON.parse(content);
-                console.log(`[PLANNER] Loaded planning with ${data.topic_time_estimates?.length || 0} topics`);
+                console.log(`[PLANNER] Loaded planning from filesystem with ${data.topic_time_estimates?.length || 0} topics`);
                 return data;
             } else {
                 console.warn('[PLANNER] Planning file not found at:', planningPath);
@@ -382,7 +393,8 @@ export class GlobalPlannerWithRealPlanning {
             console.error('[PLANNER] Error loading planning file:', err);
         }
         
-        // Fallback: datos por defecto
+        // 3. Fallback: datos por defecto
+        console.warn('[PLANNER] Using default planning data');
         return {
             strategic_analysis: '',
             topic_time_estimates: [],

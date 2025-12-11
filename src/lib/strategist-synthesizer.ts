@@ -116,10 +116,18 @@ INSTRUCCIONES DE SÍNTESIS
    - Cada sección debe ser aplicable a resolver supuestos
    - Incluir referencias a supuestos reales
 
-6. WIDGETS:
+6. WIDGETS INTELIGENTES:
    - Seleccionar 5-6 widgets más útiles
-   - Tipos prioritarios: formula > mnemonic > diagram > timeline
-   - Asignar a subsección específica
+   - Tipos disponibles:
+     * formula: Fórmulas matemáticas con LaTeX
+     * infografia: Genera infografía visual del concepto (usa gemini-3-pro-image)
+     * mnemonic_generator: Genera regla mnemotécnica inteligente
+     * case_practice: Genera mini caso práctico aplicado
+     * quiz: Test interactivo de autoevaluación
+     * diagram: Diagrama Mermaid
+     * timeline: Línea temporal
+   - Prioridad: formula > infografia > mnemonic_generator > case_practice > quiz
+   - IMPORTANTE: Incluir "contextFrame" (texto completo del párrafo donde aplica) y "conceptTopic" (concepto a explicar)
 
 EJEMPLO DE SÍNTESIS ULTRA-CONCISA:
 
@@ -152,11 +160,46 @@ RESPONDE JSON:
     {
       "type": "formula",
       "title": "Cálculo Zona Protección",
-      "prompt": "Fórmula: zona = 50m (estatal), 25m (autonómica), 15m (insular) según Art. 7. Ejemplo: GC-500 (insular) → 15m de afección",
-      "section": "Fórmulas y Cálculos",
-      "subsection": "Zonas de Protección"
+      "contextFrame": "[Copiar párrafo completo donde se menciona la fórmula]",
+      "conceptTopic": "Zonas de protección de carreteras",
+      "content": {
+        "latex": "\\text{zona} = \\begin{cases} 50\\text{m} & \\text{estatal} \\\\ 25\\text{m} & \\text{autonómica} \\\\ 15\\text{m} & \\text{insular} \\end{cases}",
+        "variables": [
+          {"symbol": "zona", "description": "Distancia de afección en metros"}
+        ]
+      }
+    },
+    {
+      "type": "infografia",
+      "title": "Clasificación de Carreteras",
+      "contextFrame": "[Copiar párrafo donde se explica la clasificación]",
+      "conceptTopic": "Clasificación jerárquica de carreteras",
+      "content": {
+        "frame": "[Mismo que contextFrame]",
+        "concept": "Clasificación jerárquica de carreteras"
+      }
+    },
+    {
+      "type": "mnemonic_generator",
+      "title": "Mnemotecnia: Tipos de Carreteras",
+      "contextFrame": "[Copiar párrafo con los tipos]",
+      "conceptTopic": "Tipos de carreteras por competencia",
+      "content": {
+        "frame": "[Mismo que contextFrame]",
+        "termsToMemorize": ["Estatal", "Autonómica", "Insular", "Comarcal", "Municipal"]
+      }
+    },
+    {
+      "type": "case_practice",
+      "title": "Caso: Afección Carretera Insular",
+      "contextFrame": "[Copiar párrafo sobre zonas de afección]",
+      "conceptTopic": "Cálculo de zona de afección",
+      "content": {
+        "frame": "[Mismo que contextFrame]",
+        "concept": "Aplicación de zonas de afección en carretera insular"
+      }
     }
-    // ... 4-5 widgets más
+    // ... 1-2 widgets más según necesidad
   ],
   "synthesis": {
     "originalWords": ${totalDraftWords},

@@ -7,6 +7,11 @@ import {
     DiagramWidget,
     VideoWidget
 } from "./widgets/index";
+import { InfografiaWidget } from "./widgets/InfografiaWidget";
+import { MnemonicGeneratorWidget } from "./widgets/MnemonicGeneratorWidget";
+import { CasePracticeWidget } from "./widgets/CasePracticeWidget";
+import { FormulaWidget } from "./widgets/FormulaWidget";
+import { QuizWidget } from "./widgets/QuizWidget";
 import type { WidgetDefinition } from "@/lib/widget-types";
 import { motion } from "framer-motion";
 
@@ -16,6 +21,7 @@ import { motion } from "framer-motion";
 
 interface WidgetFactoryProps {
     widgets: WidgetDefinition[];
+    topicId?: string; // Needed for on-demand generation
 }
 
 // ============================================
@@ -23,24 +29,26 @@ interface WidgetFactoryProps {
 // ============================================
 
 const WIDGET_MAP: Record<string, React.ComponentType<{ content: any }>> = {
+    // Widgets estáticos (ya existentes)
     mnemonic: MnemonicWidget,
     timeline: TimelineWidget,
     analogy: AnalogyWidget,
     diagram: DiagramWidget,
     video_loop: VideoWidget,
-    // Los siguientes serán implementados en la Fase 5:
-    // image: ImageWidget,
-    // audio: AudioWidget,
-    // formula: FormulaWidget,
-    // quiz: QuizWidget,
-    // alert: AlertWidget,
+    
+    // Nuevos widgets inteligentes (on-demand generation)
+    infografia: InfografiaWidget,
+    mnemonic_generator: MnemonicGeneratorWidget,
+    case_practice: CasePracticeWidget,
+    formula: FormulaWidget,
+    quiz: QuizWidget,
 };
 
 // ============================================
 // COMPONENTE PRINCIPAL
 // ============================================
 
-export function WidgetFactory({ widgets }: WidgetFactoryProps) {
+export function WidgetFactory({ widgets, topicId }: WidgetFactoryProps) {
     if (!widgets || widgets.length === 0) {
         return null;
     }
@@ -67,6 +75,18 @@ export function WidgetFactory({ widgets }: WidgetFactoryProps) {
                     );
                 }
 
+                // Añadir metadata necesaria para widgets on-demand
+                const widgetContent = typeof widget.content === 'object' && widget.content !== null
+                    ? {
+                        ...widget.content,
+                        widgetId: `widget_${index}`,
+                        topicId: topicId
+                      }
+                    : {
+                        widgetId: `widget_${index}`,
+                        topicId: topicId
+                      };
+                
                 return (
                     <motion.div
                         key={index}
@@ -74,7 +94,7 @@ export function WidgetFactory({ widgets }: WidgetFactoryProps) {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.1 }}
                     >
-                        <WidgetComponent content={widget.content} />
+                        <WidgetComponent content={widgetContent} />
                     </motion.div>
                 );
             })}
