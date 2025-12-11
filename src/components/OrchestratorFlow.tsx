@@ -197,6 +197,18 @@ export function OrchestratorFlow({ state, onClose }: OrchestratorFlowProps) {
                         const isRunning = status === 'running';
                         const isDone = status === 'completed';
                         const isError = status === 'error';
+                        const hasInput = step?.input !== undefined && step?.input !== null;
+                        const hasOutput = step?.output !== undefined && step?.output !== null;
+                        const safeInput = !hasInput
+                            ? ''
+                            : typeof step.input === 'string'
+                                ? step.input
+                                : (() => { try { return JSON.stringify(step.input); } catch { return ''; } })();
+                        const safeOutput = !hasOutput
+                            ? ''
+                            : typeof step.output === 'string'
+                                ? step.output
+                                : (() => { try { return JSON.stringify(step.output); } catch { return ''; } })();
                         return (
                             <div
                                 key={`${role}-log`}
@@ -209,11 +221,11 @@ export function OrchestratorFlow({ state, onClose }: OrchestratorFlowProps) {
                                 )}
                             >
                                 <config.icon className="w-4 h-4 mt-0.5 text-white/60" />
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <span className="text-xs font-semibold text-white truncate">{config.label}</span>
-                                        <span className={cn(
-                                            "text-[10px] font-bold uppercase",
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-xs font-semibold text-white truncate">{config.label}</span>
+                                            <span className={cn(
+                                                "text-[10px] font-bold uppercase",
                                             isRunning && "text-purple-300",
                                             isDone && "text-green-300",
                                             isError && "text-red-300",
@@ -222,19 +234,19 @@ export function OrchestratorFlow({ state, onClose }: OrchestratorFlowProps) {
                                             {status}
                                         </span>
                                     </div>
-                                    {step?.input && (
+                                    {hasInput && (
                                         <p className="text-[10px] text-white/50 line-clamp-2 mt-1">
-                                            Entrada: {typeof step.input === 'string' ? step.input : JSON.stringify(step.input)}
+                                        Entrada: {safeInput}
                                         </p>
                                     )}
                                     {step?.reasoning && (
-                                        <p className="text-[10px] text-white/70 line-clamp-2 mt-0.5 italic">
-                                            {step.reasoning}
-                                        </p>
-                                    )}
-                                    {step?.output && (
+                                            <p className="text-[10px] text-white/70 line-clamp-2 mt-0.5 italic">
+                                                {step.reasoning}
+                                            </p>
+                                        )}
+                                    {hasOutput && (
                                         <p className="text-[10px] text-green-300 line-clamp-2 mt-0.5">
-                                            Salida: {typeof step.output === 'string' ? step.output : JSON.stringify(step.output)}
+                                                Salida: {safeOutput}
                                         </p>
                                     )}
                                 </div>
@@ -262,6 +274,15 @@ interface AgentDetailPanelProps {
 function AgentDetailPanel({ role, step }: AgentDetailPanelProps) {
     const config = AGENT_CONFIG[role];
     const [activeTab, setActiveTab] = useState<'input' | 'reasoning' | 'output'>('reasoning');
+    const renderValue = (val: unknown) => {
+        if (val === undefined || val === null) return 'Sin datos';
+        if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') return String(val);
+        try {
+            return JSON.stringify(val, null, 2);
+        } catch {
+            return String(val);
+        }
+    };
 
     return (
         <div className="p-4 bg-black/20">
@@ -295,7 +316,7 @@ function AgentDetailPanel({ role, step }: AgentDetailPanelProps) {
                     <p className="text-xs text-white/30 italic">Pendiente de ejecución...</p>
                 ) : activeTab === 'input' ? (
                     <pre className="text-xs text-white/70 font-mono whitespace-pre-wrap">
-                        {step.input ? JSON.stringify(step.input, null, 2) : 'Sin entrada'}
+                        {renderValue(step.input)}
                     </pre>
                 ) : activeTab === 'reasoning' ? (
                     <p className="text-xs text-white/70 leading-relaxed">
@@ -303,7 +324,7 @@ function AgentDetailPanel({ role, step }: AgentDetailPanelProps) {
                     </p>
                 ) : (
                     <pre className="text-xs text-white/70 font-mono whitespace-pre-wrap">
-                        {step.output ? JSON.stringify(step.output, null, 2) : 'Sin salida'}
+                        {renderValue(step.output)}
                     </pre>
                 )}
             </div>

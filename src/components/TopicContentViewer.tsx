@@ -196,9 +196,9 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                         currentStep: null,
                     });
                 } else {
-                    const completedSteps = bootstrapSteps.map(step => ({
+                    const completedSteps: AgentStep[] = bootstrapSteps.map(step => ({
                         ...step,
-                        status: 'completed',
+                        status: 'completed' as const,
                         completedAt: new Date(),
                     }));
                     setOrchestrationState({
@@ -440,9 +440,11 @@ function SectionRenderer({ section, isActive, onActivate }: SectionRendererProps
                         )}>
                             {/* Text Content */}
                             {section.content.text && (
-                                <ReactMarkdown className="prose prose-invert prose-lg max-w-none mb-6">
-                                    {section.content.text}
-                                </ReactMarkdown>
+                                <div className="prose prose-invert prose-lg max-w-none mb-6">
+                                    <ReactMarkdown>
+                                        {section.content.text}
+                                    </ReactMarkdown>
+                                </div>
                             )}
 
                             {/* Widgets */}
