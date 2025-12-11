@@ -36,6 +36,8 @@ function getSupabaseClient() {
 }
 
 const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "90000", 10);
+const MIN_WORDS_PER_SECTION = 100; // Mínimo de palabras por sección para salud
+const MIN_TOTAL_WORDS = 600; // Objetivo mínimo global para evitar respuestas pobres
 const BASE_GENERATION_CONFIG = { 
     temperature: 0.7,
     maxOutputTokens: 8192,
@@ -874,12 +876,11 @@ Estructura base:
 ${JSON.stringify(structure, null, 2)}
 
 Instrucciones:
-- Refina la estructura con bullets claros por sección.
-- Genera texto explicativo en Markdown por sección (mínimo 2 párrafos o 180-220 palabras para estrategia balanced/detailed, 120+ para condensed).
-- Usa viñetas, negritas y subtítulos en "content.text" para que no se vea raw.
-- Incluye ejemplos o mini-casos cuando aplique. 
-- Inserta widgets como placeholders con prompts accionables; no generes el widget completo si no es trivial.
-- Respeta presupuesto de widgets y tono según estrategia (executive/condensed/balanced/detailed/exhaustive).
+- Debes mantener TODAS las secciones de la estructura base; no elimines niveles. Si propones nuevas, conserva las originales.
+- Cada sección debe tener texto explicativo en Markdown, con al menos 3 párrafos y ≥180 palabras (≥220 si es detailed, ≥150 si es condensed). Objetivo global ≥${MIN_TOTAL_WORDS} palabras.
+- Usa viñetas, negritas y subtítulos en "content.text" para legibilidad; incluye referencias legales específicas (Ley/Art. X) y ejemplos técnicos.
+- Inserta widgets como placeholders con prompts accionables; no generes el widget completo si no es trivial. Respeta widget_budget.
+- NO incluyas markdown externo ni código; responde solo JSON plano.
 
 RESPUESTA SOLO JSON:
 {
@@ -944,9 +945,9 @@ RESPUESTA SOLO JSON:
         this.checkCancelled();
 
         // VALIDACIÓN: Asegurar que las secciones tienen contenido real
-        const MIN_WORDS_PER_SECTION = 100; // Mínimo 100 palabras por sección
-        const MIN_TOTAL_WORDS = 500;
-        const rawSections = parsed.sections || structure;
+        const rawSections = Array.isArray(parsed.sections) && parsed.sections.length >= structure.length
+            ? parsed.sections
+            : structure;
 
         // Verificar si las secciones tienen contenido suficiente
         const sectionsWithContent = rawSections.filter((s: any) => {
@@ -964,8 +965,8 @@ RESPUESTA SOLO JSON:
             coveragePercent: contentCoverage.toFixed(1)
         });
 
-        // Si menos del 50% de secciones tienen contenido real, intentar regenerar o enriquecer
-        if (contentCoverage < 50 && rawSections.length > 0) {
+        // Si menos del 70% de secciones tienen contenido real, intentar regenerar o enriquecer
+        if (contentCoverage < 70 && rawSections.length > 0) {
             this.telemetry.log('strategist', 'fallback', `Contenido insuficiente (${contentCoverage.toFixed(0)}% cobertura). Enriqueciendo secciones...`);
             this.updateStep('strategist', {
                 reasoning: `Contenido generado insuficiente (${contentCoverage.toFixed(0)}% cobertura). Enriqueciendo secciones vacías...`
@@ -1048,8 +1049,35 @@ El sistema no pudo generar contenido completo para esta sección. Puedes:
             };
         });
 
-        // Métricas de salud del contenido
-        const totalWords = safeSections.reduce((acc: number, s: any) => acc + countWords(s.content?.text || ''), 0);
+        // Segunda pasada si el total sigue bajo: reforzar primeras secciones
+        let totalWords = safeSections.reduce((acc: number, s: any) => acc + countWords(s.content?.text || ''), 0);
+        if (totalWords < MIN_TOTAL_WORDS && safeSections.length) {
+            const slots = Math.min(3, safeSections.length);
+            for (let i = 0; i < slots; i++) {
+                const section = safeSections[i];
+                const boostPrompt = `
+Amplía esta sección para un temario de oposiciones ITOP con más detalle y referencias legales.
+Sección: "${section.title}"
+Tema: "${topic.title}"
+Requisitos:
+- Añade 120-180 palabras adicionales.
+- Incluye ejemplos y menciona artículos de ley concretos si aplican.
+- Usa Markdown (listas, negritas) sin código y sin JSON.
+`;
+                try {
+                    const model = getThinkingModel();
+                    const boostRes = await withTimeout(model.generateContent(boostPrompt), 30000, `Refuerzo sección ${section.title}`);
+                    const boostText = boostRes.response.text().trim();
+                    if (boostText) {
+                        section.content.text = `${section.content.text}\n\n${boostText}`;
+                    }
+                } catch (err) {
+                    logDebug(`Strategist: Error reforzando sección "${section.title}"`, err);
+                }
+            }
+            totalWords = safeSections.reduce((acc: number, s: any) => acc + countWords(s.content?.text || ''), 0);
+        }
+
         const sectionsBelowThreshold = safeSections.filter((s: any) => countWords(s.content?.text || '') < MIN_WORDS_PER_SECTION).length;
         const health = {
             totalWords,
