@@ -113,6 +113,14 @@ export interface TopicMetadata {
     estimatedStudyTime: number; // minutos
     sourceDocuments: string[];
     generatedAt: Date;
+    health?: {
+        totalWords: number;
+        avgWordsPerSection: number;
+        sectionsBelowThreshold: number;
+        minWordsPerSection: number;
+        totalSections: number;
+        wordGoalMet: boolean;
+    };
 }
 
 export interface GeneratedTopicContent {
@@ -121,6 +129,8 @@ export interface GeneratedTopicContent {
     metadata: TopicMetadata;
     sections: TopicSection[];
     widgets?: WidgetDefinition[]; // placeholders o widgets generados
+    qualityStatus?: 'ok' | 'needs_improvement';
+    warnings?: string[];
 }
 
 // ============================================

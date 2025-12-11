@@ -111,6 +111,11 @@ function getThinkingModel() {
 // UTILIDADES GENERALES
 // ============================================
 
+function countWords(text: string): number {
+    if (!text) return 0;
+    return text.trim().split(/\s+/).filter(w => w.length > 0).length;
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error(`${label} timeout (${ms}ms)`)), ms);
@@ -245,7 +250,7 @@ async function fetchDocumentChunksFromSupabase(
         // ESTRATEGIA 1: Buscar por cada variante del filename
         for (const variant of variants.slice(0, 6)) { // Limitar a 6 variantes
             if (chunks.length >= maxChunks) break;
-            
+            const qStart = Date.now();
             const { data, error } = await supabase
                 .from('library_documents')
                 .select('id, content, metadata')
@@ -253,8 +258,9 @@ async function fetchDocumentChunksFromSupabase(
                 .order('metadata->chunk_index', { ascending: true })
                 .limit(Math.min(10, maxChunks - chunks.length));
 
+            logDebug(`RAG Q1 filename variant "${variant}"`, { rows: data?.length || 0, error: error?.message, ms: Date.now() - qStart });
+
             if (!error && data && data.length > 0) {
-                logDebug(`RAG: Variante "${variant}" -> ${data.length} chunks`);
                 addChunks(data, 0.95);
             }
         }
@@ -275,22 +281,28 @@ async function fetchDocumentChunksFromSupabase(
                 if (chunks.length >= maxChunks) break;
 
                 // Buscar en filename
+                const qStart1 = Date.now();
                 const { data: byFilename, error: err1 } = await supabase
                     .from('library_documents')
                     .select('id, content, metadata')
                     .ilike('metadata->>filename', `%${keyword}%`)
                     .limit(5);
 
+                logDebug(`RAG Q2 keyword filename "${keyword}"`, { rows: byFilename?.length || 0, error: err1?.message, ms: Date.now() - qStart1 });
+
                 if (!err1 && byFilename) {
                     addChunks(byFilename, 0.85);
                 }
 
                 // Buscar en contenido
+                const qStart2 = Date.now();
                 const { data: byContent, error: err2 } = await supabase
                     .from('library_documents')
                     .select('id, content, metadata')
                     .ilike('content', `%${keyword}%`)
                     .limit(5);
+
+                logDebug(`RAG Q2 keyword content "${keyword}"`, { rows: byContent?.length || 0, error: err2?.message, ms: Date.now() - qStart2 });
 
                 if (!err2 && byContent) {
                     addChunks(byContent, 0.70);
@@ -307,11 +319,14 @@ async function fetchDocumentChunksFromSupabase(
             logDebug('RAG: Buscando referencias legales', legalRefs);
 
             for (const ref of legalRefs.slice(0, 3)) {
+                const qStart = Date.now();
                 const { data, error } = await supabase
                     .from('library_documents')
                     .select('id, content, metadata')
                     .or(`metadata->>filename.ilike.%${ref}%,content.ilike.%${ref}%`)
                     .limit(5);
+
+                logDebug(`RAG Q3 legal ref "${ref}"`, { rows: data?.length || 0, error: error?.message, ms: Date.now() - qStart });
 
                 if (!error && data) {
                     addChunks(data, 0.80);
@@ -370,18 +385,63 @@ function extractRationale(text: string, json: any): string | null {
 
 function safeParseJSON(text: string): { json: any; error: string | null } {
     try {
-        // Limpiar markdown code blocks
+        // Limpiar markdown y texto extra antes/después del JSON
         let cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
-        // Encontrar el objeto JSON principal
         const firstBrace = cleaned.indexOf("{");
         const lastBrace = cleaned.lastIndexOf("}");
         if (firstBrace >= 0 && lastBrace > firstBrace) {
             cleaned = cleaned.substring(firstBrace, lastBrace + 1);
         }
+
+        // Si hay texto antes de la llave de apertura, eliminarlo
+        if (!cleaned.trim().startsWith("{")) {
+            const bracePos = cleaned.indexOf("{");
+            if (bracePos >= 0) {
+                cleaned = cleaned.slice(bracePos);
+            }
+        }
+
+        // Intento directo
         return { json: JSON.parse(cleaned), error: null };
     } catch (e) {
         return { json: null, error: e instanceof Error ? e.message : 'Parse error' };
     }
+}
+
+async function generateJSONWithRetry(
+    prompt: string,
+    label: string,
+    maxRetries: number = 1
+): Promise<{ json: any; raw: string; error: string | null }> {
+    const model = getThinkingModel();
+    let lastError: string | null = null;
+    let raw = '';
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const attemptPrompt = attempt === 0
+            ? prompt
+            : `${prompt}\n\nRESPONDE SOLO CON JSON PLANO. SIN markdown, SIN comentarios, SIN explicaciones. Empieza con { y termina con }.`;
+
+        try {
+            const result = await withTimeout(
+                model.generateContent(attemptPrompt),
+                STEP_TIMEOUT_MS,
+                `${label} LLM (intento ${attempt + 1})`
+            );
+            raw = result.response.text();
+            const { json, error } = safeParseJSON(raw);
+            if (!error && json) {
+                return { json, raw, error: null };
+            }
+            lastError = error || 'Unknown parse error';
+            logDebug(`${label}: JSON parse failed (intento ${attempt + 1})`, { error: lastError, sample: raw.slice(0, 400) });
+        } catch (err) {
+            lastError = err instanceof Error ? err.message : 'LLM error';
+            logDebug(`${label}: LLM error (intento ${attempt + 1})`, lastError);
+        }
+    }
+
+    return { json: null, raw, error: lastError };
 }
 
 // ============================================
@@ -608,13 +668,9 @@ RESPONDE EXCLUSIVAMENTE CON JSON VÁLIDO (sin markdown, sin \`\`\`):
 
             const llmStart = Date.now();
             try {
-                const model = getThinkingModel();
                 logDebug('Librarian LLM: Enviando prompt', { promptLength: prompt.length });
-                const res = await withTimeout(model.generateContent(prompt), STEP_TIMEOUT_MS, "Bibliotecario LLM");
-                const rawText = res.response.text();
-                logDebug('Librarian LLM: Respuesta recibida', { responseLength: rawText.length });
-                
-                const { json, error: parseError } = safeParseJSON(rawText);
+                const { json, raw, error: parseError } = await generateJSONWithRetry(prompt, 'Bibliotecario', 1);
+                logDebug('Librarian LLM: Respuesta recibida', { responseLength: raw.length });
                 
                 if (!parseError && json && Array.isArray(json.evidence)) {
                     // Añadir evidencia del LLM a la existente
@@ -625,13 +681,13 @@ RESPONDE EXCLUSIVAMENTE CON JSON VÁLIDO (sin markdown, sin \`\`\`):
                     // Combinar: primero RAG (más confiable), luego LLM
                     evidence = [...evidence, ...llmEvidence].slice(0, 15);
                     
-                    const rationale = extractRationale(rawText, json);
+                    const rationale = extractRationale(raw, json);
                     this.updateStep('librarian', { 
                         reasoning: rationale || `LLM generó ${llmEvidence.length} fragmentos adicionales. Total: ${evidence.length}` 
                     });
                     this.telemetry.log('librarian', 'complete', `LLM añadió ${llmEvidence.length} fragmentos en ${Date.now() - llmStart}ms`);
                 } else {
-                    logDebug('Librarian LLM: Error parseando respuesta', { error: parseError, rawText: rawText.slice(0, 500) });
+                    logDebug('Librarian LLM: Error parseando respuesta', { error: parseError });
                     this.telemetry.log('librarian', 'error', `LLM respuesta no válida: ${parseError}`);
                 }
             } catch (err) {
@@ -710,16 +766,14 @@ Responde SOLO JSON:
 
         const llmStart = Date.now();
         try {
-            const model = getThinkingModel();
-            const result = await withTimeout(model.generateContent(prompt), STEP_TIMEOUT_MS, "Auditor LLM");
-            const rawText = result.response.text();
-            const { json, error } = safeParseJSON(rawText);
+            const { json, raw, error } = await generateJSONWithRetry(prompt, 'Auditor', 1);
             
             if (error) {
                 this.telemetry.log('auditor', 'error', `Parse JSON error: ${error}`);
+                logDebug('Auditor parse error', { error, raw: raw?.slice(0, 400) });
             } else if (json) {
                 parsed = { ...parsed, ...json };
-                const rationale = extractRationale(rawText, json);
+                const rationale = extractRationale(raw, json);
                 if (rationale) {
                     this.updateStep('auditor', { reasoning: rationale });
                 }
@@ -866,17 +920,14 @@ RESPUESTA SOLO JSON:
         const llmStart = Date.now();
         
         try {
-            const model = getThinkingModel();
-            const result = await withTimeout(model.generateContent(prompt), STEP_TIMEOUT_MS, "Estratega LLM");
-            const rawText = result.response.text();
-            const { json, error } = safeParseJSON(rawText);
+            const { json, raw, error } = await generateJSONWithRetry(prompt, 'Estratega', 1);
             
             if (error) {
                 this.telemetry.log('strategist', 'error', `Parse JSON error: ${error}`);
                 parsed = { sections: structure, widgets: [] };
             } else if (json) {
                 parsed = json;
-                const rationale = extractRationale(rawText, json);
+                const rationale = extractRationale(raw, json);
                 if (rationale) {
                     this.updateStep('strategist', { reasoning: rationale });
                 }
@@ -893,12 +944,10 @@ RESPUESTA SOLO JSON:
         this.checkCancelled();
 
         // VALIDACIÓN: Asegurar que las secciones tienen contenido real
-        const MIN_WORDS_PER_SECTION = 50; // Mínimo 50 palabras por sección
+        const MIN_WORDS_PER_SECTION = 100; // Mínimo 100 palabras por sección
+        const MIN_TOTAL_WORDS = 500;
         const rawSections = parsed.sections || structure;
-        
-        // Contar palabras en una cadena
-        const countWords = (text: string) => text.split(/\s+/).filter(w => w.length > 0).length;
-        
+
         // Verificar si las secciones tienen contenido suficiente
         const sectionsWithContent = rawSections.filter((s: any) => {
             const text = (s.content?.text || '').trim();
@@ -999,6 +1048,23 @@ El sistema no pudo generar contenido completo para esta sección. Puedes:
             };
         });
 
+        // Métricas de salud del contenido
+        const totalWords = safeSections.reduce((acc, s) => acc + countWords(s.content?.text || ''), 0);
+        const sectionsBelowThreshold = safeSections.filter(s => countWords(s.content?.text || '') < MIN_WORDS_PER_SECTION).length;
+        const health = {
+            totalWords,
+            avgWordsPerSection: safeSections.length ? Math.round(totalWords / safeSections.length) : 0,
+            sectionsBelowThreshold,
+            minWordsPerSection: MIN_WORDS_PER_SECTION,
+            totalSections: safeSections.length,
+            wordGoalMet: totalWords >= MIN_TOTAL_WORDS && sectionsBelowThreshold === 0
+        };
+
+        const warnings: string[] = [];
+        if (!health.wordGoalMet) {
+            warnings.push(`Cobertura insuficiente: ${totalWords} palabras, ${sectionsBelowThreshold} sección(es) bajo ${MIN_WORDS_PER_SECTION} palabras.`);
+        }
+
         const generatedContent: GeneratedTopicContent = {
             topicId: topic.id,
             title: topic.title,
@@ -1006,11 +1072,19 @@ El sistema no pudo generar contenido completo para esta sección. Puedes:
                 complexity: 'Medium',
                 estimatedStudyTime: timeDecision.availableMinutes,
                 sourceDocuments: [topic.originalFilename],
-                generatedAt: new Date()
+                generatedAt: new Date(),
+                health
             },
             sections: safeSections,
-            widgets: parsed.widgets || []
+            widgets: parsed.widgets || [],
+            qualityStatus: warnings.length ? 'needs_improvement' : 'ok',
+            warnings
         };
+
+        logDebug('Strategist: métricas de salud', health);
+        if (warnings.length) {
+            this.telemetry.log('strategist', 'fallback', warnings.join(' | '));
+        }
 
         const finalReasoning = (parsed as any).rationale
             ? (parsed as any).rationale

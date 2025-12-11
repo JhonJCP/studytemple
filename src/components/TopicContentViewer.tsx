@@ -287,13 +287,28 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                     const data = JSON.parse((evt as MessageEvent).data);
                     const hydratedContent = hydrateContent(data.result);
                     if (hydratedContent) setContent(hydratedContent);
+
+                    const health = data.health || hydratedContent?.metadata?.health;
+                    const needsImprovement = data.qualityStatus === 'needs_improvement' || health?.wordGoalMet === false;
+                    const warnings = (data.warnings as string[]) || [];
+
                     setOrchestrationState(prev => ({
                         ...prev,
-                        status: 'completed',
+                        status: needsImprovement ? 'error' : 'completed',
                         currentStep: null,
                         result: hydratedContent || prev.result
                     }));
-                    setError(null);
+
+                    if (needsImprovement) {
+                        setError({
+                            message: warnings.join(' | ') || 'Contenido insuficiente: secciones con pocas palabras.',
+                            timestamp: new Date(),
+                            retryCount: retryCountRef.current,
+                            telemetry: { health }
+                        });
+                    } else {
+                        setError(null);
+                    }
                     retryCountRef.current = 0;
                 } catch {
                     setOrchestrationState(prev => ({ ...prev, status: 'error' }));

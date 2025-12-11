@@ -166,7 +166,10 @@ export async function GET(req: NextRequest) {
                     send("done", { 
                         result, 
                         telemetry: generator.getTelemetrySummary(),
-                        durationMs: Date.now() - startTime
+                        durationMs: Date.now() - startTime,
+                        health: result.metadata.health,
+                        qualityStatus: result.qualityStatus,
+                        warnings: result.warnings || []
                     });
                     clearTimeout(timeout);
                     cleanup();
