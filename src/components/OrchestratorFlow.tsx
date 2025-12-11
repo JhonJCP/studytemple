@@ -158,7 +158,12 @@ export function OrchestratorFlow({ state, onClose }: OrchestratorFlowProps) {
 
                     {AGENT_ORDER.map((role, index) => {
                         const config = AGENT_CONFIG[role];
-                        if (!config) return null; // Skip unknown agents
+                        if (!config) {
+                            // #region debug log
+                            fetch('http://127.0.0.1:7242/ingest/39163fbb-29a9-4306-9e29-f6e8f98c5b6e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OrchestratorFlow.tsx:unknownAgent',message:'Agent not in config',data:{role,availableRoles:Object.keys(AGENT_CONFIG)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+                            // #endregion
+                            return null; // Skip unknown agents
+                        }
                         const step = getStepForAgent(role);
                         const isActive = state.currentStep === role;
                         const isCompleted = step?.status === 'completed';

@@ -137,9 +137,18 @@ export class GlobalPlannerWithRealPlanning {
      * Cargar planning desde base de datos (si aún no está cargado)
      */
     private async ensurePlanningLoaded(userId?: string): Promise<void> {
+        // #region debug log
+        fetch('http://127.0.0.1:7242/ingest/39163fbb-29a9-4306-9e29-f6e8f98c5b6e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'global-planner.ts:ensurePlanningLoaded:entry',message:'Loading planning',data:{userId,alreadyLoaded:this.planningLoadedFromDB},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        
         if (this.planningLoadedFromDB) return;
         
         const planningData = await this.loadPlanningFromDB(userId);
+        
+        // #region debug log
+        fetch('http://127.0.0.1:7242/ingest/39163fbb-29a9-4306-9e29-f6e8f98c5b6e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'global-planner.ts:ensurePlanningLoaded:loaded',message:'Planning loaded from DB',data:{topicCount:planningData.topic_time_estimates.length,scheduleCount:planningData.daily_schedule.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        
         this.topicTimeEstimates = planningData.topic_time_estimates;
         this.dailySchedule = planningData.daily_schedule;
         this.planningLoadedFromDB = true;

@@ -665,6 +665,7 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                                 <SectionRenderer
                                     key={section.id}
                                     section={section}
+                                    topicId={content.topicId}
                                     isActive={section.id === activeSectionId}
                                     onActivate={() => setActiveSectionId(section.id)}
                                 />
@@ -804,11 +805,12 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
 
 interface SectionRendererProps {
     section: TopicSection;
+    topicId: string;
     isActive: boolean;
     onActivate: () => void;
 }
 
-function SectionRenderer({ section, isActive, onActivate }: SectionRendererProps) {
+function SectionRenderer({ section, topicId, isActive, onActivate }: SectionRendererProps) {
     const [isExpanded, setIsExpanded] = useState(true);
 
     const levelStyles = {
@@ -873,7 +875,10 @@ function SectionRenderer({ section, isActive, onActivate }: SectionRendererProps
                             {/* Widgets */}
                             {section.content.widgets.length > 0 && (
                                 <div className="space-y-4">
-                                    <WidgetFactory widgets={section.content.widgets} />
+                                    <WidgetFactory 
+                                        widgets={section.content.widgets} 
+                                        topicId={topicId}
+                                    />
                                 </div>
                             )}
 
@@ -884,6 +889,7 @@ function SectionRenderer({ section, isActive, onActivate }: SectionRendererProps
                                         <SectionRenderer
                                             key={child.id}
                                             section={child}
+                                            topicId={topicId}
                                             isActive={false}
                                             onActivate={() => { }}
                                         />

@@ -233,7 +233,16 @@ RESPONDE JSON:
             
             const result = await model.generateContent(prompt);
             const raw = result.response.text();
+            
+            // #region debug log
+            fetch('http://127.0.0.1:7242/ingest/39163fbb-29a9-4306-9e29-f6e8f98c5b6e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'strategist.ts:beforeParse',message:'Strategist raw response',data:{rawLength:raw.length,rawPreview:raw.slice(0,200)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
+            
             const json = JSON.parse(raw);
+            
+            // #region debug log
+            fetch('http://127.0.0.1:7242/ingest/39163fbb-29a9-4306-9e29-f6e8f98c5b6e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'strategist.ts:afterParse',message:'Strategist parsed JSON',data:{hasSections:!!json.sections,sectionsCount:json.sections?.length,hasWidgets:!!json.widgets,widgetsCount:json.widgets?.length,hasSynthesis:!!json.synthesis},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
             
             const finalWords = json.synthesis?.finalWords || 0;
             const practiceReadiness = json.synthesis?.practiceReadiness || 0;
