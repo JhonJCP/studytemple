@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
             nodeVersion: process.version
         },
         files: {
-            infografia brain: infografiaExists,
+            infografiaBrain: infografiaExists,
             audioBrain: audioExists,
             importPlanningPage: planningImportExists
         },
