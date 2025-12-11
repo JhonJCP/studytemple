@@ -276,7 +276,17 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
             es.addEventListener("state", (evt) => {
                 try {
                     const data = JSON.parse((evt as MessageEvent).data);
-                    setOrchestrationState(hydrateOrchestrationState(topic.id, data));
+                    // NO usar hydrateOrchestrationState en eventos SSE en vivo (solo para localStorage)
+                    // Usar el estado directamente para evitar el reset de "wasStuck"
+                    setOrchestrationState({
+                        ...data,
+                        topicId: topic.id,
+                        steps: (data.steps || []).map((step: any) => ({
+                            ...step,
+                            startedAt: step.startedAt ? new Date(step.startedAt) : undefined,
+                            completedAt: step.completedAt ? new Date(step.completedAt) : undefined,
+                        }))
+                    });
                 } catch {
                     // ignore parse errors
                 }
