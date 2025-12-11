@@ -11,7 +11,8 @@ import {
     CheckCircle,
     Loader2,
     AlertCircle,
-    X
+    X,
+    Timer
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AgentRole, AgentStep, OrchestrationState } from "@/lib/widget-types";
@@ -72,6 +73,13 @@ export function OrchestratorFlow({ state, onClose }: OrchestratorFlowProps) {
 
     const getStepForAgent = (role: AgentRole): AgentStep | undefined => {
         return state.steps.find(s => s.role === role);
+    };
+
+    const formatDuration = (step?: AgentStep) => {
+        if (!step?.startedAt || !step?.completedAt) return null;
+        const ms = new Date(step.completedAt).getTime() - new Date(step.startedAt).getTime();
+        const sec = Math.max(1, Math.round(ms / 1000));
+        return `${sec}s`;
     };
 
     return (
@@ -145,6 +153,16 @@ export function OrchestratorFlow({ state, onClose }: OrchestratorFlowProps) {
                                 <span className="text-[10px] font-bold uppercase tracking-wider">
                                     {config.label}
                                 </span>
+                                {step?.reasoning && (
+                                    <span className="text-[10px] text-white/50 line-clamp-2 text-center">
+                                        {step.reasoning}
+                                    </span>
+                                )}
+                                {formatDuration(step) && (
+                                    <span className="flex items-center gap-1 text-[10px] text-white/40">
+                                        <Timer className="w-3 h-3" /> {formatDuration(step)}
+                                    </span>
+                                )}
                             </motion.button>
                         );
                     })}
@@ -167,6 +185,67 @@ export function OrchestratorFlow({ state, onClose }: OrchestratorFlowProps) {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Timeline estilo N8N */}
+            <div className="border-t border-white/5 bg-black/30 px-4 py-3">
+                <h4 className="text-xs uppercase text-white/50 font-bold mb-2">Bitácora de Cerebros</h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                    {AGENT_ORDER.map((role) => {
+                        const step = getStepForAgent(role);
+                        const config = AGENT_CONFIG[role];
+                        const status = step?.status || 'pending';
+                        const isRunning = status === 'running';
+                        const isDone = status === 'completed';
+                        const isError = status === 'error';
+                        return (
+                            <div
+                                key={`${role}-log`}
+                                className={cn(
+                                    "flex items-start gap-3 rounded-lg border px-3 py-2",
+                                    isRunning && "border-purple-400/50 bg-purple-500/5",
+                                    isDone && "border-green-400/50 bg-green-500/5",
+                                    isError && "border-red-400/50 bg-red-500/5",
+                                    status === 'pending' && "border-white/10 bg-white/5"
+                                )}
+                            >
+                                <config.icon className="w-4 h-4 mt-0.5 text-white/60" />
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-xs font-semibold text-white truncate">{config.label}</span>
+                                        <span className={cn(
+                                            "text-[10px] font-bold uppercase",
+                                            isRunning && "text-purple-300",
+                                            isDone && "text-green-300",
+                                            isError && "text-red-300",
+                                            status === 'pending' && "text-white/40"
+                                        )}>
+                                            {status}
+                                        </span>
+                                    </div>
+                                    {step?.input && (
+                                        <p className="text-[10px] text-white/50 line-clamp-2 mt-1">
+                                            Entrada: {typeof step.input === 'string' ? step.input : JSON.stringify(step.input)}
+                                        </p>
+                                    )}
+                                    {step?.reasoning && (
+                                        <p className="text-[10px] text-white/70 line-clamp-2 mt-0.5 italic">
+                                            {step.reasoning}
+                                        </p>
+                                    )}
+                                    {step?.output && (
+                                        <p className="text-[10px] text-green-300 line-clamp-2 mt-0.5">
+                                            Salida: {typeof step.output === 'string' ? step.output : JSON.stringify(step.output)}
+                                        </p>
+                                    )}
+                                </div>
+                                {formatDuration(step) && (
+                                    <span className="text-[10px] text-white/40">{formatDuration(step)}</span>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
         </div>
     );
 }

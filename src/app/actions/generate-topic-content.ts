@@ -1,7 +1,7 @@
 "use server";
 
-import { generateTopicContent } from "@/lib/topic-content-generator";
-import type { GeneratedTopicContent } from "@/lib/widget-types";
+import { generateTopicContentWithTrace } from "@/lib/topic-content-generator";
+import type { GeneratedTopicContent, OrchestrationState } from "@/lib/widget-types";
 import { createClient } from "@/utils/supabase/server";
 
 /**
@@ -12,7 +12,7 @@ import { createClient } from "@/utils/supabase/server";
 export async function generateTopicContentAction(
     topicId: string,
     opts?: { force?: boolean }
-): Promise<{ success: boolean; data?: GeneratedTopicContent; error?: string }> {
+): Promise<{ success: boolean; data?: GeneratedTopicContent; trace?: OrchestrationState; error?: string }> {
     const force = opts?.force === true;
 
     try {
@@ -38,7 +38,7 @@ export async function generateTopicContentAction(
         }
 
         // 2) Generar contenido
-        const result = await generateTopicContent(topicId);
+        const { result, state } = await generateTopicContentWithTrace(topicId);
 
         // 3) Guardar en Supabase si hay user
         if (user) {
@@ -56,7 +56,7 @@ export async function generateTopicContentAction(
             }
         }
 
-        return { success: true, data: result };
+        return { success: true, data: result, trace: state };
     } catch (error) {
         console.error("Error generating topic content:", error);
         return {

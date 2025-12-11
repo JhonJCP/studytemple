@@ -12,8 +12,7 @@ import type {
     AgentStep,
     AgentRole,
     TimeKeeperDecision,
-    ConcisionStrategy,
-    WidgetDefinition
+    ConcisionStrategy
 } from "./widget-types";
 import { getTopicById, generateBaseHierarchy, TopicWithGroup } from "./syllabus-hierarchy";
 
@@ -44,6 +43,10 @@ export class TopicContentGenerator {
         this.onStateChange?.(this.state);
     }
 
+    getState(): OrchestrationState {
+        return this.state;
+    }
+
     private updateStep(role: AgentRole, updates: Partial<AgentStep>) {
         const idx = this.state.steps.findIndex(s => s.role === role);
         if (idx >= 0) {
@@ -63,15 +66,7 @@ export class TopicContentGenerator {
         evidence: any[];
     }> {
         this.updateState({ currentStep: 'librarian' });
-        this.updateStep('librarian', { status: 'running', startedAt: new Date() });
-
-        const structure = generateBaseHierarchy(topic);
-        const documents = [topic.originalFilename];
-        let evidence: any[] = [];
-
-        try {
-            const model = genAI.getGenerativeModel({ model: MODEL, generationConfig: { responseMimeType: "application/json" } });
-            const prompt = `
+        const prompt = `
 Eres el Bibliotecario. Devuelve evidencia breve (fragmentos) para el tema:
 - Título: "${topic.title}"
 - Grupo: "${topic.groupTitle}"
@@ -85,6 +80,19 @@ Salida JSON:
   "documents": ["${topic.originalFilename}"]
 }
 No inventes texto largo; resume en frases cortas.`;
+
+        this.updateStep('librarian', {
+            status: 'running',
+            startedAt: new Date(),
+            input: { prompt }
+        });
+
+        const structure = generateBaseHierarchy(topic);
+        const documents = [topic.originalFilename];
+        let evidence: any[] = [];
+
+        try {
+            const model = genAI.getGenerativeModel({ model: MODEL, generationConfig: { responseMimeType: "application/json" } });
             const res = await model.generateContent(prompt);
             const json = JSON.parse(res.response.text().replace(/```json/g, "").replace(/```/g, "").trim());
             evidence = json.evidence || [];
@@ -111,23 +119,7 @@ No inventes texto largo; resume en frases cortas.`;
         widgets: any[];
         quality_score: number;
     }> {
-        this.updateState({ currentStep: 'auditor' });
-        this.updateStep('auditor', {
-            status: 'running',
-            startedAt: new Date(),
-            input: { topic: topic.title, documents: library.documents }
-        });
-
-        let parsed: { gaps: string[]; optimizations: string[]; widgets: any[]; quality_score: number } = {
-            gaps: [],
-            optimizations: [],
-            widgets: [],
-            quality_score: 60
-        };
-
-        try {
-            const model = genAI.getGenerativeModel({ model: MODEL, generationConfig: { responseMimeType: "application/json" } });
-            const prompt = `
+        const prompt = `
 Analiza el tema y detecta vacíos:
 - Tema: "${topic.title}"
 - Documentos: ${library.documents.join(', ')}
@@ -142,6 +134,27 @@ Responde SOLO JSON:
   ],
   "quality_score": 0-100
 }`;
+
+        this.updateState({ currentStep: 'auditor' });
+        this.updateStep('auditor', {
+            status: 'running',
+            startedAt: new Date(),
+            input: {
+                topic: topic.title,
+                documents: library.documents,
+                prompt
+            }
+        });
+
+        let parsed: { gaps: string[]; optimizations: string[]; widgets: any[]; quality_score: number } = {
+            gaps: [],
+            optimizations: [],
+            widgets: [],
+            quality_score: 60
+        };
+
+        try {
+            const model = genAI.getGenerativeModel({ model: MODEL, generationConfig: { responseMimeType: "application/json" } });
             const result = await model.generateContent(prompt);
             const text = result.response.text();
             const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -173,15 +186,15 @@ Responde SOLO JSON:
         });
 
         // TODO: Leer plan diario/topic_time_estimates; por ahora heurística
-        const availableMinutes = 60;
+        const availableMinutes = 90;
         let strategy: ConcisionStrategy = 'balanced';
-        let recommendedTokens = 2000;
-        let widgetBudget = 5;
+        let recommendedTokens = 3200;
+        let widgetBudget = 6;
 
         if (availableMinutes < 20) { strategy = 'executive_summary'; recommendedTokens = 500; widgetBudget = 2; }
-        else if (availableMinutes < 40) { strategy = 'condensed'; recommendedTokens = 1200; widgetBudget = 3; }
-        else if (availableMinutes < 90) { strategy = 'balanced'; recommendedTokens = 2200; widgetBudget = 5; }
-        else { strategy = 'detailed'; recommendedTokens = 4000; widgetBudget = 8; }
+        else if (availableMinutes < 40) { strategy = 'condensed'; recommendedTokens = 1400; widgetBudget = 3; }
+        else if (availableMinutes < 90) { strategy = 'balanced'; recommendedTokens = 2600; widgetBudget = 5; }
+        else { strategy = 'detailed'; recommendedTokens = 4200; widgetBudget = 8; }
 
         const decision: TimeKeeperDecision = {
             availableMinutes,
@@ -209,21 +222,7 @@ Responde SOLO JSON:
         auditorData: { gaps: string[]; optimizations: string[]; widgets?: any[] },
         timeDecision: TimeKeeperDecision
     ): Promise<GeneratedTopicContent> {
-        this.updateState({ currentStep: 'strategist' });
-        this.updateStep('strategist', {
-            status: 'running',
-            startedAt: new Date(),
-            input: { gaps: auditorData.gaps, strategy: timeDecision.strategy, tokenLimit: timeDecision.recommendedTokens }
-        });
-
-        let parsed: any = { sections: structure, widgets: [] };
-        try {
-            const model = genAI.getGenerativeModel({
-                model: MODEL,
-                generationConfig: { responseMimeType: "application/json" }
-            });
-
-            const prompt = `
+        const prompt = `
 Eres el Estratega. Genera contenido y widgets listos para disparar manualmente.
 
 Tema: "${topic.title}" (Grupo: "${topic.groupTitle}")
@@ -237,7 +236,9 @@ ${JSON.stringify(structure, null, 2)}
 
 Instrucciones:
 - Refina la estructura con bullets claros por sección.
-- Genera texto explicativo por sección (<= 400 palabras) en "content.text".
+- Genera texto explicativo en Markdown por sección (mínimo 2 párrafos o 180-220 palabras para estrategia balanced/detailed, 120+ para condensed).
+- Usa viñetas, negritas y subtítulos en "content.text" para que no se vea raw.
+- Incluye ejemplos o mini-casos cuando aplique. 
 - Inserta widgets como placeholders con prompts accionables; no generes el widget completo si no es trivial.
 - Respeta presupuesto de widgets y tono según estrategia (executive/condensed/balanced/detailed/exhaustive).
 
@@ -262,6 +263,25 @@ RESPUESTA SOLO JSON:
 }
 `;
 
+        this.updateState({ currentStep: 'strategist' });
+        this.updateStep('strategist', {
+            status: 'running',
+            startedAt: new Date(),
+            input: {
+                gaps: auditorData.gaps,
+                strategy: timeDecision.strategy,
+                tokenLimit: timeDecision.recommendedTokens,
+                prompt
+            }
+        });
+
+        let parsed: any = { sections: structure, widgets: [] };
+        try {
+            const model = genAI.getGenerativeModel({
+                model: MODEL,
+                generationConfig: { responseMimeType: "application/json" }
+            });
+
             const result = await model.generateContent(prompt);
             const rawText = result.response.text();
             try {
@@ -278,15 +298,20 @@ RESPUESTA SOLO JSON:
         }
 
         // Asegurar que haya texto en content.text aunque sea placeholder
-        const safeSections = (parsed.sections || structure).map((s: any, idx: number) => ({
-            ...s,
-            id: s.id || `sec-${idx}`,
-            content: {
-                text: s.content?.text || 'Contenido generado. Expande para ver detalles.',
-                widgets: s.content?.widgets || []
-            },
-            children: s.children || []
-        }));
+        const safeSections = (parsed.sections || structure).map((s: any, idx: number) => {
+            const rawText = (s.content?.text || '').trim();
+            const enrichedText = rawText || `## ${s.title}\nContenido generado. Expande para ver detalles y completa con tus notas.`;
+
+            return {
+                ...s,
+                id: s.id || `sec-${idx}`,
+                content: {
+                    text: enrichedText,
+                    widgets: s.content?.widgets || []
+                },
+                children: s.children || []
+            };
+        });
 
         const generatedContent: GeneratedTopicContent = {
             topicId: topic.id,
@@ -363,4 +388,13 @@ export async function generateTopicContent(
 ): Promise<GeneratedTopicContent> {
     const generator = new TopicContentGenerator(topicId, onStateChange);
     return generator.generate();
+}
+
+export async function generateTopicContentWithTrace(
+    topicId: string,
+    onStateChange?: (state: OrchestrationState) => void
+): Promise<{ result: GeneratedTopicContent; state: OrchestrationState }> {
+    const generator = new TopicContentGenerator(topicId, onStateChange);
+    const result = await generator.generate();
+    return { result, state: generator.getState() };
 }

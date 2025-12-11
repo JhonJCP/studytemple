@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ArrowLeft, Calendar as CalendarIcon, Play, BrainCircuit, Timer, FileQuestion, BookOpen, Layers, Info, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,9 +15,13 @@ import { saveStudyPlan, getLatestStudyPlan } from "@/app/actions/save-plan";
 export default function CalendarPage() {
     // State
     const [intensity, setIntensity] = useState<StudyPlan['intensity']>('balanced');
-    const [selectedDate, setSelectedDate] = useState(new Date("2025-12-15"));
-    const [viewDate, setViewDate] = useState(new Date("2025-12-15"));
+    const [selectedDate, setSelectedDate] = useState(new Date());
+    const [viewDate, setViewDate] = useState(new Date());
     const [activeTimer, setActiveTimer] = useState<string | null>(null);
+    const [isPlanLoading, setIsPlanLoading] = useState(true);
+    const [activeSchedule, setActiveSchedule] = useState<ScheduledSession[] | null>(null);
+    const [planSource, setPlanSource] = useState<'remote' | 'localStorage' | 'fallback' | 'preview'>('fallback');
+    const hasLoadedPlanRef = useRef(false);
 
     // AI State
     const [isConsoleOpen, setIsConsoleOpen] = useState(false);
@@ -39,11 +43,18 @@ export default function CalendarPage() {
     // Local Algo Schedule
     const localSchedule = useMemo(() => generateSmartSchedule(planConfig), [planConfig]);
 
+    useEffect(() => {
+        if (planSource === 'fallback') {
+            setActiveSchedule(localSchedule);
+        }
+    }, [localSchedule, planSource]);
+
     // Active Schedule (Prefer AI if exists)
-    const schedule = aiPlan || localSchedule;
+    const schedule = activeSchedule || [];
+    const visibleSchedule = isPlanLoading ? [] : schedule;
 
     // Filter Missions
-    const dailyMissions = schedule.filter(s => {
+    const dailyMissions = visibleSchedule.filter(s => {
         const d = new Date(s.date);
         return d.getDate() === selectedDate.getDate() &&
             d.getMonth() === selectedDate.getMonth() &&
@@ -58,12 +69,23 @@ export default function CalendarPage() {
         setViewDate(newDate);
     };
 
+    const focusDate = (date: Date) => {
+        setSelectedDate(date);
+        setViewDate(date);
+    };
+
     // Load Plan from DB on Mount (primary) and fallback to localStorage (avoid re-generar tokens)
     useEffect(() => {
+        if (hasLoadedPlanRef.current) return;
+        hasLoadedPlanRef.current = true;
+
+        let isMounted = true;
+        setIsPlanLoading(true);
+
         async function loadPlan() {
             try {
                 const res = await getLatestStudyPlan();
-                if (res.success && res.plan && res.plan.schedule) {
+                if (isMounted && res.success && res.plan && res.plan.schedule) {
                     console.log("✅ Loaded plan from DB", res.plan);
 
                     const loadedSchedule: ScheduledSession[] = (res.plan.schedule as any[]).map(s => ({
@@ -72,6 +94,8 @@ export default function CalendarPage() {
                     }));
 
                     setAiPlan(loadedSchedule);
+                    setActiveSchedule(loadedSchedule);
+                    setPlanSource('remote');
                     setMasterPlanData(res.plan.ai_metadata ? {
                         strategic_analysis: res.plan.ai_metadata?.strategic_analysis,
                         topic_time_estimates: res.plan.ai_metadata?.topic_time_estimates,
@@ -80,8 +104,7 @@ export default function CalendarPage() {
 
                     if (loadedSchedule.length > 0) {
                         const firstDate = loadedSchedule[0].date;
-                        setSelectedDate(firstDate);
-                        setViewDate(firstDate);
+                        focusDate(firstDate);
                         console.log("📅 Calendario posicionado en:", firstDate.toLocaleDateString('es-ES'));
                     }
 
@@ -91,6 +114,7 @@ export default function CalendarPage() {
                             analysis: res.plan.ai_metadata.strategic_analysis
                         }));
                     }
+                    setIsPlanLoading(false);
                     return; // DB plan loaded
                 }
             } catch (e) {
@@ -101,7 +125,7 @@ export default function CalendarPage() {
             try {
                 const saved = localStorage.getItem("last_ai_plan");
                 const savedDiag = localStorage.getItem("last_ai_plan_diag");
-                if (saved) {
+                if (isMounted && saved) {
                     const plan = JSON.parse(saved);
                     if (plan?.daily_schedule && Array.isArray(plan.daily_schedule)) {
                         const parsedSchedule: ScheduledSession[] = plan.daily_schedule.map((s: any, i: number) => ({
@@ -112,20 +136,36 @@ export default function CalendarPage() {
                             breaks: s.breaks || "Standard"
                         }));
                         setAiPlan(parsedSchedule);
+                        setActiveSchedule(parsedSchedule);
+                        setPlanSource('localStorage');
                         setMasterPlanData(plan);
                         const diag = savedDiag ? JSON.parse(savedDiag) : undefined;
                         setDiagnostics(diag);
-                        setSelectedDate(parsedSchedule[0]?.date || new Date());
-                        setViewDate(parsedSchedule[0]?.date || new Date());
+                        focusDate(parsedSchedule[0]?.date || new Date());
                         console.log("✅ Loaded plan from localStorage");
+                        setIsPlanLoading(false);
+                        return;
                     }
                 }
             } catch {
                 // ignore parse errors
             }
+
+            if (!isMounted) return;
+
+            // Último recurso: plan local
+            setPlanSource('fallback');
+            setActiveSchedule(localSchedule);
+            if (localSchedule.length > 0) {
+                focusDate(localSchedule[0].date as Date);
+            } else {
+                focusDate(new Date());
+            }
+            setIsPlanLoading(false);
         }
         loadPlan();
-    }, []);
+        return () => { isMounted = false; };
+    }, [localSchedule]);
 
 
 
@@ -140,6 +180,12 @@ export default function CalendarPage() {
 
         if (res.success) {
             setAiPlan(masterPlanData.daily_schedule);
+            setActiveSchedule(masterPlanData.daily_schedule);
+            setPlanSource('remote');
+            setIsPlanLoading(false);
+            if (masterPlanData.daily_schedule?.length) {
+                focusDate(new Date(masterPlanData.daily_schedule[0].date));
+            }
             // Maybe show toast success?
             setIsConsoleOpen(false);
             // Persist locally
@@ -224,6 +270,8 @@ export default function CalendarPage() {
         }
 
         setAiPlan(flatSchedule);
+        setActiveSchedule(flatSchedule);
+        setPlanSource('preview');
         setMasterPlanData({
             ...planData,
             daily_schedule: flatSchedule
@@ -234,6 +282,7 @@ export default function CalendarPage() {
             analysis: planData.strategic_analysis
         });
         setBrainStatus('success');
+        setIsPlanLoading(false);
 
         // Persist locally
         try {
@@ -246,8 +295,7 @@ export default function CalendarPage() {
         // AUTO-NAVIGATE to the first date of the plan
         if (flatSchedule.length > 0) {
             const firstDate = flatSchedule[0].date;
-            setSelectedDate(firstDate);
-            setViewDate(firstDate);
+            focusDate(firstDate);
             console.log("📅 Calendario posicionado en:", firstDate.toLocaleDateString('es-ES'));
         }
     };
@@ -315,9 +363,15 @@ export default function CalendarPage() {
             }));
 
             setAiPlan(parsedSchedule); // Show preview
+            setActiveSchedule(parsedSchedule);
+            setPlanSource('preview');
+            setIsPlanLoading(false);
             setMasterPlanData(result.masterPlan); // Store for saving
             setDiagnostics(result.diagnostics);
             setBrainStatus('success');
+            if (parsedSchedule.length > 0) {
+                focusDate(parsedSchedule[0].date);
+            }
 
             // Persist locally to avoid re-generar tokens si la sesión caduca
             try {
@@ -521,7 +575,12 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
                     </div>
 
                     <div className="grid gap-4">
-                        {dailyMissions.length === 0 ? (
+                        {isPlanLoading ? (
+                            <div className="p-12 text-center border border-dashed border-white/10 rounded-xl flex flex-col items-center gap-3">
+                                <Loader2 className="w-6 h-6 text-white/60 animate-spin" />
+                                <p className="text-white/60">Cargando tu plan guardado...</p>
+                            </div>
+                        ) : dailyMissions.length === 0 ? (
                             <div className="p-12 text-center border border-dashed border-white/10 rounded-xl">
                                 <p className="text-white/50">Toque un día en el calendario para ver detalles.</p>
                             </div>
@@ -625,7 +684,7 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
                 <div className="space-y-8">
                     <CalendarGrid
                         currentDate={viewDate}
-                        schedule={schedule}
+                        schedule={visibleSchedule}
                         selectedDate={selectedDate}
                         onSelectDate={(d) => { setSelectedDate(d); setViewDate(d); }}
                         onNavigateMonth={handleMonthNav}
@@ -637,11 +696,11 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
                         <div className="space-y-3">
                             <div className="flex justify-between items-center bg-white/5 p-3 rounded">
                                 <span className="text-xs text-white/50">Sesiones de Estudio</span>
-                                <span className="text-xl font-bold text-green-400">{schedule.filter(s => s.type === 'study').length}</span>
+                                <span className="text-xl font-bold text-green-400">{visibleSchedule.filter(s => s.type === 'study').length}</span>
                             </div>
                             <div className="flex justify-between items-center bg-white/5 p-3 rounded">
                                 <span className="text-xs text-white/50">Tests Simulados</span>
-                                <span className="text-xl font-bold text-purple-400">{schedule.filter(s => s.type === 'test_practice').length}</span>
+                                <span className="text-xl font-bold text-purple-400">{visibleSchedule.filter(s => s.type === 'test_practice').length}</span>
                             </div>
                         </div>
                     </div>

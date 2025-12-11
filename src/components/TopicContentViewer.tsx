@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     ArrowLeft,
@@ -9,7 +10,6 @@ import {
     FileText,
     Loader2,
     CheckCircle,
-    AlertCircle,
     ChevronDown
 } from "lucide-react";
 import Link from "next/link";
@@ -22,7 +22,7 @@ import type {
     TopicSection,
     GeneratedTopicContent,
     OrchestrationState,
-    GenerationStatus
+    AgentStep
 } from "@/lib/widget-types";
 import { TopicWithGroup, generateBaseHierarchy, flattenSections } from "@/lib/syllabus-hierarchy";
 
@@ -35,18 +35,60 @@ interface TopicContentViewerProps {
     initialContent?: GeneratedTopicContent;
 }
 
+const contentStorageKey = (topicId: string) => `topic_content_${topicId}`;
+const traceStorageKey = (topicId: string) => `topic_trace_${topicId}`;
+
+function hydrateContent(data?: GeneratedTopicContent | null): GeneratedTopicContent | null {
+    if (!data) return null;
+    return {
+        ...data,
+        metadata: {
+            ...data.metadata,
+            generatedAt: new Date(data.metadata.generatedAt),
+        },
+        sections: (data.sections || []).map(section => ({
+            ...section,
+            content: {
+                text: section.content?.text || "",
+                widgets: section.content?.widgets || [],
+            },
+            children: section.children || [],
+        })),
+    };
+}
+
+function hydrateOrchestrationState(topicId: string, raw?: OrchestrationState): OrchestrationState {
+    if (!raw) {
+        return {
+            topicId,
+            status: 'idle',
+            steps: [],
+            currentStep: null,
+        };
+    }
+
+    return {
+        ...raw,
+        topicId,
+        currentStep: raw.currentStep || null,
+        steps: (raw.steps || []).map(step => ({
+            ...step,
+            startedAt: step.startedAt ? new Date(step.startedAt) : undefined,
+            completedAt: step.completedAt ? new Date(step.completedAt) : undefined,
+        })),
+        result: hydrateContent(raw.result) || undefined,
+    };
+}
+
 // ============================================
 // COMPONENTE PRINCIPAL
 // ============================================
 
 export function TopicContentViewer({ topic, initialContent }: TopicContentViewerProps) {
-    const [content, setContent] = useState<GeneratedTopicContent | null>(initialContent || null);
-    const [orchestrationState, setOrchestrationState] = useState<OrchestrationState>({
-        topicId: topic.id,
-        status: 'idle',
-        steps: [],
-        currentStep: null,
-    });
+    const [content, setContent] = useState<GeneratedTopicContent | null>(() => hydrateContent(initialContent));
+    const [orchestrationState, setOrchestrationState] = useState<OrchestrationState>(() =>
+        hydrateOrchestrationState(topic.id)
+    );
     const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
     const [showOrchestrator, setShowOrchestrator] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -55,33 +97,128 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
     const sections = content?.sections || generateBaseHierarchy(topic);
     const flatSections = flattenSections(sections);
 
+    // Cargar persistencia local (si no hay contenido inicial desde Supabase)
+    useEffect(() => {
+        if (initialContent) {
+            const hydrated = hydrateContent(initialContent);
+            setContent(hydrated);
+            try {
+                localStorage.setItem(contentStorageKey(topic.id), JSON.stringify(hydrated));
+            } catch {
+                // ignore storage errors
+            }
+        } else {
+            try {
+                const stored = localStorage.getItem(contentStorageKey(topic.id));
+                if (stored) {
+                    const parsed = hydrateContent(JSON.parse(stored));
+                    if (parsed) {
+                        setContent(parsed);
+                    }
+                }
+            } catch {
+                // ignore
+            }
+        }
+
+        try {
+            const storedTrace = localStorage.getItem(traceStorageKey(topic.id));
+            if (storedTrace) {
+                const parsedTrace = hydrateOrchestrationState(topic.id, JSON.parse(storedTrace));
+                setOrchestrationState(parsedTrace);
+            }
+        } catch {
+            // ignore storage parse errors
+        }
+    }, [topic.id, initialContent]);
+
+    // Persistir cambios
+    useEffect(() => {
+        if (!content) return;
+        try {
+            localStorage.setItem(contentStorageKey(topic.id), JSON.stringify(content));
+        } catch {
+            // ignore storage errors
+        }
+    }, [content, topic.id]);
+
+    useEffect(() => {
+        if (!orchestrationState || (!orchestrationState.steps.length && !orchestrationState.result)) return;
+        try {
+            localStorage.setItem(traceStorageKey(topic.id), JSON.stringify(orchestrationState));
+        } catch {
+            // ignore
+        }
+    }, [orchestrationState, topic.id]);
+
     // Generar contenido
     const handleGenerate = useCallback(async () => {
         setIsGenerating(true);
         setShowOrchestrator(true);
 
-        // Simular estados de orquestación para UI
-        setOrchestrationState(prev => ({ ...prev, status: 'fetching' }));
+        // Simular pipeline mientras llegan los datos reales
+        const bootstrapSteps: AgentStep[] = [
+            { role: 'librarian', status: 'running', startedAt: new Date(), input: { topic: topic.title } },
+            { role: 'auditor', status: 'pending' },
+            { role: 'timekeeper', status: 'pending' },
+            { role: 'strategist', status: 'pending' },
+        ];
+
+        setOrchestrationState({
+            topicId: topic.id,
+            status: 'fetching',
+            steps: bootstrapSteps,
+            currentStep: 'librarian',
+        });
 
         try {
             const result = await generateTopicContentAction(topic.id, { force: Boolean(content) });
 
             if (result.success && result.data) {
-                setContent(result.data);
-                setOrchestrationState(prev => ({
-                    ...prev,
-                    status: 'completed',
-                    result: result.data
-                }));
+                const hydratedContent = hydrateContent(result.data);
+                setContent(hydratedContent);
+
+                const hydratedTrace = hydrateOrchestrationState(topic.id, result.trace);
+                const hasRealTrace = (result.trace && (result.trace.steps?.length || result.trace.result)) || false;
+
+                if (hasRealTrace) {
+                    setOrchestrationState({
+                        ...hydratedTrace,
+                        status: hydratedTrace.status === 'error' ? 'error' : 'completed',
+                        result: hydratedContent || hydratedTrace.result,
+                        currentStep: null,
+                    });
+                } else if (orchestrationState.steps.length) {
+                    setOrchestrationState({
+                        ...orchestrationState,
+                        status: 'completed',
+                        result: hydratedContent || orchestrationState.result,
+                        currentStep: null,
+                    });
+                } else {
+                    const completedSteps = bootstrapSteps.map(step => ({
+                        ...step,
+                        status: 'completed',
+                        completedAt: new Date(),
+                    }));
+                    setOrchestrationState({
+                        topicId: topic.id,
+                        status: 'completed',
+                        steps: completedSteps,
+                        currentStep: null,
+                        result: hydratedContent || undefined,
+                    });
+                }
             } else {
                 setOrchestrationState(prev => ({ ...prev, status: 'error' }));
             }
         } catch (error) {
+            console.error("Error during topic generation", error);
             setOrchestrationState(prev => ({ ...prev, status: 'error' }));
         } finally {
             setIsGenerating(false);
         }
-    }, [topic.id, content]);
+    }, [topic.id, topic.title, content, orchestrationState]);
 
     // Status badge
     const getStatusBadge = () => {
@@ -204,7 +341,7 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                     ) : (
                         // Content Sections
                         <div className="max-w-4xl mx-auto space-y-8">
-                            {content.sections.map((section, index) => (
+                            {content.sections.map((section) => (
                                 <SectionRenderer
                                     key={section.id}
                                     section={section}
@@ -303,11 +440,9 @@ function SectionRenderer({ section, isActive, onActivate }: SectionRendererProps
                         )}>
                             {/* Text Content */}
                             {section.content.text && (
-                                <div className="prose prose-invert prose-lg max-w-none mb-6">
-                                    <p className="text-white/80 leading-relaxed whitespace-pre-wrap">
-                                        {section.content.text}
-                                    </p>
-                                </div>
+                                <ReactMarkdown className="prose prose-invert prose-lg max-w-none mb-6">
+                                    {section.content.text}
+                                </ReactMarkdown>
                             )}
 
                             {/* Widgets */}
