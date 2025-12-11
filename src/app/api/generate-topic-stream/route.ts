@@ -5,6 +5,7 @@ import type { OrchestrationState, GeneratedTopicContent } from "@/lib/widget-typ
 import { createClient } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
+const OVERALL_TIMEOUT_MS = parseInt(process.env.GENERATION_TIMEOUT_MS || "120000", 10);
 
 function sseEvent(event: string, data: unknown): string {
     return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -25,6 +26,10 @@ export async function GET(req: NextRequest) {
             const send = (event: string, data: unknown) => {
                 controller.enqueue(encoder.encode(sseEvent(event, data)));
             };
+            const timeout = setTimeout(() => {
+                send("error", { message: `Tiempo de generación agotado (${OVERALL_TIMEOUT_MS}ms)` });
+                controller.close();
+            }, OVERALL_TIMEOUT_MS);
 
             (async () => {
                 // 1) Intentar devolver caché si hay usuario y no es force
@@ -47,6 +52,7 @@ export async function GET(req: NextRequest) {
                             send("state", { topicId, status: "completed", steps: [], currentStep: null, result: cachedContent });
                             send("done", { result: cachedContent });
                             controller.close();
+                            clearTimeout(timeout);
                             return;
                         }
                     }
@@ -63,7 +69,12 @@ export async function GET(req: NextRequest) {
                 send("state", generator.getState());
 
                 try {
-                    const result = await generator.generate();
+                    const result = await Promise.race([
+                        generator.generate(),
+                        new Promise<GeneratedTopicContent>((_, rej) =>
+                            setTimeout(() => rej(new Error(`Tiempo de generación agotado (${OVERALL_TIMEOUT_MS}ms)`)), OVERALL_TIMEOUT_MS)
+                        )
+                    ]);
 
                     // 3) Guardar en Supabase si hay usuario
                     if (supabaseUser) {
@@ -84,9 +95,11 @@ export async function GET(req: NextRequest) {
 
                     send("done", { result });
                     controller.close();
+                    clearTimeout(timeout);
                 } catch (error) {
                     send("error", { message: error instanceof Error ? error.message : "Error desconocido" });
                     controller.close();
+                    clearTimeout(timeout);
                 }
             })();
         }

@@ -90,6 +90,7 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
         hydrateOrchestrationState(topic.id)
     );
     const [eventSource, setEventSource] = useState<EventSource | null>(null);
+    const [timeoutId, setTimeoutId] = useState<number | null>(null);
     const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
     const [showOrchestrator, setShowOrchestrator] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -134,8 +135,11 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
 
         return () => {
             eventSource?.close();
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
         };
-    }, [topic.id, initialContent, eventSource]);
+    }, [topic.id, initialContent, eventSource, timeoutId]);
 
     // Persistir cambios
     useEffect(() => {
@@ -162,6 +166,10 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
         if (eventSource) {
             eventSource.close();
             setEventSource(null);
+        }
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+            setTimeoutId(null);
         }
 
         const isForce = Boolean(content);
@@ -226,6 +234,10 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                     es.close();
                     setEventSource(null);
                     setIsGenerating(false);
+                    if (timeoutId) {
+                        clearTimeout(timeoutId);
+                        setTimeoutId(null);
+                    }
                 }
             });
 
@@ -235,16 +247,33 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                 es.close();
                 setEventSource(null);
                 setIsGenerating(false);
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                    setTimeoutId(null);
+                }
             });
 
             setEventSource(es);
+
+            // Seguridad: si el stream no cierra en 130s, marcamos error
+            const guard = window.setTimeout(() => {
+                es.close();
+                setEventSource(null);
+                setIsGenerating(false);
+                setOrchestrationState(prev => ({
+                    ...prev,
+                    status: 'error',
+                    reasoning: 'Tiempo de generación agotado en cliente (130s).'
+                }));
+            }, 130000);
+            setTimeoutId(guard);
         } catch (error) {
             console.error("Error during topic generation", error);
             setOrchestrationState(prev => ({ ...prev, status: 'error' }));
         } finally {
             // isGenerating se desactiva en listeners para no cortar el stream
         }
-    }, [topic.id, topic.title, content, orchestrationState, eventSource]);
+    }, [topic.id, topic.title, content, orchestrationState, eventSource, timeoutId]);
 
     // Status badge
     const getStatusBadge = () => {
