@@ -25,6 +25,26 @@ const genAI = new GoogleGenerativeAI(API_KEY);
 const TEMARIO_ROOT = path.resolve(process.cwd(), "..", "Temario");
 
 // ============================================
+// UTILIDADES GENERALES
+// ============================================
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`${label} timeout (${ms}ms)`)), ms);
+        promise.then(
+            (res) => {
+                clearTimeout(timer);
+                resolve(res);
+            },
+            (err) => {
+                clearTimeout(timer);
+                reject(err);
+            }
+        );
+    });
+}
+
+// ============================================
 // UTILIDADES DE EVIDENCIA LOCAL (RAG SIMPLE)
 // ============================================
 
@@ -41,7 +61,16 @@ function slugify(str: string): string {
 async function findDocumentPath(originalFilename: string): Promise<string | null> {
     const target = slugify(originalFilename);
 
-    async function walk(dir: string): Promise<string | null> {
+    // Estrategia: buscar en carpetas candidatas poco profundas, evitando recorrer todo el Temario
+    const candidates = [
+        path.join(TEMARIO_ROOT, "Legislacion y Material fundacional"),
+        path.join(TEMARIO_ROOT, "Legislación y Material fundacional"), // por si hay acento
+        TEMARIO_ROOT,
+        path.resolve(process.cwd(), "Temario"),
+    ];
+
+    async function walk(dir: string, depth = 0): Promise<string | null> {
+        if (depth > 3) return null; // límite para evitar cuelgues
         let entries: any[] = [];
         try {
             entries = await fs.readdir(dir, { withFileTypes: true });
@@ -52,7 +81,7 @@ async function findDocumentPath(originalFilename: string): Promise<string | null
         for (const entry of entries) {
             const fullPath = path.join(dir, entry.name);
             if (entry.isDirectory()) {
-                const found = await walk(fullPath);
+                const found = await walk(fullPath, depth + 1);
                 if (found) return found;
             } else {
                 const norm = slugify(entry.name);
@@ -64,8 +93,11 @@ async function findDocumentPath(originalFilename: string): Promise<string | null
         return null;
     }
 
-    // Buscar en Temario y, en caso extremo, en el cwd
-    return (await walk(TEMARIO_ROOT)) || (await walk(path.resolve(process.cwd(), "Temario")));
+    for (const base of candidates) {
+        const found = await walk(base);
+        if (found) return found;
+    }
+    return null;
 }
 
 function chunkText(text: string, size = 1100, overlap = 120): string[] {
@@ -146,19 +178,39 @@ export class TopicContentGenerator {
     }> {
         this.updateState({ currentStep: 'librarian' });
         const structure = generateBaseHierarchy(topic);
-        const docPath = await findDocumentPath(topic.originalFilename);
+        let docPath: string | null = null;
+        try {
+            docPath = await withTimeout(findDocumentPath(topic.originalFilename), 10000, "Búsqueda de PDF");
+        } catch (err) {
+            docPath = null;
+            this.updateStep('librarian', {
+                status: 'running',
+                reasoning: `Búsqueda lenta o fallida (${err instanceof Error ? err.message : 'error desconocido'}). Uso fallback LLM.`
+            });
+        }
         const documents = docPath ? [docPath] : [topic.originalFilename];
         let evidence: any[] = [];
 
         this.updateStep('librarian', {
             status: 'running',
             startedAt: new Date(),
-            input: { docPath, topic: topic.title }
+            input: { docPath, topic: topic.title },
+            reasoning: docPath ? `Buscando evidencia en ${path.basename(docPath)}` : 'Buscando evidencia (sin ruta directa, usando LLM si no se encuentra PDF)'
         });
 
         // 1) Intentar cargar evidencia real desde el PDF
         if (docPath) {
-            evidence = await loadPdfEvidence(docPath);
+            try {
+                evidence = await withTimeout(loadPdfEvidence(docPath), 10000, "Parseo PDF");
+                this.updateStep('librarian', {
+                    reasoning: `Evidencia cargada desde PDF (${evidence.length} fragmentos).`
+                });
+            } catch (err) {
+                evidence = [];
+                this.updateStep('librarian', {
+                    reasoning: `Fallo al leer PDF (${err instanceof Error ? err.message : 'error'}). Se intentará LLM.`
+                });
+            }
         }
 
         // 2) Fallback a prompt LLM si no hay evidencia local
