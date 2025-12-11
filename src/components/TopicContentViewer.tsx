@@ -366,7 +366,7 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
 
             setEventSource(es);
 
-            // Seguridad: si el stream no cierra en 130s, marcamos error
+            // Seguridad: si el stream no cierra en 300s (5 min), marcamos error
             const guard = window.setTimeout(() => {
                 es.close();
                 setEventSource(null);
@@ -380,7 +380,7 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                     timestamp: new Date(),
                     retryCount: retryCountRef.current
                 });
-            }, 130000);
+            }, 300000); // 5 minutos para permitir razonamiento profundo de todos los cerebros
             setTimeoutId(guard);
         } catch (err) {
             console.error("Error during topic generation", err);
