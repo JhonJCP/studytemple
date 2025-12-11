@@ -26,7 +26,10 @@ function getSupabaseClient() {
 // Buscar contexto relevante en la biblioteca
 async function searchRelevantContext(question: string, maxChunks: number = 5): Promise<string> {
   const supabase = getSupabaseClient();
-  if (!supabase) return "";
+  if (!supabase) {
+    console.log("[ORACLE RAG] Supabase not configured");
+    return "";
+  }
 
   try {
     // Extraer keywords de la pregunta
@@ -36,7 +39,12 @@ async function searchRelevantContext(question: string, maxChunks: number = 5): P
       .filter(w => w.length > 3 && !['cual', 'como', 'donde', 'cuando', 'quien', 'dice', 'sobre', 'para', 'esta'].includes(w))
       .slice(0, 5);
 
-    if (keywords.length === 0) return "";
+    console.log("[ORACLE RAG] Searching with keywords:", keywords);
+
+    if (keywords.length === 0) {
+      console.log("[ORACLE RAG] No keywords extracted");
+      return "";
+    }
 
     // Buscar en contenido
     const { data, error } = await supabase
@@ -45,6 +53,12 @@ async function searchRelevantContext(question: string, maxChunks: number = 5): P
       .or(keywords.map(k => `content.ilike.%${k}%`).join(','))
       .limit(maxChunks);
 
+    console.log("[ORACLE RAG] Search result:", { 
+      found: data?.length || 0, 
+      error: error?.message,
+      sources: data?.map(d => d.metadata?.filename).slice(0, 3)
+    });
+
     if (error || !data || data.length === 0) return "";
 
     // Formatear evidencia
@@ -52,9 +66,10 @@ async function searchRelevantContext(question: string, maxChunks: number = 5): P
       `[Fragmento ${idx + 1}] (${doc.metadata?.filename || 'Documento'})\n${doc.content.slice(0, 800)}`
     ).join('\n\n---\n\n');
 
+    console.log("[ORACLE RAG] Evidence prepared:", evidence.length, "chars");
     return evidence;
   } catch (error) {
-    console.error("[ORACLE] RAG search error:", error);
+    console.error("[ORACLE RAG] Search error:", error);
     return "";
   }
 }
