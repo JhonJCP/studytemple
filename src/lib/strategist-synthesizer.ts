@@ -259,6 +259,13 @@ RESPONDE JSON EXACTO (sin comentarios, sin campos extra):
             fetch('http://127.0.0.1:7242/ingest/39163fbb-29a9-4306-9e29-f6e8f98c5b6e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'strategist.ts:afterParse',message:'Strategist parsed JSON',data:{hasSections:!!json.sections,sectionsCount:json.sections?.length,hasWidgets:!!json.widgets,widgetsCount:json.widgets?.length,hasSynthesis:!!json.synthesis},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
             // #endregion
             
+            // #region debug log - CRITICAL: Log first section to see if has text
+            if (json.sections && json.sections.length > 0) {
+                const firstSection = json.sections[0];
+                fetch('http://127.0.0.1:7242/ingest/39163fbb-29a9-4306-9e29-f6e8f98c5b6e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'strategist.ts:firstSection',message:'First section structure',data:{id:firstSection.id,title:firstSection.title,hasContent:!!firstSection.content,textLength:firstSection.content?.text?.length || 0,textPreview:firstSection.content?.text?.slice(0,100) || 'EMPTY',sourceType:firstSection.sourceType,level:firstSection.level},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+            }
+            // #endregion
+            
             const finalWords = json.synthesis?.finalWords || 0;
             const practiceReadiness = json.synthesis?.practiceReadiness || 0;
             
@@ -268,6 +275,15 @@ RESPONDE JSON EXACTO (sin comentarios, sin campos extra):
                 conceptsIncluded: json.synthesis?.conceptsIncluded || 0,
                 conceptsDropped: json.synthesis?.conceptsDropped || 0
             });
+            
+            // #region debug log - Log ALL sections
+            console.log('[STRATEGIST] Sections generated:', JSON.stringify(json.sections?.map((s: any) => ({
+                id: s.id,
+                title: s.title,
+                textLength: s.content?.text?.length || 0,
+                hasText: !!s.content?.text
+            })), null, 2));
+            // #endregion
             
             // Construir GeneratedTopicContent
             const content: GeneratedTopicContent = {
