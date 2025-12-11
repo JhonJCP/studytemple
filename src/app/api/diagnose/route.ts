@@ -82,8 +82,8 @@ export async function GET() {
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
       
-      // Intentar con modelo estable primero
-      const modelName = "gemini-1.5-pro";
+      // Usar el modelo configurado (gemini-3-pro-preview por defecto)
+      const modelName = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
       result.connectivity.geminiModelUsed = modelName;
       
       const model = genAI.getGenerativeModel({

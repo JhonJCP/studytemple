@@ -35,8 +35,8 @@ function safeGetAPIKey(): string | null {
     return process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || null;
 }
 
-// Modelo Gemini estable por defecto (gemini-1.5-pro)
-let MODEL = process.env.GEMINI_MODEL || "gemini-1.5-pro";
+// Modelo Gemini 3 Pro Preview (como estaba originalmente)
+let MODEL = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
 
 // Initialized lazily
 let _genAI: GoogleGenerativeAI | null = null;
@@ -54,6 +54,7 @@ function switchToFallbackModel() {
         MODEL = "gemini-1.5-pro";
     }
 }
+// Nota: Si gemini-3-pro-preview falla, intentará con gemini-1.5-pro como fallback
 
 // Supabase para RAG (lazy initialization)
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";

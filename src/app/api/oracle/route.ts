@@ -30,8 +30,9 @@ Pregunta: ${question.trim()}
 
     // Obtener instancia lazy
     const genAI = getGenAI();
+    const modelName = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-pro", // Usar modelo estable
+      model: modelName,
       generationConfig: {
         responseMimeType: "text/plain",
         maxOutputTokens: 400,
