@@ -96,8 +96,8 @@ export async function GET() {
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
       
-      // Usar el modelo configurado (gemini-3-pro-preview por defecto)
-      const modelName = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
+      // Usar el modelo configurado (gemini-2.0-flash-exp - único que funciona según tests)
+      const modelName = process.env.GEMINI_MODEL || "gemini-2.0-flash-exp";
       result.connectivity.geminiModelUsed = modelName;
       
       const model = genAI.getGenerativeModel({

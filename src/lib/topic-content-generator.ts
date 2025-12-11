@@ -35,8 +35,8 @@ function safeGetAPIKey(): string | null {
     return process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || null;
 }
 
-// Modelo Gemini 3 Pro Preview - Requiere thinking_level según docs oficiales
-let MODEL = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
+// Modelo Gemini 2.0 Flash Exp - ÚNICO modelo funcional en la cuenta (diagnóstico confirmado)
+let MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash-exp";
 
 // Initialized lazily
 let _genAI: GoogleGenerativeAI | null = null;
