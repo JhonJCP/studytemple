@@ -71,8 +71,8 @@ const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "120000", 
 const MIN_WORDS_PER_SECTION = 120; // Mínimo de palabras por sección para salud
 const MIN_TOTAL_WORDS = 800; // Objetivo mínimo global para evitar respuestas pobres (Aumentado de 700)
 const BASE_GENERATION_CONFIG = {
-    temperature: 1.0,  // Aumentado de 0.7 a 1.0 - requerido para gemini-3-pro-preview
-    maxOutputTokens: 8192,  // Ya es alto, mantener
+    temperature: 1.0,  // Requerido para gemini-3-pro-preview (genera respuestas)
+    maxOutputTokens: 16384,  // Aumentado de 8192 a 16384 - gemini-3-pro-preview soporta hasta 65536
     responseMimeType: "application/json"
 } as const;
 // Siempre habilitar logs para trazabilidad en Vercel
@@ -146,8 +146,8 @@ function getTextModel() {
     return getGenAI().getGenerativeModel({
         model: MODEL,
         generationConfig: {
-            temperature: 1.0,  // Aumentado de 0.7 a 1.0 - crítico para gemini-3-pro-preview
-            maxOutputTokens: 2048 // Aumentado de 1024 a 2048 para mejor enriquecimiento
+            temperature: 1.0,  // Crítico para gemini-3-pro-preview
+            maxOutputTokens: 4096 // Aumentado de 2048 a 4096 para secciones largas (gemini-3-pro soporta 65K)
         }
     });
 }
