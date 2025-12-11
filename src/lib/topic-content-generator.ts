@@ -227,7 +227,8 @@ Salida JSON:
   "evidence": [
     { "source_id": "doc-1", "filename": "${topic.originalFilename}", "fragment": "fragmento literal (<=400 chars)", "law_refs": ["ref1","ref2"], "confidence": 0.85 }
   ],
-  "documents": ["${topic.originalFilename}"]
+  "documents": ["${topic.originalFilename}"],
+  "rationale": "razonamiento breve (2 frases) sobre cómo seleccionaste los fragmentos"
 }
 No inventes texto largo; resume en frases cortas.`;
 
@@ -236,6 +237,9 @@ No inventes texto largo; resume en frases cortas.`;
                 const res = await withTimeout(model.generateContent(prompt), STEP_TIMEOUT_MS, "Bibliotecario LLM");
                 const json = JSON.parse(res.response.text().replace(/```json/g, "").replace(/```/g, "").trim());
                 evidence = json.evidence || [];
+                if (json.rationale) {
+                    this.updateStep('librarian', { reasoning: `LLM: ${json.rationale}` });
+                }
             } catch (err) {
                 evidence = [];
                 this.updateStep('librarian', {
@@ -278,7 +282,8 @@ Responde SOLO JSON:
   "widgets": [
     { "type": "mnemonic|diagram|timeline|quiz|alert", "section": "intro|conceptos|desarrollo|practica", "why": "razón", "prompt": "micro-prompt" }
   ],
-  "quality_score": 0-100
+  "quality_score": 0-100,
+  "rationale": "2-3 frases sobre la cobertura y riesgos detectados"
 }`;
 
         this.updateState({ currentStep: 'auditor' });
@@ -306,6 +311,9 @@ Responde SOLO JSON:
             const jsonMatch = text.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 parsed = { ...parsed, ...JSON.parse(jsonMatch[0]) };
+                if ((parsed as any).rationale) {
+                    this.updateStep('auditor', { reasoning: (parsed as any).rationale });
+                }
             }
         } catch (err) {
             this.updateStep('auditor', {
@@ -408,7 +416,8 @@ RESPUESTA SOLO JSON:
   ],
   "widgets": [
     { "type": "mnemonic|timeline|diagram|quiz|alert", "title": "string", "prompt": "micro prompt", "section": "Visión General|Conceptos Clave|Desarrollo del Contenido|Aplicación Práctica" }
-  ]
+  ],
+  "rationale": "2-3 frases sobre decisiones de estructura y tono"
 }
 `;
 
@@ -439,6 +448,9 @@ RESPUESTA SOLO JSON:
                 const lastBrace = cleaned.lastIndexOf("}");
                 const jsonText = firstBrace >= 0 && lastBrace > firstBrace ? cleaned.substring(firstBrace, lastBrace + 1) : cleaned;
                 parsed = JSON.parse(jsonText);
+                if (parsed.rationale) {
+                    this.updateStep('strategist', { reasoning: parsed.rationale });
+                }
             } catch {
                 parsed = { sections: structure, widgets: [] };
             }
