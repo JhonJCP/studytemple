@@ -172,7 +172,7 @@ export default function CalendarPage() {
     const handleApplyPlan = async () => {
         if (!masterPlanData) return;
 
-        // Save to DB
+        // Save to study_plans (para el calendario visual)
         const res = await saveStudyPlan(masterPlanData, {
             availability: planConfig.availability,
             goalDate: planConfig.goalDate
@@ -186,8 +186,20 @@ export default function CalendarPage() {
             if (masterPlanData.daily_schedule?.length) {
                 focusDate(new Date(masterPlanData.daily_schedule[0].date));
             }
-            // Maybe show toast success?
             setIsConsoleOpen(false);
+            
+            // IMPORTANTE: También guardar en user_planning para el Global Planner
+            try {
+                await fetch('/api/planning/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ planning: masterPlanData })
+                });
+                console.log('✅ Planning también guardado en user_planning para Global Planner');
+            } catch (err) {
+                console.error('Error saving to user_planning:', err);
+            }
+            
             // Persist locally
             try {
                 localStorage.setItem("last_ai_plan", JSON.stringify(masterPlanData));
