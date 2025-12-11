@@ -567,7 +567,7 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                                 este tema y creen contenido optimizado para tu estudio.
                             </p>
                             <button
-                                onClick={handleGenerate}
+                                onClick={() => handleGenerate(false)}
                                 className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-xl hover:scale-105 transition-transform"
                             >
                                 <Sparkles className="w-5 h-5" />
