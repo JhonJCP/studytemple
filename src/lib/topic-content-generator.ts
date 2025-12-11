@@ -71,9 +71,11 @@ const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "120000", 
 const MIN_WORDS_PER_SECTION = 120; // Mínimo de palabras por sección para salud
 const MIN_TOTAL_WORDS = 800; // Objetivo mínimo global para evitar respuestas pobres (Aumentado de 700)
 const BASE_GENERATION_CONFIG = {
-    temperature: 1.0,  // Requerido para gemini-3-pro-preview (genera respuestas)
-    maxOutputTokens: 16384,  // Aumentado de 8192 a 16384 - gemini-3-pro-preview soporta hasta 65536
-    responseMimeType: "application/json"
+    temperature: 0.6,  // Balanceado: genera contenido pero minimiza alucinaciones (0.2=factual, 1.0=creativo)
+    maxOutputTokens: 16384,  // gemini-3-pro-preview soporta hasta 65536
+    responseMimeType: "application/json",
+    topP: 0.85,  // Coherencia en respuestas largas
+    topK: 40  // Limita tokens candidatos para precisión
 } as const;
 // Siempre habilitar logs para trazabilidad en Vercel
 const DEBUG_LOG = true;
@@ -146,8 +148,10 @@ function getTextModel() {
     return getGenAI().getGenerativeModel({
         model: MODEL,
         generationConfig: {
-            temperature: 1.0,  // Crítico para gemini-3-pro-preview
-            maxOutputTokens: 4096 // Aumentado de 2048 a 4096 para secciones largas (gemini-3-pro soporta 65K)
+            temperature: 0.6,  // Balanceado: genera pero no inventa
+            maxOutputTokens: 4096, // gemini-3-pro soporta 65K
+            topP: 0.85,
+            topK: 40
         }
     });
 }
@@ -1011,11 +1015,13 @@ ${evidenceSummary}
 Estructura base:
 ${JSON.stringify(structure, null, 2)}
 
-Instrucciones:
-- Debes mantener TODAS las secciones de la estructura base; no elimines niveles. Si propones nuevas, conserva las originales.
+Instrucciones CRÍTICAS:
+- **USA OBLIGATORIAMENTE LA EVIDENCIA ARRIBA**: Cita artículos específicos, números exactos y conceptos reales de los fragmentos proporcionados.
+- **NO INVENTES información**: Si no está en la evidencia, indica "contenido pendiente de verificación" en vez de inventar.
+- Debes mantener TODAS las secciones de la estructura base; no elimines niveles.
 - Cada sección debe tener texto explicativo en Markdown, con al menos 3 párrafos y ≥180 palabras (≥220 si es detailed, ≥150 si es condensed). Objetivo global ≥${MIN_TOTAL_WORDS} palabras.
-- Usa viñetas, negritas y subtítulos en "content.text" para legibilidad; incluye referencias legales específicas (Ley/Art. X) y ejemplos técnicos.
-- Inserta widgets como placeholders con prompts accionables; no generes el widget completo si no es trivial. Respeta widget_budget.
+- Usa viñetas, negritas y subtítulos; incluye referencias EXACTAS (Ley X/YYYY, Art. N).
+- Inserta widgets como placeholders con prompts accionables; respeta widget_budget.
 - NO incluyas markdown externo ni código; responde solo JSON plano.
 
 RESPUESTA SOLO JSON:

@@ -23,7 +23,12 @@ export async function POST(request: Request) {
 
     const prompt = `
 Eres un asistente especializado en oposiciones de Obras Públicas (ITOP Canarias).
-Responde con precisión y brevedad (máx. 6 frases). Si la pregunta es ambigua o no tienes datos, pide más contexto.
+
+INSTRUCCIONES CRÍTICAS:
+- Si conoces la respuesta con certeza, responde con precisión (máx. 6 frases).
+- Si NO tienes información verificada sobre el tema, di claramente "No tengo información verificada sobre esto".
+- NUNCA inventes datos, artículos de ley o contenidos técnicos.
+- Si la pregunta es ambigua, pide más contexto.
 
 Pregunta: ${question.trim()}
 `;
@@ -35,8 +40,10 @@ Pregunta: ${question.trim()}
       model: modelName,
       generationConfig: {
         responseMimeType: "text/plain",
-        maxOutputTokens: 2048,  // Aumentado de 400 a 2048 para gemini-3-pro-preview
-        temperature: 1.0,  // Crítico para gemini-3-pro-preview
+        maxOutputTokens: 2048,
+        temperature: 0.5,  // Bajo para precisión factual (evita alucinaciones)
+        topP: 0.85,
+        topK: 40
       },
     });
 
