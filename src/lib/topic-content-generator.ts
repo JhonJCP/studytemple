@@ -20,8 +20,9 @@ import type {
 import { getTopicById, generateBaseHierarchy, TopicWithGroup } from "./syllabus-hierarchy";
 
 const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-// Modelo Gemini 3 Pro (o fallback a 1.5 en caso de error)
-let MODEL = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
+// Modelo Gemini Estable (1.5 Pro)
+// Fallback a 3-pro-preview solo si se requiere explícitamente, pero por defecto usamos el estable para evitar 404s
+let MODEL = process.env.GEMINI_MODEL || "gemini-1.5-pro";
 
 // Initialized lazily
 let genAI: GoogleGenerativeAI | null = null;
@@ -32,11 +33,11 @@ function getGenAI() {
     return genAI;
 }
 
-// Función para cambiar a modelo fallback si el principal falla (ej: 404 Not Found)
+// Función para cambiar a modelo fallback (aunque ahora el default ya es el "fallback" estable)
 function switchToFallbackModel() {
-    if (MODEL !== "gemini-1.5-pro") {
-        console.warn(`[GENERATOR] Switching model from ${MODEL} to gemini-1.5-pro due to API error.`);
-        MODEL = "gemini-1.5-pro";
+    if (MODEL !== "gemini-1.5-flash") { // Fallback del fallback a flash si pro falla
+        console.warn(`[GENERATOR] Switching model from ${MODEL} to gemini-1.5-flash.`);
+        MODEL = "gemini-1.5-flash";
     }
 }
 
@@ -51,7 +52,7 @@ function getSupabaseClient() {
     return createClient(SUPABASE_URL, SUPABASE_KEY);
 }
 
-const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "90000", 10);
+const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "120000", 10); // A 2 min para evitar cortes en cold start
 const MIN_WORDS_PER_SECTION = 120; // Mínimo de palabras por sección para salud
 const MIN_TOTAL_WORDS = 800; // Objetivo mínimo global para evitar respuestas pobres (Aumentado de 700)
 const BASE_GENERATION_CONFIG = {
