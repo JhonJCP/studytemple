@@ -1339,6 +1339,9 @@ Requisitos:
     // ORQUESTACIÓN PRINCIPAL (sin auto-guardar)
     // ============================================
     async generate(): Promise<GeneratedTopicContent> {
+        console.log('[GENERATOR] ========== INICIO DE GENERACIÓN ==========');
+        console.log(`[GENERATOR] TopicID: ${this.state.topicId}, Timestamp: ${new Date().toISOString()}`);
+        
         this.telemetry.reset();
         this.cancelled = false;
         this.abortController = new AbortController();
@@ -1353,6 +1356,10 @@ Requisitos:
         });
         console.log(`[GENERATOR] Usando modelo: ${MODEL}, API Key presente: ${!!apiKey} (${apiKey?.slice(0, 8) || 'N/A'}...), Supabase: ${!!SUPABASE_URL}`);
         this.telemetry.log('global', 'start', `Iniciando generación para ${this.state.topicId} (RAG: ${!!SUPABASE_URL})`);
+        
+        // Forzar envío de estado inicial
+        console.log('[GENERATOR] Enviando estado inicial...');
+        this.updateState({ status: 'queued' });
 
         // Verificar API Key (getAPIKey() lanzará error si falta)
         try {
@@ -1375,12 +1382,16 @@ Requisitos:
         }
 
         logDebug('Topic encontrado', { title: topic.title, group: topic.groupTitle });
+        console.log(`[GENERATOR] Topic encontrado: ${topic.title}, iniciando pipeline...`);
 
         this.updateState({ status: 'fetching' });
+        console.log('[GENERATOR] Estado cambiado a FETCHING, iniciando Bibliotecario...');
 
         try {
             // 1. Librarian
+            console.log('[GENERATOR] ===== LLAMANDO A RUNLIBRARIAN =====');
             const librarian = await this.runLibrarian(topic);
+            console.log(`[GENERATOR] Bibliotecario completado: ${librarian.evidence.length} evidencias`);
 
             // 2. Auditor
             this.updateState({ status: 'analyzing' });
