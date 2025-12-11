@@ -5,6 +5,9 @@
  */
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import fs from "fs/promises";
+import path from "path";
+import pdfParse from "pdf-parse";
 import type {
     TopicSection,
     GeneratedTopicContent,
@@ -19,6 +22,81 @@ import { getTopicById, generateBaseHierarchy, TopicWithGroup } from "./syllabus-
 const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
 const MODEL = "gemini-3-pro-preview";
 const genAI = new GoogleGenerativeAI(API_KEY);
+const TEMARIO_ROOT = path.resolve(process.cwd(), "..", "Temario");
+
+// ============================================
+// UTILIDADES DE EVIDENCIA LOCAL (RAG SIMPLE)
+// ============================================
+
+function slugify(str: string): string {
+    return (str || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/\.[a-z0-9]+$/, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+}
+
+async function findDocumentPath(originalFilename: string): Promise<string | null> {
+    const target = slugify(originalFilename);
+
+    async function walk(dir: string): Promise<string | null> {
+        let entries: any[] = [];
+        try {
+            entries = await fs.readdir(dir, { withFileTypes: true });
+        } catch {
+            return null;
+        }
+
+        for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                const found = await walk(fullPath);
+                if (found) return found;
+            } else {
+                const norm = slugify(entry.name);
+                if (norm.includes(target) || target.includes(norm)) {
+                    return fullPath;
+                }
+            }
+        }
+        return null;
+    }
+
+    // Buscar en Temario y, en caso extremo, en el cwd
+    return (await walk(TEMARIO_ROOT)) || (await walk(path.resolve(process.cwd(), "Temario")));
+}
+
+function chunkText(text: string, size = 1100, overlap = 120): string[] {
+    const clean = text.replace(/\s+/g, " ").trim();
+    const chunks: string[] = [];
+    let idx = 0;
+    while (idx < clean.length) {
+        const slice = clean.slice(idx, idx + size);
+        chunks.push(slice);
+        idx += size - overlap;
+    }
+    return chunks;
+}
+
+async function loadPdfEvidence(filePath: string): Promise<Array<{ source_id: string; filename: string; fragment: string; law_refs: string[]; confidence: number }>> {
+    try {
+        const buffer = await fs.readFile(filePath);
+        const parsed = await pdfParse(buffer);
+        const text = parsed.text || "";
+        const pieces = chunkText(text).slice(0, 12);
+        return pieces.map((fragment, i) => ({
+            source_id: `pdf-${i + 1}`,
+            filename: path.basename(filePath),
+            fragment,
+            law_refs: [],
+            confidence: 0.92
+        }));
+    } catch {
+        return [];
+    }
+}
 
 // ============================================
 // CLASE PRINCIPAL
@@ -66,7 +144,25 @@ export class TopicContentGenerator {
         evidence: any[];
     }> {
         this.updateState({ currentStep: 'librarian' });
-        const prompt = `
+        const structure = generateBaseHierarchy(topic);
+        const docPath = await findDocumentPath(topic.originalFilename);
+        const documents = docPath ? [docPath] : [topic.originalFilename];
+        let evidence: any[] = [];
+
+        this.updateStep('librarian', {
+            status: 'running',
+            startedAt: new Date(),
+            input: { docPath, topic: topic.title }
+        });
+
+        // 1) Intentar cargar evidencia real desde el PDF
+        if (docPath) {
+            evidence = await loadPdfEvidence(docPath);
+        }
+
+        // 2) Fallback a prompt LLM si no hay evidencia local
+        if (!evidence.length) {
+            const prompt = `
 Eres el Bibliotecario. Devuelve evidencia breve (fragmentos) para el tema:
 - Título: "${topic.title}"
 - Grupo: "${topic.groupTitle}"
@@ -81,30 +177,23 @@ Salida JSON:
 }
 No inventes texto largo; resume en frases cortas.`;
 
-        this.updateStep('librarian', {
-            status: 'running',
-            startedAt: new Date(),
-            input: { prompt }
-        });
-
-        const structure = generateBaseHierarchy(topic);
-        const documents = [topic.originalFilename];
-        let evidence: any[] = [];
-
-        try {
-            const model = genAI.getGenerativeModel({ model: MODEL, generationConfig: { responseMimeType: "application/json" } });
-            const res = await model.generateContent(prompt);
-            const json = JSON.parse(res.response.text().replace(/```json/g, "").replace(/```/g, "").trim());
-            evidence = json.evidence || [];
-        } catch {
-            evidence = [];
+            try {
+                const model = genAI.getGenerativeModel({ model: MODEL, generationConfig: { responseMimeType: "application/json" } });
+                const res = await model.generateContent(prompt);
+                const json = JSON.parse(res.response.text().replace(/```json/g, "").replace(/```/g, "").trim());
+                evidence = json.evidence || [];
+            } catch {
+                evidence = [];
+            }
         }
 
         this.updateStep('librarian', {
             status: 'completed',
             completedAt: new Date(),
-            reasoning: `Estructura base generada. Evidencias: ${evidence.length}.`,
-            output: { documentCount: documents.length, sectionCount: structure.length, evidence }
+            reasoning: docPath
+                ? `Estructura base generada y ${evidence.length} fragmentos reales desde PDF.`
+                : `Estructura base generada. Evidencias (LLM): ${evidence.length}.`,
+            output: { documentCount: documents.length, sectionCount: structure.length, evidence, docPath }
         });
 
         return { structure, documents, evidence };
@@ -340,6 +429,14 @@ RESPUESTA SOLO JSON:
     // ORQUESTACIÓN PRINCIPAL (sin auto-guardar)
     // ============================================
     async generate(): Promise<GeneratedTopicContent> {
+        if (!API_KEY) {
+            this.updateState({
+                status: 'error',
+                currentStep: null
+            });
+            throw new Error("Falta GEMINI_API_KEY / NEXT_PUBLIC_GEMINI_API_KEY para generar el temario.");
+        }
+
         const topic = getTopicById(this.state.topicId);
         if (!topic) {
             throw new Error(`Topic not found: ${this.state.topicId}`);

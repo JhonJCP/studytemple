@@ -179,11 +179,106 @@ export function parseTopicId(topicId: string): { groupIndex: number; topicIndex:
 // GENERADOR DE JERARQUÍA
 // ============================================
 
+const slugify = (str: string) =>
+    (str || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/\.[a-z0-9]+$/, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
 /**
  * Genera una estructura jerárquica base para un tema
  * Esta estructura será poblada por el orquestador de agentes
  */
 export function generateBaseHierarchy(topic: TopicWithGroup): TopicSection[] {
+    const slug = slugify(`${topic.originalFilename} ${topic.title}`);
+    const isLeyCarreterasCanarias =
+        slug.includes("ley-9-1991") ||
+        slug.includes("carreteras-de-canarias");
+
+    if (isLeyCarreterasCanarias) {
+        const lawRoot: TopicSection = {
+            id: `${topic.id}-ley-9-1991`,
+            title: "Ley 9/1991 de Carreteras de Canarias",
+            level: 'h1',
+            sourceType: 'library',
+            content: { text: '', widgets: [] },
+            children: [
+                {
+                    id: `${topic.id}-t1`,
+                    title: "Título I · Disposiciones Generales (arts. 1-11)",
+                    level: 'h2',
+                    sourceType: 'library',
+                    content: { text: '', widgets: [] },
+                    children: [
+                        { id: `${topic.id}-t1-def`, title: "Objeto, definiciones y clasificación", level: 'h3', sourceType: 'library', content: { text: '', widgets: [] } },
+                        { id: `${topic.id}-t1-comp`, title: "Competencias: CA, Cabildos y Ayuntamientos", level: 'h3', sourceType: 'library', content: { text: '', widgets: [] } },
+                        { id: `${topic.id}-t1-catalogo`, title: "Catálogo y señalización", level: 'h3', sourceType: 'library', content: { text: '', widgets: [] } }
+                    ]
+                },
+                {
+                    id: `${topic.id}-t2`,
+                    title: "Título II · Planificación, proyectos y financiación (arts. 12-23)",
+                    level: 'h2',
+                    sourceType: 'library',
+                    content: { text: '', widgets: [] },
+                    children: [
+                        { id: `${topic.id}-t2-plan`, title: "Plan Regional de Carreteras y estudios", level: 'h3', sourceType: 'library', content: { text: '', widgets: [] } },
+                        { id: `${topic.id}-t2-construccion`, title: "Construcción y coordinación urbanística", level: 'h3', sourceType: 'library', content: { text: '', widgets: [] } },
+                        { id: `${topic.id}-t2-financiacion`, title: "Financiación y contribuciones especiales", level: 'h3', sourceType: 'library', content: { text: '', widgets: [] } },
+                        { id: `${topic.id}-t2-explotacion`, title: "Explotación y áreas de servicio", level: 'h3', sourceType: 'library', content: { text: '', widgets: [] } }
+                    ]
+                },
+                {
+                    id: `${topic.id}-t3`,
+                    title: "Título III · Uso y defensa de la carretera (arts. 24-43)",
+                    level: 'h2',
+                    sourceType: 'library',
+                    content: { text: '', widgets: [] },
+                    children: [
+                        { id: `${topic.id}-t3-limit`, title: "Zonas: dominio público, servidumbre, afección y edificación", level: 'h3', sourceType: 'library', content: { text: '', widgets: [] } },
+                        { id: `${topic.id}-t3-uso`, title: "Uso de la vía, publicidad y accesos", level: 'h3', sourceType: 'library', content: { text: '', widgets: [] } },
+                        { id: `${topic.id}-t3-sanciones`, title: "Infracciones y sanciones", level: 'h3', sourceType: 'library', content: { text: '', widgets: [] } }
+                    ]
+                },
+                {
+                    id: `${topic.id}-t4`,
+                    title: "Título IV · Redes arteriales y tramos urbanos (arts. 44-51)",
+                    level: 'h2',
+                    sourceType: 'library',
+                    content: { text: '', widgets: [] },
+                    children: [
+                        { id: `${topic.id}-t4-coord`, title: "Coordinación con planeamiento urbano y licencias", level: 'h3', sourceType: 'library', content: { text: '', widgets: [] } },
+                        { id: `${topic.id}-t4-financia`, title: "Financiación y conservación en tramos urbanos", level: 'h3', sourceType: 'library', content: { text: '', widgets: [] } }
+                    ]
+                },
+                {
+                    id: `${topic.id}-disp`,
+                    title: "Disposición adicional, transitorias y final",
+                    level: 'h2',
+                    sourceType: 'library',
+                    content: { text: '', widgets: [] },
+                    children: [
+                        { id: `${topic.id}-disp-adic`, title: "Disposición adicional", level: 'h3', sourceType: 'library', content: { text: '', widgets: [] } },
+                        { id: `${topic.id}-disp-trans`, title: "Disposiciones transitorias", level: 'h3', sourceType: 'library', content: { text: '', widgets: [] } },
+                        { id: `${topic.id}-disp-final`, title: "Disposición final", level: 'h3', sourceType: 'library', content: { text: '', widgets: [] } }
+                    ]
+                },
+                {
+                    id: `${topic.id}-practica`,
+                    title: "Aplicación práctica · informes y propuestas de resolución",
+                    level: 'h2',
+                    sourceType: 'augmented',
+                    content: { text: '', widgets: [] }
+                }
+            ]
+        };
+
+        return [lawRoot];
+    }
+
     // Estructura base que será expandida por Librarian
     const baseSection: TopicSection = {
         id: `${topic.id}-intro`,

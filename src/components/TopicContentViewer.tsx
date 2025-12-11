@@ -89,6 +89,7 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
     const [orchestrationState, setOrchestrationState] = useState<OrchestrationState>(() =>
         hydrateOrchestrationState(topic.id)
     );
+    const [eventSource, setEventSource] = useState<EventSource | null>(null);
     const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
     const [showOrchestrator, setShowOrchestrator] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -130,7 +131,11 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
         } catch {
             // ignore storage parse errors
         }
-    }, [topic.id, initialContent]);
+
+        return () => {
+            eventSource?.close();
+        };
+    }, [topic.id, initialContent, eventSource]);
 
     // Persistir cambios
     useEffect(() => {
@@ -153,6 +158,12 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
 
     // Generar contenido
     const handleGenerate = useCallback(async () => {
+        // Cerrar cualquier stream previo
+        if (eventSource) {
+            eventSource.close();
+            setEventSource(null);
+        }
+
         setIsGenerating(true);
         setShowOrchestrator(true);
 
@@ -172,53 +183,55 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
         });
 
         try {
-            const result = await generateTopicContentAction(topic.id, { force: Boolean(content) });
+            // Preferimos streaming SSE para ver onStateChange en vivo
+            const url = `/api/generate-topic-stream?topicId=${encodeURIComponent(topic.id)}&force=${Boolean(content)}`;
+            const es = new EventSource(url);
 
-            if (result.success && result.data) {
-                const hydratedContent = hydrateContent(result.data);
-                setContent(hydratedContent);
-
-                const hydratedTrace = hydrateOrchestrationState(topic.id, result.trace);
-                const hasRealTrace = (result.trace && (result.trace.steps?.length || result.trace.result)) || false;
-
-                if (hasRealTrace) {
-                    setOrchestrationState({
-                        ...hydratedTrace,
-                        status: hydratedTrace.status === 'error' ? 'error' : 'completed',
-                        result: hydratedContent || hydratedTrace.result,
-                        currentStep: null,
-                    });
-                } else if (orchestrationState.steps.length) {
-                    setOrchestrationState({
-                        ...orchestrationState,
-                        status: 'completed',
-                        result: hydratedContent || orchestrationState.result,
-                        currentStep: null,
-                    });
-                } else {
-                    const completedSteps: AgentStep[] = bootstrapSteps.map(step => ({
-                        ...step,
-                        status: 'completed' as const,
-                        completedAt: new Date(),
-                    }));
-                    setOrchestrationState({
-                        topicId: topic.id,
-                        status: 'completed',
-                        steps: completedSteps,
-                        currentStep: null,
-                        result: hydratedContent || undefined,
-                    });
+            es.addEventListener("state", (evt) => {
+                try {
+                    const data = JSON.parse((evt as MessageEvent).data);
+                    setOrchestrationState(hydrateOrchestrationState(topic.id, data));
+                } catch {
+                    // ignore parse errors
                 }
-            } else {
+            });
+
+            es.addEventListener("done", (evt) => {
+                try {
+                    const data = JSON.parse((evt as MessageEvent).data);
+                    const hydratedContent = hydrateContent(data.result);
+                    if (hydratedContent) setContent(hydratedContent);
+                    setOrchestrationState(prev => ({
+                        ...prev,
+                        status: 'completed',
+                        currentStep: null,
+                        result: hydratedContent || prev.result
+                    }));
+                } catch {
+                    setOrchestrationState(prev => ({ ...prev, status: 'error' }));
+                } finally {
+                    es.close();
+                    setEventSource(null);
+                    setIsGenerating(false);
+                }
+            });
+
+            es.addEventListener("error", (evt) => {
+                console.error("SSE error", evt);
                 setOrchestrationState(prev => ({ ...prev, status: 'error' }));
-            }
+                es.close();
+                setEventSource(null);
+                setIsGenerating(false);
+            });
+
+            setEventSource(es);
         } catch (error) {
             console.error("Error during topic generation", error);
             setOrchestrationState(prev => ({ ...prev, status: 'error' }));
         } finally {
-            setIsGenerating(false);
+            // isGenerating se desactiva en listeners para no cortar el stream
         }
-    }, [topic.id, topic.title, content, orchestrationState]);
+    }, [topic.id, topic.title, content, orchestrationState, eventSource]);
 
     // Status badge
     const getStatusBadge = () => {
