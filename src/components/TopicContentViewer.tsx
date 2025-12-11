@@ -164,6 +164,19 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
             setEventSource(null);
         }
 
+        const isForce = Boolean(content);
+
+        // Si es regeneración, limpiar estado local y trazas previas
+        if (isForce) {
+            try {
+                localStorage.removeItem(contentStorageKey(topic.id));
+                localStorage.removeItem(traceStorageKey(topic.id));
+            } catch {
+                // ignore storage cleanup
+            }
+            setContent(null);
+        }
+
         setIsGenerating(true);
         setShowOrchestrator(true);
 
@@ -184,7 +197,7 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
 
         try {
             // Preferimos streaming SSE para ver onStateChange en vivo
-            const url = `/api/generate-topic-stream?topicId=${encodeURIComponent(topic.id)}&force=${Boolean(content)}`;
+            const url = `/api/generate-topic-stream?topicId=${encodeURIComponent(topic.id)}&force=${isForce}`;
             const es = new EventSource(url);
 
             es.addEventListener("state", (evt) => {
