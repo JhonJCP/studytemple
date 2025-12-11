@@ -20,8 +20,8 @@ import type {
 import { getTopicById, generateBaseHierarchy, TopicWithGroup } from "./syllabus-hierarchy";
 
 const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-// Modelo Gemini 3 Pro - verificado en Google AI Studio
-const MODEL = process.env.GEMINI_MODEL || "gemini-3-pro";
+// Modelo Gemini 3 Pro - verificado en Google AI Studio (Dec 2025)
+const MODEL = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 // Supabase para RAG (lazy initialization)
