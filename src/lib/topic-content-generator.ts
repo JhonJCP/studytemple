@@ -19,17 +19,32 @@ import type {
 } from "./widget-types";
 import { getTopicById, generateBaseHierarchy, TopicWithGroup } from "./syllabus-hierarchy";
 
-const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-// Modelo Gemini 3 Pro (o fallback a 1.5 en caso de error)
-let MODEL = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
+// Lazy loading con verificación explícita de API Key
+function getAPIKey(): string {
+    const key = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    if (!key) {
+        throw new Error(
+            "GEMINI_API_KEY no configurada. Añádela en Vercel Dashboard → Settings → Environment Variables"
+        );
+    }
+    return key;
+}
+
+// Helper para obtener API Key de forma segura (sin lanzar error)
+function safeGetAPIKey(): string | null {
+    return process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || null;
+}
+
+// Modelo Gemini estable por defecto (gemini-1.5-pro)
+let MODEL = process.env.GEMINI_MODEL || "gemini-1.5-pro";
 
 // Initialized lazily
-let genAI: GoogleGenerativeAI | null = null;
-function getGenAI() {
-    if (!genAI) {
-        genAI = new GoogleGenerativeAI(API_KEY);
+let _genAI: GoogleGenerativeAI | null = null;
+function getGenAI(): GoogleGenerativeAI {
+    if (!_genAI) {
+        _genAI = new GoogleGenerativeAI(getAPIKey());
     }
-    return genAI;
+    return _genAI;
 }
 
 // Función para cambiar a modelo fallback si el principal falla (ej: 404 Not Found)
@@ -131,7 +146,7 @@ function getTextModel() {
         model: MODEL,
         generationConfig: {
             temperature: 0.7,
-            maxOutputTokens: 1024
+            maxOutputTokens: 2048 // Aumentado de 1024 a 2048 para mejor enriquecimiento
         }
     });
 }
@@ -1291,25 +1306,29 @@ Requisitos:
         this.cancelled = false;
         this.abortController = new AbortController();
 
+        const apiKey = safeGetAPIKey();
         logDebug('Iniciando generación', {
             topicId: this.state.topicId,
-            hasApiKey: !!API_KEY,
-            apiKeyLength: API_KEY.length,
+            hasApiKey: !!apiKey,
+            apiKeyLength: apiKey?.length || 0,
             model: MODEL,
             supabaseConfigured: !!SUPABASE_URL
         });
-        console.log(`[GENERATOR] Usando modelo: ${MODEL}, API Key presente: ${!!API_KEY} (${API_KEY.slice(0, 8)}...), Supabase: ${!!SUPABASE_URL}`);
+        console.log(`[GENERATOR] Usando modelo: ${MODEL}, API Key presente: ${!!apiKey} (${apiKey?.slice(0, 8) || 'N/A'}...), Supabase: ${!!SUPABASE_URL}`);
         this.telemetry.log('global', 'start', `Iniciando generación para ${this.state.topicId} (RAG: ${!!SUPABASE_URL})`);
 
-        if (!API_KEY) {
-            const errorMsg = "Falta GEMINI_API_KEY en las variables de entorno del servidor. Configúrala en Vercel Dashboard > Settings > Environment Variables.";
+        // Verificar API Key (getAPIKey() lanzará error si falta)
+        try {
+            getAPIKey();
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : "Falta GEMINI_API_KEY";
             this.telemetry.log('global', 'error', 'Falta API KEY');
             logDebug('ERROR: API KEY no configurada');
             this.updateState({
                 status: 'error',
                 currentStep: null
             });
-            throw new Error(errorMsg);
+            throw error;
         }
 
         const topic = getTopicById(this.state.topicId);

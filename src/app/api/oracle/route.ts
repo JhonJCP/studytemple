@@ -1,7 +1,18 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "");
+// Forzar runtime Node.js (más estable que Edge)
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+// Lazy loading + verificación explícita de API Key
+function getGenAI() {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY no configurada en el servidor");
+  }
+  return new GoogleGenerativeAI(apiKey);
+}
 
 export async function POST(request: Request) {
   try {
@@ -17,8 +28,10 @@ Responde con precisión y brevedad (máx. 6 frases). Si la pregunta es ambigua o
 Pregunta: ${question.trim()}
 `;
 
+    // Obtener instancia lazy
+    const genAI = getGenAI();
     const model = genAI.getGenerativeModel({
-      model: "gemini-3-pro-preview",
+      model: "gemini-1.5-pro", // Usar modelo estable
       generationConfig: {
         responseMimeType: "text/plain",
         maxOutputTokens: 400,
