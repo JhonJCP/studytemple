@@ -23,50 +23,123 @@ function getSupabaseClient() {
   return createClient(url, key);
 }
 
-// Buscar contexto relevante en la biblioteca
-async function searchRelevantContext(question: string, maxChunks: number = 5): Promise<string> {
+// Buscar contexto relevante en la biblioteca (estrategia multi-nivel como el Bibliotecario)
+async function searchRelevantContext(question: string, maxChunks: number = 8): Promise<string> {
   const supabase = getSupabaseClient();
   if (!supabase) {
     console.log("[ORACLE RAG] Supabase not configured");
     return "";
   }
 
+  const chunks: Array<{ content: string; filename: string; confidence: number }> = [];
+  const seenIds = new Set<string>();
+
   try {
-    // Extraer keywords de la pregunta
-    const keywords = question
-      .toLowerCase()
-      .split(/\s+/)
-      .filter(w => w.length > 3 && !['cual', 'como', 'donde', 'cuando', 'quien', 'dice', 'sobre', 'para', 'esta'].includes(w))
-      .slice(0, 5);
+    // ESTRATEGIA 1: Buscar referencias legales específicas (Ley X/YYYY, Art. N, Decreto Z)
+    const legalRefs = question.match(/(?:ley|decreto|orden|art(?:ículo|iculo)?|real decreto)\s*(\d+[-/]\d+|\d+)/gi) || [];
+    
+    if (legalRefs.length > 0) {
+      console.log("[ORACLE RAG] Searching by legal refs:", legalRefs);
+      
+      for (const ref of legalRefs.slice(0, 3)) {
+        const { data } = await supabase
+          .from('library_documents')
+          .select('id, content, metadata')
+          .or(`metadata->>filename.ilike.%${ref}%,content.ilike.%${ref}%`)
+          .limit(5);
 
-    console.log("[ORACLE RAG] Searching with keywords:", keywords);
-
-    if (keywords.length === 0) {
-      console.log("[ORACLE RAG] No keywords extracted");
-      return "";
+        if (data) {
+          for (const doc of data) {
+            if (!seenIds.has(doc.id)) {
+              seenIds.add(doc.id);
+              chunks.push({
+                content: doc.content,
+                filename: doc.metadata?.filename || 'Documento',
+                confidence: 0.95
+              });
+            }
+          }
+        }
+      }
     }
 
-    // Buscar en contenido
-    const { data, error } = await supabase
-      .from('library_documents')
-      .select('content, metadata')
-      .or(keywords.map(k => `content.ilike.%${k}%`).join(','))
-      .limit(maxChunks);
+    // ESTRATEGIA 2: Buscar por keywords de la pregunta (si no hay suficientes chunks)
+    if (chunks.length < 3) {
+      const keywords = question
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .split(/\s+/)
+        .filter(w => w.length > 3 && !['cual', 'como', 'donde', 'cuando', 'quien', 'dice', 'sobre', 'para', 'esta', 'articulo'].includes(w))
+        .slice(0, 4);
 
-    console.log("[ORACLE RAG] Search result:", { 
-      found: data?.length || 0, 
-      error: error?.message,
-      sources: data?.map(d => d.metadata?.filename).slice(0, 3)
+      console.log("[ORACLE RAG] Searching by keywords:", keywords);
+
+      for (const keyword of keywords) {
+        if (chunks.length >= maxChunks) break;
+
+        // Buscar en filename primero
+        const { data: byFilename } = await supabase
+          .from('library_documents')
+          .select('id, content, metadata')
+          .ilike('metadata->>filename', `%${keyword}%`)
+          .limit(3);
+
+        if (byFilename) {
+          for (const doc of byFilename) {
+            if (!seenIds.has(doc.id)) {
+              seenIds.add(doc.id);
+              chunks.push({
+                content: doc.content,
+                filename: doc.metadata?.filename || 'Documento',
+                confidence: 0.85
+              });
+            }
+          }
+        }
+
+        // Buscar en contenido
+        if (chunks.length < maxChunks) {
+          const { data: byContent } = await supabase
+            .from('library_documents')
+            .select('id, content, metadata')
+            .ilike('content', `%${keyword}%`)
+            .limit(3);
+
+          if (byContent) {
+            for (const doc of byContent) {
+              if (!seenIds.has(doc.id)) {
+                seenIds.add(doc.id);
+                chunks.push({
+                  content: doc.content,
+                  filename: doc.metadata?.filename || 'Documento',
+                  confidence: 0.70
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Ordenar por confidence
+    chunks.sort((a, b) => b.confidence - a.confidence);
+    const finalChunks = chunks.slice(0, maxChunks);
+
+    console.log("[ORACLE RAG] Final result:", { 
+      totalChunks: finalChunks.length,
+      sources: [...new Set(finalChunks.map(c => c.filename))],
+      avgConfidence: finalChunks.reduce((sum, c) => sum + c.confidence, 0) / (finalChunks.length || 1)
     });
 
-    if (error || !data || data.length === 0) return "";
+    if (finalChunks.length === 0) return "";
 
-    // Formatear evidencia
-    const evidence = data.map((doc, idx) => 
-      `[Fragmento ${idx + 1}] (${doc.metadata?.filename || 'Documento'})\n${doc.content.slice(0, 800)}`
+    // Formatear evidencia con mejor contexto
+    const evidence = finalChunks.map((chunk, idx) => 
+      `[Fragmento ${idx + 1}] ${chunk.filename} (confianza: ${(chunk.confidence * 100).toFixed(0)}%)\n${chunk.content.slice(0, 1000)}`
     ).join('\n\n---\n\n');
 
-    console.log("[ORACLE RAG] Evidence prepared:", evidence.length, "chars");
+    console.log("[ORACLE RAG] Evidence prepared:", evidence.length, "chars from", finalChunks.length, "chunks");
     return evidence;
   } catch (error) {
     console.error("[ORACLE RAG] Search error:", error);
