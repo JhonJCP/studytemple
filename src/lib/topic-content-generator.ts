@@ -20,14 +20,16 @@ import type {
 import { getTopicById, generateBaseHierarchy, TopicWithGroup } from "./syllabus-hierarchy";
 
 const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-const MODEL = "gemini-1.5-flash"; // Modelo estable y rápido
+// Modelo Gemini - usar el que tengas habilitado en tu API Key
+// Opciones comunes: "gemini-2.5-flash-preview-05-20", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"
+const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-preview-05-20";
 const genAI = new GoogleGenerativeAI(API_KEY);
 const TEMARIO_ROOT = path.resolve(process.cwd(), "..", "Temario");
 const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "90000", 10); // timeout genérico por cerebro (por defecto 90s)
-// Configuración básica - responseMimeType: "application/json" puede fallar en algunos modelos
 const BASE_GENERATION_CONFIG = { 
     temperature: 0.7,
-    maxOutputTokens: 8192 
+    maxOutputTokens: 8192,
+    responseMimeType: "application/json"
 } as const;
 const DEBUG_LOG = process.env.NODE_ENV !== "production";
 
@@ -761,8 +763,10 @@ RESPUESTA SOLO JSON:
             topicId: this.state.topicId, 
             isServerless: IS_SERVERLESS,
             hasApiKey: !!API_KEY,
+            apiKeyLength: API_KEY.length,
             model: MODEL
         });
+        console.log(`[GENERATOR] Usando modelo: ${MODEL}, API Key presente: ${!!API_KEY} (${API_KEY.slice(0,8)}...)`);
         this.telemetry.log('global', 'start', `Iniciando generación para ${this.state.topicId} (serverless: ${IS_SERVERLESS})`);
         
         if (!API_KEY) {
