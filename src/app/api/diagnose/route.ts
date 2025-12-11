@@ -21,6 +21,11 @@ interface DiagnosticResult {
     supabaseUrlPresent: boolean;
     supabaseKeyPresent: boolean;
   };
+  availableModels?: {
+    models: string[];
+    totalCount: number;
+    listError: string | null;
+  };
   connectivity: {
     geminiPingSuccess: boolean;
     geminiPingError: string | null;
@@ -29,6 +34,15 @@ interface DiagnosticResult {
     geminiResponseSample: string | null;
     supabasePingSuccess: boolean;
     supabasePingError: string | null;
+  };
+  testResults?: {
+    testedModels: Array<{
+      modelName: string;
+      success: boolean;
+      error: string | null;
+      responseSample: string | null;
+      durationMs: number;
+    }>;
   };
 }
 
@@ -116,7 +130,52 @@ export async function GET() {
     result.connectivity.geminiPingError = "No API Key disponible para test";
   }
 
-  // 3. Test Supabase Connectivity
+  // 3. Probar múltiples modelos comunes para encontrar uno que funcione
+  if (apiKey) {
+    const modelsToTest = ["gemini-3-pro-preview", "gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-pro"];
+    const testResults: any[] = [];
+    
+    for (const modelName of modelsToTest) {
+      const testStart = Date.now();
+      try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          generationConfig: {
+            maxOutputTokens: 100,
+            temperature: 0.7,
+          },
+        });
+
+        const response = await model.generateContent("Responde solo con la palabra OK");
+        const text = response.response.text();
+        
+        testResults.push({
+          modelName,
+          success: text.trim().length > 0,
+          error: text.trim().length === 0 ? "Respuesta vacía" : null,
+          responseSample: text.slice(0, 100),
+          durationMs: Date.now() - testStart
+        });
+        
+        console.log(`[DIAGNOSE] Test ${modelName}:`, { success: text.length > 0, sample: text.slice(0, 50) });
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        testResults.push({
+          modelName,
+          success: false,
+          error: errorMsg.slice(0, 200),
+          responseSample: null,
+          durationMs: Date.now() - testStart
+        });
+        console.log(`[DIAGNOSE] Test ${modelName} FAILED:`, errorMsg.slice(0, 150));
+      }
+    }
+    
+    result.testResults = { testedModels: testResults };
+  }
+
+  // 4. Test Supabase Connectivity
   try {
     const supabase = await createClient();
     const { data, error } = await supabase
