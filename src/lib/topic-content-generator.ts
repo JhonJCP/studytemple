@@ -7,7 +7,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import fs from "fs/promises";
 import path from "path";
-import pdfParse from "pdf-parse";
+import { PDFParse } from "pdf-parse";
 import type {
     TopicSection,
     GeneratedTopicContent,
@@ -83,8 +83,9 @@ function chunkText(text: string, size = 1100, overlap = 120): string[] {
 async function loadPdfEvidence(filePath: string): Promise<Array<{ source_id: string; filename: string; fragment: string; law_refs: string[]; confidence: number }>> {
     try {
         const buffer = await fs.readFile(filePath);
-        const parsed = await pdfParse(buffer);
-        const text = parsed.text || "";
+        const parser = new PDFParse({ data: buffer });
+        const textResult = await parser.getText({ pageJoiner: "\n" });
+        const text = textResult.text || "";
         const pieces = chunkText(text).slice(0, 12);
         return pieces.map((fragment, i) => ({
             source_id: `pdf-${i + 1}`,
