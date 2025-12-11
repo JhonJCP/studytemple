@@ -36,9 +36,9 @@ function getSupabaseClient() {
 }
 
 const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "90000", 10);
-const MIN_WORDS_PER_SECTION = 100; // Mínimo de palabras por sección para salud
-const MIN_TOTAL_WORDS = 700; // Objetivo mínimo global para evitar respuestas pobres
-const BASE_GENERATION_CONFIG = { 
+const MIN_WORDS_PER_SECTION = 120; // Mínimo de palabras por sección para salud
+const MIN_TOTAL_WORDS = 800; // Objetivo mínimo global para evitar respuestas pobres (Aumentado de 700)
+const BASE_GENERATION_CONFIG = {
     temperature: 0.7,
     maxOutputTokens: 8192,
     responseMimeType: "application/json"
@@ -177,40 +177,40 @@ function generateFilenameVariants(filename: string): string[] {
         .replace(/\.pdf$/i, '')
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, ""); // quitar acentos
-    
+
     const variants: string[] = [];
-    
+
     // Variante original sin extensión
     variants.push(base);
-    
+
     // Variante con guiones bajos en vez de espacios/comas
     variants.push(base.replace(/[,\s]+/g, '_').replace(/_+/g, '_'));
-    
+
     // Variante solo con guiones bajos (como está en Supabase)
     variants.push(base.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_'));
-    
+
     // Extraer referencias de ley (ej: "Ley 9-1991" -> "Ley_9-1991")
     const lawMatch = base.match(/ley\s*(\d+[-/]?\d*)/i);
     if (lawMatch) {
         variants.push(`Ley_${lawMatch[1].replace('/', '-')}`);
         variants.push(`ley ${lawMatch[1]}`);
     }
-    
+
     // Extraer decreto (ej: "Decreto 131-1995" -> "Decreto_131-1995")
     const decretoMatch = base.match(/decreto\s*(\d+[-/]?\d*)/i);
     if (decretoMatch) {
         variants.push(`Decreto_${decretoMatch[1].replace('/', '-')}`);
     }
-    
+
     // Palabras clave importantes (más de 5 caracteres, no comunes)
     const stopWords = ['de', 'del', 'la', 'el', 'los', 'las', 'por', 'que', 'para', 'con', 'en', 'una', 'uno', 'mayo', 'abril', 'marzo', 'junio', 'julio'];
     const keywords = base
         .toLowerCase()
         .split(/[\s,\-_]+/)
         .filter(w => w.length > 4 && !stopWords.includes(w));
-    
+
     variants.push(...keywords);
-    
+
     return [...new Set(variants)].filter(v => v.length > 2);
 }
 
@@ -232,8 +232,8 @@ async function fetchDocumentChunksFromSupabase(
     }
 
     const variants = generateFilenameVariants(originalFilename);
-    logDebug('RAG: Buscando chunks', { 
-        originalFilename, 
+    logDebug('RAG: Buscando chunks', {
+        originalFilename,
         topicTitle,
         searchVariants: variants.slice(0, 5) // Log primeras 5 variantes
     });
@@ -328,7 +328,7 @@ async function fetchDocumentChunksFromSupabase(
             // Extraer números de ley/decreto del filename o título
             const legalRefs = [originalFilename, topicTitle].join(' ')
                 .match(/(?:ley|decreto|orden|real decreto)\s*(\d+[-/]\d+|\d+)/gi) || [];
-            
+
             logDebug('RAG: Buscando referencias legales', legalRefs);
 
             for (const ref of legalRefs.slice(0, 3)) {
@@ -550,7 +550,7 @@ export class TopicContentGenerator {
         logDebug('Librarian iniciando con RAG desde Supabase', { topic: topic.title, filename: topic.originalFilename });
         this.updateState({ currentStep: 'librarian' });
         const structure = generateBaseHierarchy(topic);
-        
+
         this.updateStep('librarian', {
             status: 'running',
             startedAt: new Date(),
@@ -684,19 +684,19 @@ RESPONDE EXCLUSIVAMENTE CON JSON VÁLIDO (sin markdown, sin \`\`\`):
                 logDebug('Librarian LLM: Enviando prompt', { promptLength: prompt.length });
                 const { json, raw, error: parseError } = await generateJSONWithRetry(prompt, 'Bibliotecario', 1);
                 logDebug('Librarian LLM: Respuesta recibida', { responseLength: raw.length });
-                
+
                 if (!parseError && json && Array.isArray(json.evidence)) {
                     // Añadir evidencia del LLM a la existente
-                    const llmEvidence = json.evidence.filter((e: any) => 
+                    const llmEvidence = json.evidence.filter((e: any) =>
                         e.fragment && e.fragment.length > 100 // Solo fragmentos con contenido real
                     );
-                    
+
                     // Combinar: primero RAG (más confiable), luego LLM
                     evidence = [...evidence, ...llmEvidence].slice(0, 15);
-                    
+
                     const rationale = extractRationale(raw, json);
-                    this.updateStep('librarian', { 
-                        reasoning: rationale || `LLM generó ${llmEvidence.length} fragmentos adicionales. Total: ${evidence.length}` 
+                    this.updateStep('librarian', {
+                        reasoning: rationale || `LLM generó ${llmEvidence.length} fragmentos adicionales. Total: ${evidence.length}`
                     });
                     this.telemetry.log('librarian', 'complete', `LLM añadió ${llmEvidence.length} fragmentos en ${Date.now() - llmStart}ms`);
                 } else {
@@ -717,9 +717,9 @@ RESPONDE EXCLUSIVAMENTE CON JSON VÁLIDO (sin markdown, sin \`\`\`):
             status: 'completed',
             completedAt: new Date(),
             reasoning: finalReasoning,
-            output: { 
-                documentCount: documents.length, 
-                sectionCount: structure.length, 
+            output: {
+                documentCount: documents.length,
+                sectionCount: structure.length,
                 evidenceCount: evidence.length,
                 sources: [...new Set(evidence.map((e: any) => e.filename))]
             }
@@ -740,7 +740,7 @@ RESPONDE EXCLUSIVAMENTE CON JSON VÁLIDO (sin markdown, sin \`\`\`):
     }> {
         this.checkCancelled();
         this.telemetry.log('auditor', 'start', topic.title);
-        
+
         const prompt = `
 Analiza el tema y detecta vacíos:
 - Tema: "${topic.title}"
@@ -780,7 +780,7 @@ Responde SOLO JSON:
         const llmStart = Date.now();
         try {
             const { json, raw, error } = await generateJSONWithRetry(prompt, 'Auditor', 1);
-            
+
             if (error) {
                 this.telemetry.log('auditor', 'error', `Parse JSON error: ${error}`);
                 logDebug('Auditor parse error', { error, raw: raw?.slice(0, 400) });
@@ -811,7 +811,7 @@ Responde SOLO JSON:
             reasoning: finalReasoning,
             output: parsed
         });
-        
+
         this.telemetry.log('auditor', 'complete', finalReasoning);
         return parsed;
     }
@@ -822,7 +822,7 @@ Responde SOLO JSON:
     private async runTimeKeeper(topic: TopicWithGroup): Promise<TimeKeeperDecision> {
         this.checkCancelled();
         this.telemetry.log('timekeeper', 'start', topic.title);
-        
+
         this.updateState({ currentStep: 'timekeeper' });
         this.updateStep('timekeeper', {
             status: 'running',
@@ -869,11 +869,14 @@ Responde SOLO JSON:
         topic: TopicWithGroup,
         structure: TopicSection[],
         auditorData: { gaps: string[]; optimizations: string[]; widgets?: any[] },
-        timeDecision: TimeKeeperDecision
+        timeDecision: TimeKeeperDecision,
+        evidence: any[] = []
     ): Promise<GeneratedTopicContent> {
         this.checkCancelled();
-        this.telemetry.log('strategist', 'start', `${topic.title} (strategy: ${timeDecision.strategy})`);
-        
+        const evidenceSummary = evidence.map(e => `- [${e.filename}]: ${e.fragment.slice(0, 300)}...`).join('\n');
+
+        this.telemetry.log('strategist', 'start', `${topic.title} (strategy: ${timeDecision.strategy}, evidence: ${evidence.length} chunks)`);
+
         const prompt = `
 Eres el Estratega. Genera contenido y widgets listos para disparar manualmente.
 
@@ -882,6 +885,9 @@ Gaps: ${auditorData.gaps.join(', ') || 'Ninguno'}
 Optimizations: ${auditorData.optimizations.join(', ') || 'Ninguna'}
 Widgets sugeridos (Auditor): ${JSON.stringify(auditorData.widgets || [])}
 Plan: estrategia ${timeDecision.strategy}, tokens ${timeDecision.recommendedTokens}, widget_budget ${timeDecision.widgetBudget}
+
+EVIDENCIA DISPONIBLE (Úsala obligatoriamente para dar profundidad técnica):
+${evidenceSummary}
 
 Estructura base:
 ${JSON.stringify(structure, null, 2)}
@@ -930,10 +936,10 @@ RESPUESTA SOLO JSON:
 
         let parsed: any = { sections: structure, widgets: [] };
         const llmStart = Date.now();
-        
+
         try {
             const { json, raw, error } = await generateJSONWithRetry(prompt, 'Estratega', 1);
-            
+
             if (error) {
                 this.telemetry.log('strategist', 'error', `Parse JSON error: ${error}`);
                 parsed = { sections: structure, widgets: [] };
@@ -965,11 +971,11 @@ RESPUESTA SOLO JSON:
             const text = (s.content?.text || '').trim();
             return countWords(text) >= MIN_WORDS_PER_SECTION;
         });
-        
-        const contentCoverage = rawSections.length > 0 
-            ? (sectionsWithContent.length / rawSections.length) * 100 
+
+        const contentCoverage = rawSections.length > 0
+            ? (sectionsWithContent.length / rawSections.length) * 100
             : 0;
-        
+
         logDebug('Strategist: Validación de contenido', {
             totalSections: rawSections.length,
             sectionsWithContent: sectionsWithContent.length,
@@ -987,7 +993,7 @@ RESPUESTA SOLO JSON:
             for (let i = 0; i < rawSections.length; i++) {
                 const section = rawSections[i];
                 const sectionText = (section.content?.text || '').trim();
-                
+
                 if (countWords(sectionText) < MIN_WORDS_PER_SECTION) {
                     try {
                         const enrichPrompt = `
@@ -996,6 +1002,9 @@ Genera contenido educativo DETALLADO para esta sección de oposiciones ITOP.
 Tema general: "${topic.title}"
 Sección: "${section.title}"
 Nivel: ${section.level}
+
+CONTEXTO / EVIDENCIA (Usa esta información):
+${evidenceSummary.slice(0, 3000)}
 
 Requisitos:
 - Mínimo 150 palabras de texto explicativo
@@ -1008,12 +1017,12 @@ RESPONDE SOLO CON EL TEXTO EN MARKDOWN (sin JSON, sin \`\`\`):`;
 
                         const model = getTextModel();
                         const enrichResult = await withTimeout(
-                            model.generateContent(enrichPrompt), 
+                            model.generateContent(enrichPrompt),
                             30000, // 30s por sección
                             `Enriquecer sección: ${section.title}`
                         );
                         const enrichedText = enrichResult.response.text().trim();
-                        
+
                         if (enrichedText && countWords(enrichedText) >= 50) {
                             rawSections[i].content = {
                                 text: enrichedText,
@@ -1032,10 +1041,10 @@ RESPONDE SOLO CON EL TEXTO EN MARKDOWN (sin JSON, sin \`\`\`):`;
         const safeSections = rawSections.map((s: any, idx: number) => {
             const sectionText = (s.content?.text || '').trim();
             const hasRealContent = countWords(sectionText) >= MIN_WORDS_PER_SECTION;
-            
+
             // Si no hay contenido real, crear placeholder informativo
-            const enrichedText = hasRealContent 
-                ? sectionText 
+            const enrichedText = hasRealContent
+                ? sectionText
                 : `## ${s.title}
 
 Esta sección cubre aspectos fundamentales del tema **${topic.title}** relacionados con ${s.title.toLowerCase()}.
@@ -1070,6 +1079,10 @@ El sistema no pudo generar contenido completo para esta sección. Puedes:
 Amplía esta sección para un temario de oposiciones ITOP con más detalle y referencias legales.
 Sección: "${section.title}"
 Tema: "${topic.title}"
+
+CONTEXTO RELEVANTE:
+${evidenceSummary.slice(0, 2000)}
+
 Requisitos:
 - Añade 120-180 palabras adicionales.
 - Incluye ejemplos y menciona artículos de ley concretos si aplican.
@@ -1147,17 +1160,17 @@ Requisitos:
         this.telemetry.reset();
         this.cancelled = false;
         this.abortController = new AbortController();
-        
-        logDebug('Iniciando generación', { 
-            topicId: this.state.topicId, 
+
+        logDebug('Iniciando generación', {
+            topicId: this.state.topicId,
             hasApiKey: !!API_KEY,
             apiKeyLength: API_KEY.length,
             model: MODEL,
             supabaseConfigured: !!SUPABASE_URL
         });
-        console.log(`[GENERATOR] Usando modelo: ${MODEL}, API Key presente: ${!!API_KEY} (${API_KEY.slice(0,8)}...), Supabase: ${!!SUPABASE_URL}`);
+        console.log(`[GENERATOR] Usando modelo: ${MODEL}, API Key presente: ${!!API_KEY} (${API_KEY.slice(0, 8)}...), Supabase: ${!!SUPABASE_URL}`);
         this.telemetry.log('global', 'start', `Iniciando generación para ${this.state.topicId} (RAG: ${!!SUPABASE_URL})`);
-        
+
         if (!API_KEY) {
             const errorMsg = "Falta GEMINI_API_KEY en las variables de entorno del servidor. Configúrala en Vercel Dashboard > Settings > Environment Variables.";
             this.telemetry.log('global', 'error', 'Falta API KEY');
@@ -1174,7 +1187,7 @@ Requisitos:
             this.telemetry.log('global', 'error', `Topic no encontrado: ${this.state.topicId}`);
             throw new Error(`Topic not found: ${this.state.topicId}`);
         }
-        
+
         logDebug('Topic encontrado', { title: topic.title, group: topic.groupTitle });
 
         this.updateState({ status: 'fetching' });
@@ -1193,7 +1206,7 @@ Requisitos:
 
             // 4. Strategist
             this.updateState({ status: 'generating' });
-            const result = await this.runStrategist(topic, librarian.structure, auditor, plan);
+            const result = await this.runStrategist(topic, librarian.structure, auditor, plan, librarian.evidence);
 
             // 5. Final
             this.telemetry.log('global', 'complete', `Generación completada en ${this.telemetry.getEvents().length} eventos`);
@@ -1207,13 +1220,13 @@ Requisitos:
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
             const isCancellation = errorMsg.includes('cancelada') || errorMsg.includes('Cancelled');
-            
+
             this.telemetry.log('global', isCancellation ? 'error' : 'error', errorMsg);
             this.updateState({
                 status: 'error',
                 currentStep: null
             });
-            
+
             // Actualizar el paso actual con el error
             if (this.state.currentStep) {
                 this.updateStep(this.state.currentStep, {
@@ -1223,7 +1236,7 @@ Requisitos:
                     completedAt: new Date()
                 });
             }
-            
+
             throw error;
         } finally {
             this.abortController = null;
