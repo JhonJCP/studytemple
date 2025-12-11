@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, MessageSquare, Clipboard, MessageCircle } from "lucide-react";
+import { ArrowLeft, MessageSquare, Clipboard, MessageCircle, Activity } from "lucide-react";
 
 type SavedPlan = { ts: string; analysis?: string; raw?: string };
 type ChatMessage = { role: "user" | "assistant"; text: string; ts: string };
@@ -10,6 +10,7 @@ type ChatMessage = { role: "user" | "assistant"; text: string; ts: string };
 export default function SettingsPage() {
     const [history, setHistory] = useState<SavedPlan[]>([]);
     const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+    const [traceHistory, setTraceHistory] = useState<any[]>([]); // New state for traces
 
     useEffect(() => {
         try {
@@ -23,6 +24,21 @@ export default function SettingsPage() {
             setChatHistory(chats);
         } catch {
             setChatHistory([]);
+        }
+
+        // LOAD EXPERIMENTAL: TRACES
+        try {
+            const traces: any[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith("topic_trace_")) {
+                    const val = localStorage.getItem(key);
+                    if (val) traces.push({ key, data: JSON.parse(val) });
+                }
+            }
+            setTraceHistory(traces);
+        } catch {
+            // ignore
         }
     }, []);
 
@@ -90,6 +106,39 @@ export default function SettingsPage() {
                             <div className="text-sm text-white/80 whitespace-pre-wrap">{m.text}</div>
                         </div>
                     ))}
+                </div>
+                {/* TRACE HISTORY */}
+                <div className="glass-card p-6 border border-white/10 mt-6">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Activity className="w-5 h-5 text-green-300" />
+                        <h2 className="text-xl font-bold text-white">Logs de Generación (Debug)</h2>
+                    </div>
+                    {traceHistory.length === 0 && (
+                        <p className="text-white/50 text-sm">No hay logs de generación guardados.</p>
+                    )}
+                    <div className="space-y-3">
+                        {traceHistory.map((t, idx) => (
+                            <div key={idx} className="p-3 rounded-lg bg-white/5 border border-white/10">
+                                <div className="flex justify-between text-xs text-white/50 mb-2">
+                                    <span className="font-bold text-white/70">{t.data.topicId || 'Desconocido'}</span>
+                                    <div className="flex gap-2">
+                                        <span>{t.data.steps?.length || 0} pasos</span>
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(JSON.stringify(t.data, null, 2));
+                                            }}
+                                            className="text-blue-300 hover:text-blue-100"
+                                        >
+                                            Copiar Log
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="text-[10px] text-white/40 font-mono overflow-hidden whitespace-nowrap text-ellipsis">
+                                    Último estado: {t.data.status} · {t.data.currentStep || 'Finalizado'}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         </div>
