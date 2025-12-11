@@ -37,7 +37,7 @@ function getSupabaseClient() {
 
 const STEP_TIMEOUT_MS = parseInt(process.env.AGENT_STEP_TIMEOUT_MS || "90000", 10);
 const MIN_WORDS_PER_SECTION = 100; // Mínimo de palabras por sección para salud
-const MIN_TOTAL_WORDS = 600; // Objetivo mínimo global para evitar respuestas pobres
+const MIN_TOTAL_WORDS = 700; // Objetivo mínimo global para evitar respuestas pobres
 const BASE_GENERATION_CONFIG = { 
     temperature: 0.7,
     maxOutputTokens: 8192,
@@ -106,6 +106,17 @@ function getThinkingModel() {
     return genAI.getGenerativeModel({
         model: MODEL,
         generationConfig: BASE_GENERATION_CONFIG
+    });
+}
+
+// Modelo sin responseMimeType forzado, útil para prompts de texto libre/enriquecimiento
+function getTextModel() {
+    return genAI.getGenerativeModel({
+        model: MODEL,
+        generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 1024
+        }
     });
 }
 
@@ -995,7 +1006,7 @@ Requisitos:
 
 RESPONDE SOLO CON EL TEXTO EN MARKDOWN (sin JSON, sin \`\`\`):`;
 
-                        const model = getThinkingModel();
+                        const model = getTextModel();
                         const enrichResult = await withTimeout(
                             model.generateContent(enrichPrompt), 
                             30000, // 30s por sección
@@ -1065,7 +1076,7 @@ Requisitos:
 - Usa Markdown (listas, negritas) sin código y sin JSON.
 `;
                 try {
-                    const model = getThinkingModel();
+                    const model = getTextModel();
                     const boostRes = await withTimeout(model.generateContent(boostPrompt), 30000, `Refuerzo sección ${section.title}`);
                     const boostText = boostRes.response.text().trim();
                     if (boostText) {
@@ -1090,7 +1101,7 @@ Requisitos:
 
         const warnings: string[] = [];
         if (!health.wordGoalMet) {
-            warnings.push(`Cobertura insuficiente: ${totalWords} palabras, ${sectionsBelowThreshold} sección(es) bajo ${MIN_WORDS_PER_SECTION} palabras.`);
+            warnings.push(`Cobertura insuficiente: ${totalWords} palabras (mín ${MIN_TOTAL_WORDS}), ${sectionsBelowThreshold} sección(es) bajo ${MIN_WORDS_PER_SECTION} palabras.`);
         }
 
         const generatedContent: GeneratedTopicContent = {
