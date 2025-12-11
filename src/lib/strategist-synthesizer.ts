@@ -140,21 +140,36 @@ EJEMPLO DE SÍNTESIS ULTRA-CONCISA:
 - **Art. 7 - Zonas**: 50m (estatal), 25m (autonómica), 15m (insular)
 - **Art. 5 - Competencias**: Cabildos (red insular), Aytos (red municipal)"
 
-RESPONDE JSON:
+⚠️ CRÍTICO: 
+- El campo "text" de cada sección DEBE contener el CONTENIDO REAL sintetizado
+- NO usar placeholders como "[Texto aquí]" o "[Explicación]"
+- Cada sección debe tener 150-200 palabras de contenido REAL
+- INCLUIR el campo "sourceType" (library/mixed/augmented) en CADA sección
+
+RESPONDE JSON EXACTO (sin comentarios, sin campos extra):
 {
   "sections": [
     {
       "id": "marco-normativo",
       "title": "Marco Normativo Aplicable a Supuestos",
       "level": "h2",
+      "sourceType": "library",
       "content": {
-        "text": "[Solo normativa citada en supuestos reales, ultra-concisa]",
+        "text": "**Ley 9/1991 Carreteras** (aparece en 8/15 supuestos)\\n- **Art. 3 - Clasificación**: Estatal, Autonómica, Insular, Comarcal, Municipal\\n- **Art. 7 - Zonas**: 50m (estatal), 25m (autonómica), 15m (insular)\\n- **Art. 5 - Competencias**: Cabildos (red insular), Aytos (red municipal)",
         "widgets": []
-      },
-      "practicalUse": "Se cita en Supuestos X, Y, Z",
-      "sourceExpert": "teorico"
+      }
+    },
+    {
+      "id": "formulas-calculos",
+      "title": "Fórmulas y Cálculos",
+      "level": "h2",
+      "sourceType": "mixed",
+      "content": {
+        "text": "**Cálculo de zona de protección**: zona = 50m (estatal), 25m (autonómica), 15m (insular) según Art. 7.\\n\\n**Ejemplo**: GC-500 (carretera insular) → 15m de afección a cada lado del eje.",
+        "widgets": []
+      }
     }
-    // ... ${params.strategicPlan.targetSections - 1} secciones más
+    // ... ${params.strategicPlan.targetSections - 2} secciones más con TEXTO REAL
   ],
   "widgets": [
     {
