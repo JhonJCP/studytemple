@@ -4,7 +4,7 @@ import type { OrchestrationState, GeneratedTopicContent } from "@/lib/widget-typ
 import { createClient } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
-const OVERALL_TIMEOUT_MS = parseInt(process.env.GENERATION_TIMEOUT_MS || "120000", 10);
+const OVERALL_TIMEOUT_MS = parseInt(process.env.GENERATION_TIMEOUT_MS || "240000", 10); // Aumentado a 4 minutos para evitar timeouts con LLM fallback
 // Siempre loguear para trazabilidad en Vercel
 const ENABLE_LOGGING = true;
 

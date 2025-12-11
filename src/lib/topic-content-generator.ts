@@ -675,12 +675,16 @@ export class TopicContentGenerator {
 
         // 1) Buscar chunks en Supabase (RAG)
         const ragStart = Date.now();
+        logDebug('Librarian: Iniciando búsqueda RAG en Supabase...', { filename: topic.originalFilename, title: topic.title });
+        
         try {
             const chunks = await withTimeout(
                 fetchDocumentChunksFromSupabase(topic.originalFilename, topic.title, 15),
                 Math.min(STEP_TIMEOUT_MS, 30000),
                 "RAG Supabase"
             );
+            
+            logDebug('Librarian: RAG completado', { chunksFound: chunks.length, durationMs: Date.now() - ragStart });
 
             if (chunks.length > 0) {
                 evidence = chunks.map(chunk => ({
@@ -717,6 +721,7 @@ export class TopicContentGenerator {
         // 2) Si no hay evidencia de Supabase o hay muy poca, pedir al LLM que genere contexto base
         const MIN_EVIDENCE_FRAGMENTS = 5;
         if (evidence.length < MIN_EVIDENCE_FRAGMENTS) {
+            logDebug('Librarian: Evidencia insuficiente, iniciando LLM fallback...', { evidenceCount: evidence.length, minRequired: MIN_EVIDENCE_FRAGMENTS });
             this.telemetry.log('librarian', 'fallback', `Evidencia insuficiente (${evidence.length}/${MIN_EVIDENCE_FRAGMENTS}), usando LLM para completar`);
             this.updateStep('librarian', {
                 reasoning: `Evidencia RAG insuficiente (${evidence.length} fragmentos). Generando contexto adicional con LLM...`
@@ -793,9 +798,9 @@ RESPONDE EXCLUSIVAMENTE CON JSON VÁLIDO (sin markdown, sin \`\`\`):
 
             const llmStart = Date.now();
             try {
-                logDebug('Librarian LLM: Enviando prompt', { promptLength: prompt.length });
+                logDebug('Librarian LLM: Enviando prompt fallback', { promptLength: prompt.length, timeout: STEP_TIMEOUT_MS });
                 const { json, raw, error: parseError } = await generateJSONWithRetry(prompt, 'Bibliotecario', 1);
-                logDebug('Librarian LLM: Respuesta recibida', { responseLength: raw.length });
+                logDebug('Librarian LLM: Respuesta recibida', { responseLength: raw.length, durationMs: Date.now() - llmStart });
 
                 if (!parseError && json && Array.isArray(json.evidence)) {
                     // Añadir evidencia del LLM a la existente
@@ -836,6 +841,8 @@ RESPONDE EXCLUSIVAMENTE CON JSON VÁLIDO (sin markdown, sin \`\`\`):
             throw new Error(msg);
         }
 
+        logDebug('Librarian: Finalizando', { evidenceCount: evidence.length, documentCount: documents.length });
+        
         this.updateStep('librarian', {
             status: 'completed',
             completedAt: new Date(),
@@ -849,6 +856,7 @@ RESPONDE EXCLUSIVAMENTE CON JSON VÁLIDO (sin markdown, sin \`\`\`):
         });
 
         this.telemetry.log('librarian', 'complete', finalReasoning);
+        logDebug('Librarian: COMPLETADO exitosamente', { totalDurationMs: Date.now() - ragStart });
         return { structure, documents, evidence };
     }
 
