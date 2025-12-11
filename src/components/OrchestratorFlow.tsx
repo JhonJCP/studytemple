@@ -125,7 +125,8 @@ export function OrchestratorFlow({ state, onClose }: OrchestratorFlowProps) {
                         <p className="text-[10px] text-white/40">
                             {state.status === 'completed' ? 'Generación completada' :
                                 state.status === 'error' ? 'Error en la generación' :
-                                    state.currentStep ? `Ejecutando: ${AGENT_CONFIG[state.currentStep].label}` :
+                                    state.currentStep && AGENT_CONFIG[state.currentStep] ? `Ejecutando: ${AGENT_CONFIG[state.currentStep].label}` :
+                                        state.currentStep ? `Ejecutando: ${state.currentStep}` :
                                         'Listo para generar'}
                         </p>
                     </div>
@@ -148,6 +149,7 @@ export function OrchestratorFlow({ state, onClose }: OrchestratorFlowProps) {
 
                     {AGENT_ORDER.map((role, index) => {
                         const config = AGENT_CONFIG[role];
+                        if (!config) return null; // Skip unknown agents
                         const step = getStepForAgent(role);
                         const isActive = state.currentStep === role;
                         const isCompleted = step?.status === 'completed';
