@@ -82,15 +82,15 @@ export async function GET() {
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
       
-      // Usar el modelo configurado (gemini-3-pro por defecto, sin -preview)
-      const modelName = process.env.GEMINI_MODEL || "gemini-3-pro";
+      // Usar el modelo configurado (gemini-3-pro-preview por defecto)
+      const modelName = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
       result.connectivity.geminiModelUsed = modelName;
       
       const model = genAI.getGenerativeModel({
         model: modelName,
         generationConfig: {
-          maxOutputTokens: 50,
-          temperature: 0.5,
+          maxOutputTokens: 100,  // Aumentado de 50 a 100 por si respuesta vacía era por tokens bajos
+          temperature: 0.7,  // Aumentado de 0.5 a 0.7 para más creatividad
         },
       });
 
