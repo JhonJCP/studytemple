@@ -174,6 +174,45 @@ export class GlobalPlannerWithRealPlanning {
         const topicEstimate = this.findTopicEstimate(params.currentTopic);
         
         if (!topicEstimate) {
+            // Fallback: buscar en daily_schedule (muchos topicIds viven aquí)
+            const normalize = (s: string) =>
+                (s || '')
+                    .toLowerCase()
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .replace(/[^a-z0-9]+/g, "-")
+                    .replace(/^-+|-+$/g, "");
+
+            const search = normalize(params.currentTopic);
+            const scheduleMatch = (this.dailySchedule || []).find((s) => {
+                const id = normalize(s.topicId);
+                return id === search || id.includes(search) || search.includes(id);
+            });
+
+            if (scheduleMatch) {
+                const isLegalTopic = /ley|decreto|reglamento/i.test(scheduleMatch.topicTitle);
+                const timeAllocation = scheduleMatch.durationMinutes || 60;
+                const strategy: ConcisionStrategy =
+                    scheduleMatch.complexity === 'High'
+                        ? 'detailed'
+                        : scheduleMatch.complexity === 'Low'
+                            ? 'condensed'
+                            : 'balanced';
+
+                return {
+                    timeAllocation,
+                    strategy,
+                    targetWords: isLegalTopic ? 900 : 700,
+                    targetSections: isLegalTopic ? 5 : 4,
+                    practiceRelevance: 0,
+                    practiceExamples: [],
+                    commonCalculations: [],
+                    criticalLaws: [],
+                    complexity: scheduleMatch.complexity || 'Medium',
+                    reasoning: `Tema encontrado en daily_schedule (${scheduleMatch.topicTitle}). Usando duración ${timeAllocation} min como planificación.`
+                };
+            }
+
             console.warn(`[PLANNER] Topic ${params.currentTopic} not found in planning, using defaults`);
             return this.createDefaultPlan(params.currentTopic);
         }
@@ -529,22 +568,33 @@ export class GlobalPlannerWithRealPlanning {
      * Buscar topic estimate (fuzzy matching)
      */
     private findTopicEstimate(topicId: string): TopicTimeEstimate | null {
-        // Buscar por ID exacto
-        let found = this.topicTimeEstimates.find(t => t.topicId === topicId);
+        const normalize = (s: string) =>
+            (s || '')
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-+|-+$/g, "");
+
+        const search = normalize(topicId);
+        if (!search) return null;
+
+        // Buscar por ID exacto (normalizado)
+        let found = this.topicTimeEstimates.find(t => normalize(t.topicId) === search);
         if (found) return found;
         
         // Buscar por ID parcial
-        found = this.topicTimeEstimates.find(t => 
-            t.topicId.includes(topicId) || topicId.includes(t.topicId)
-        );
+        found = this.topicTimeEstimates.find(t => {
+            const id = normalize(t.topicId);
+            return id.includes(search) || search.includes(id);
+        });
         if (found) return found;
         
         // Buscar por título
-        const lowerSearch = topicId.toLowerCase();
-        found = this.topicTimeEstimates.find(t => 
-            t.topicTitle.toLowerCase().includes(lowerSearch) ||
-            lowerSearch.includes(t.topicTitle.toLowerCase())
-        );
+        found = this.topicTimeEstimates.find(t => {
+            const title = normalize(t.topicTitle);
+            return title.includes(search) || search.includes(title);
+        });
         
         return found || null;
     }

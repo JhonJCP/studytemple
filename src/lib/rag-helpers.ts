@@ -131,10 +131,12 @@ export async function queryByCategory(
     const filenameVariants = filenameHint ? generateFilenameVariants(filenameHint).slice(0, 4) : [];
     
     try {
+        // Nota: filtrar por metadata->>category en SQL puede fallar dependiendo de PostgREST;
+        // hacemos búsqueda amplia y filtramos por metadata.category en código.
         const baseQuery = supabase
             .from('library_documents')
             .select('id, content, metadata')
-            .eq('metadata->>category', category);
+            ;
 
         const byFilenameConditions: string[] = [];
         for (const v of filenameVariants) {
@@ -152,12 +154,14 @@ export async function queryByCategory(
         const out: any[] = [];
 
         const run = async (q: any, label: string) => {
-            const { data, error } = await q.order('id', { ascending: true }).limit(limit);
+            const { data, error } = await q.order('id', { ascending: true }).limit(limit * 4);
             if (error) {
                 console.error(`[RAG] Error querying ${category} (${label}):`, error.message);
                 return;
             }
             for (const row of data || []) {
+                const rowCat = row?.metadata?.category || row?.metadata?.Category;
+                if (String(rowCat).toUpperCase() !== category) continue;
                 if (!seen.has(row.id)) {
                     seen.add(row.id);
                     out.push(row);
