@@ -428,6 +428,19 @@ export class GlobalPlannerWithRealPlanning {
                 // No hay contexto de cookies / import no disponible: continuar a fallback
                 console.warn('[PLANNER] Server supabase client unavailable, falling back');
             }
+
+            // 1.5) Fallback global: variable de entorno PLANNING_DATA (Vercel)
+            if (process.env.PLANNING_DATA) {
+                try {
+                    const parsed = JSON.parse(process.env.PLANNING_DATA) as PlanningData;
+                    if (parsed?.topic_time_estimates && parsed?.daily_schedule) {
+                        console.log(`[PLANNER] Loaded planning from env var with ${parsed.topic_time_estimates.length} topics`);
+                        return parsed;
+                    }
+                } catch (e) {
+                    console.warn('[PLANNER] PLANNING_DATA parse error, ignoring');
+                }
+            }
             
             // 2) Fallback: cliente supabase-js sin sesión (solo funcionará si RLS/ACL lo permite o hay service role)
             if (!this.supabase) {

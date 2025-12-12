@@ -131,40 +131,52 @@ export async function queryByCategory(
     const filenameVariants = filenameHint ? generateFilenameVariants(filenameHint).slice(0, 4) : [];
     
     try {
-        let query = supabase
+        const baseQuery = supabase
             .from('library_documents')
             .select('id, content, metadata')
             .eq('metadata->>category', category);
-        
-        // Añadir filtros de keywords/filename si hay (OR)
-        const orConditions: string[] = [];
 
-        for (const k of keywords.slice(0, 3)) {
-            const safe = k.replace(/[%]/g, "");
-            if (safe) orConditions.push(`content.ilike.%${safe}%`);
-        }
-
+        const byFilenameConditions: string[] = [];
         for (const v of filenameVariants) {
             const safe = v.replace(/[%]/g, "");
-            if (safe) orConditions.push(`metadata->>filename.ilike.%${safe}%`);
+            if (safe) byFilenameConditions.push(`metadata->>filename.ilike.%${safe}%`);
         }
 
-        if (orConditions.length > 0) {
-            query = query.or(orConditions.join(','));
+        const byContentConditions: string[] = [];
+        for (const k of keywords.slice(0, 3)) {
+            const safe = k.replace(/[%]/g, "");
+            if (safe) byContentConditions.push(`content.ilike.%${safe}%`);
         }
-        
-        const { data, error } = await query
-            .order('metadata->chunk_index', { ascending: true })
-            .limit(limit);
-        
-        if (error) {
-            console.error(`[RAG] Error querying ${category}:`, error.message);
-            return [];
+
+        const seen = new Set<number>();
+        const out: any[] = [];
+
+        const run = async (q: any, label: string) => {
+            const { data, error } = await q.order('id', { ascending: true }).limit(limit);
+            if (error) {
+                console.error(`[RAG] Error querying ${category} (${label}):`, error.message);
+                return;
+            }
+            for (const row of data || []) {
+                if (!seen.has(row.id)) {
+                    seen.add(row.id);
+                    out.push(row);
+                }
+            }
+        };
+
+        // Fase 1: filename (mejor para leyes/reglamentos)
+        if (byFilenameConditions.length > 0) {
+            await run(baseQuery.or(byFilenameConditions.join(',')), 'filename');
         }
-        
-        console.log(`[RAG] Found ${data?.length || 0} docs in ${category}`);
-        
-        return data || [];
+
+        // Fase 2: content keywords (general)
+        if (out.length < Math.min(6, limit) && byContentConditions.length > 0) {
+            await run(baseQuery.or(byContentConditions.join(',')), 'content');
+        }
+
+        console.log(`[RAG] Found ${out.length || 0} docs in ${category}`);
+        return out.slice(0, limit);
         
     } catch (error) {
         console.error(`[RAG] Error in queryByCategory(${category}):`, error);
@@ -344,4 +356,3 @@ export function formatChunksAsEvidence(chunks: DocumentChunk[], maxChunks: numbe
         )
         .join('\n\n');
 }
-
