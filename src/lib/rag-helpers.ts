@@ -1,11 +1,8 @@
 /**
- * RAG HELPERS - Búsquedas especializadas por categoría en Supabase
- * 
- * Permite queries específicas a las categorías:
- * - BOE: Convocatoria oficial
- * - PRACTICE: Supuestos reales
- * - CORE: Normativa base
- * - SUPPLEMENTARY: Material de apoyo
+ * RAG HELPERS - Búsquedas en Supabase para alimentar a los agentes
+ *
+ * Objetivo: devolver fragmentos relevantes y fiables (con filename/chunkId)
+ * incluso cuando los filtros por "categoría" no están normalizados en metadata.
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -14,22 +11,22 @@ import { createClient } from "@supabase/supabase-js";
 // TYPES
 // ============================================
 
-export type DocumentCategory = 'BOE' | 'PRACTICE' | 'CORE' | 'SUPPLEMENTARY';
+export type DocumentCategory = "BOE" | "PRACTICE" | "CORE" | "SUPPLEMENTARY";
 
 export interface DocumentChunk {
-    source_id: string;
-    filename: string;
-    fragment: string;
-    category: string;
-    chunk_index: number;
-    confidence: number;
+  source_id: string;
+  filename: string;
+  fragment: string;
+  category: string;
+  chunk_index: number;
+  confidence: number;
 }
 
 export interface RAGQueryParams {
-    topicTitle: string;
-    categories: DocumentCategory[];
-    keywords?: string[];
-    limit?: number;
+  topicTitle: string;
+  categories: DocumentCategory[];
+  keywords?: string[];
+  limit?: number;
 }
 
 // ============================================
@@ -37,334 +34,307 @@ export interface RAGQueryParams {
 // ============================================
 
 function getSupabaseClient() {
-    const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-    const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-    
-    if (!SUPABASE_URL || !SUPABASE_KEY) {
-        return null;
-    }
-    
-    return createClient(SUPABASE_URL, SUPABASE_KEY);
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  return createClient(SUPABASE_URL, SUPABASE_KEY);
+}
+
+function sanitizeTerm(term: string) {
+  return (term || "").replace(/[%_]/g, "").trim();
+}
+
+function uniqTerms(arr: string[]) {
+  return [...new Set(arr.map((s) => sanitizeTerm(s)).filter((s) => s.length >= 3))];
 }
 
 // ============================================
 // QUERY FUNCTIONS
 // ============================================
 
-/**
- * Query multi-categoría (principal)
- */
 export async function queryRAGMultiCategory(params: RAGQueryParams): Promise<DocumentChunk[]> {
-    const supabase = getSupabaseClient();
-    if (!supabase) {
-        console.warn('[RAG] Supabase no configurado');
-        return [];
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    console.warn("[RAG] Supabase no configurado");
+    return [];
+  }
+
+  const limit = params.limit || 15;
+  console.log("[RAG] Query multi-category:", {
+    categories: params.categories,
+    keywords: params.keywords?.slice(0, 3),
+    limit,
+  });
+
+  const chunks: DocumentChunk[] = [];
+  const seenIds = new Set<string>();
+
+  const addChunks = (docs: any[], confidence: number) => {
+    for (const doc of docs || []) {
+      const id = `db-${doc.id}`;
+      if (seenIds.has(id)) continue;
+      seenIds.add(id);
+      chunks.push({
+        source_id: id,
+        filename: doc.metadata?.filename || "Unknown",
+        fragment: doc.content || "",
+        category: doc.metadata?.category || "UNKNOWN",
+        chunk_index: doc.metadata?.chunk_index ?? 0,
+        confidence,
+      });
     }
-    
-    console.log(`[RAG] Query multi-category:`, {
-        categories: params.categories,
-        keywords: params.keywords?.slice(0, 3),
-        limit: params.limit || 15
-    });
-    
-    let chunks: DocumentChunk[] = [];
-    const seenIds = new Set<string>();
-    
-    // Función helper para añadir chunks sin duplicados
-    const addChunks = (docs: any[], confidence: number) => {
-        for (const doc of docs) {
-            const id = `db-${doc.id}`;
-            if (!seenIds.has(id)) {
-                seenIds.add(id);
-                chunks.push({
-                    source_id: id,
-                    filename: doc.metadata?.filename || 'Unknown',
-                    fragment: doc.content || '',
-                    category: doc.metadata?.category || 'UNKNOWN',
-                    chunk_index: doc.metadata?.chunk_index ?? 0,
-                    confidence
-                });
-            }
-        }
-    };
-    
-    try {
-        // Buscar en cada categoría
-        for (const category of params.categories) {
-            const categoryChunks = await queryByCategory(
-                params.topicTitle,
-                category,
-                Math.ceil((params.limit || 15) / params.categories.length)
-            );
-            
-            addChunks(categoryChunks, 0.9);
-            
-            if (chunks.length >= (params.limit || 15)) break;
-        }
-        
-        console.log(`[RAG] Found ${chunks.length} chunks from ${params.categories.join(', ')}`);
-        
-        return chunks.slice(0, params.limit || 15);
-        
-    } catch (error) {
-        console.error('[RAG] Error en queryRAGMultiCategory:', error);
-        return [];
+  };
+
+  try {
+    for (const category of params.categories) {
+      const perCategory = Math.max(3, Math.ceil(limit / params.categories.length));
+      const categoryChunks = await queryByCategory(params.topicTitle, category, perCategory);
+      addChunks(categoryChunks, 0.9);
+      if (chunks.length >= limit) break;
     }
+
+    console.log(`[RAG] Found ${chunks.length} chunks from ${params.categories.join(", ")}`);
+    return chunks.slice(0, limit);
+  } catch (error) {
+    console.error("[RAG] Error en queryRAGMultiCategory:", error);
+    return [];
+  }
 }
 
 /**
- * Query por categoría específica
+ * Query por categoría (heurística).
+ * - Prioriza filename (típico: "Ley 9-1991...", "Supuesto 11...")
+ * - Fallback por keywords en contenido (cuando filename no coincide)
+ * - Evita `.or(...)` complejos: en prod puede devolver 0 en JSON paths.
  */
 export async function queryByCategory(
-    topicTitle: string,
-    category: DocumentCategory,
-    limit: number = 10,
-    filenameHint?: string
+  topicTitle: string,
+  category: DocumentCategory,
+  limit: number = 10,
+  filenameHint?: string
 ): Promise<any[]> {
-    const supabase = getSupabaseClient();
-    if (!supabase) return [];
-    
-    console.log(`[RAG] Querying category=${category}, topic="${topicTitle}", limit=${limit}`);
-    
-    // Extraer keywords del título
-    const keywords = extractKeywords(topicTitle);
-    const filenameVariants = filenameHint ? generateFilenameVariants(filenameHint).slice(0, 4) : [];
-    
-    try {
-        // Nota: en algunos despliegues `library_documents` no expone category dentro de metadata
-        // o el filtro `metadata->>category` puede no funcionar; usamos heurísticas por filename + contenido.
-        const baseQuery = supabase
-            .from('library_documents')
-            .select('id, content, metadata');
+  const supabase = getSupabaseClient();
+  if (!supabase) return [];
 
-        const categoryFilenameHints: Record<DocumentCategory, string[]> = {
-            BOE: ['Convocatoria', 'Temario', 'BOE'],
-            PRACTICE: ['Supuesto', 'SUPUESTO', 'ENUNCIADO', 'SOLUCIÓN', 'Solución'],
-            CORE: ['Ley', 'LEY', 'Decreto', 'DECRETO', 'Reglamento', 'REGLAMENTO', 'Real Decreto', 'Texto Refundido'],
-            SUPPLEMENTARY: []
-        };
+  const keywords = extractKeywords(topicTitle);
+  const filenameVariants = filenameHint ? generateFilenameVariants(filenameHint).slice(0, 6) : [];
+  const legalRefs = extractLegalRefs(topicTitle);
 
-        const byFilenameConditions: string[] = [];
-        for (const v of filenameVariants) {
-            const safe = v.replace(/[%]/g, "");
-            if (safe) byFilenameConditions.push(`metadata->>filename.ilike.%${safe}%`);
-        }
-        for (const h of categoryFilenameHints[category] || []) {
-            const safe = h.replace(/[%]/g, "");
-            if (safe) byFilenameConditions.push(`metadata->>filename.ilike.%${safe}%`);
-        }
+  const categoryFilenameHints: Record<DocumentCategory, string[]> = {
+    BOE: ["Convocatoria", "Temario", "BOE", "BOC"],
+    PRACTICE: ["Supuesto", "SUPUESTO", "ENUNCIADO", "SOLUCIÓN", "Solución", "Examen", "Simulacro"],
+    CORE: ["Ley", "Decreto", "Reglamento", "Real Decreto", "Texto Refundido", "Orden"],
+    SUPPLEMENTARY: ["Guía", "Manual", "Resumen", "Instrucción", "Norma"],
+  };
 
-        const byContentConditions: string[] = [];
-        for (const k of keywords.slice(0, 4)) {
-            const safe = k.replace(/[%]/g, "");
-            if (safe) byContentConditions.push(`content.ilike.%${safe}%`);
-        }
+  const filenamePatterns = uniqTerms([
+    ...filenameVariants,
+    ...(categoryFilenameHints[category] || []),
+    ...legalRefs,
+  ]).slice(0, 12);
 
-        const seen = new Set<number>();
-        const out: any[] = [];
+  const contentPatterns = uniqTerms([...legalRefs, ...keywords]).slice(0, 12);
 
-        const run = async (q: any, label: string) => {
-            const { data, error } = await q.order('id', { ascending: true }).limit(limit * 4);
-            if (error) {
-                console.error(`[RAG] Error querying ${category} (${label}):`, error.message);
-                return;
-            }
-            for (const row of data || []) {
-                if (!seen.has(row.id)) {
-                    seen.add(row.id);
-                    out.push(row);
-                }
-            }
-        };
+  console.log("[RAG] Querying:", {
+    category,
+    topic: topicTitle,
+    limit,
+    filenameHint: filenameHint || null,
+    filenamePatterns: filenamePatterns.slice(0, 5),
+    contentPatterns: contentPatterns.slice(0, 5),
+  });
 
-        // Fase 1: filename (mejor para leyes/reglamentos/supuestos)
-        if (byFilenameConditions.length > 0) {
-            await run(baseQuery.or(byFilenameConditions.join(',')), 'filename');
-        }
+  const seen = new Set<number>();
+  const out: any[] = [];
+  const perQueryLimit = Math.max(3, Math.ceil(limit / 2));
 
-        // Fase 2: content keywords (general)
-        if (out.length < Math.min(6, limit) && byContentConditions.length > 0) {
-            await run(baseQuery.or(byContentConditions.join(',')), 'content');
-        }
-
-        console.log(`[RAG] Found ${out.length || 0} docs in ${category}`);
-        return out.slice(0, limit);
-        
-    } catch (error) {
-        console.error(`[RAG] Error in queryByCategory(${category}):`, error);
-        return [];
+  const addRows = (rows: any[]) => {
+    for (const row of rows || []) {
+      if (!row || typeof row.id !== "number") continue;
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      out.push(row);
     }
+  };
+
+  const base = () => supabase.from("library_documents").select("id, content, metadata");
+
+  const run = async (label: string, build: () => any) => {
+    const { data, error } = await build().order("id", { ascending: true }).limit(perQueryLimit);
+    if (error) {
+      console.error(`[RAG] Error querying ${category} (${label}):`, error.message);
+      return;
+    }
+    addRows(data || []);
+  };
+
+  try {
+    for (const p of filenamePatterns) {
+      if (out.length >= limit) break;
+      await run(`filename:${p}`, () => base().ilike("metadata->>filename", `%${p}%`));
+    }
+
+    for (const k of contentPatterns) {
+      if (out.length >= limit) break;
+      await run(`content:${k}`, () => base().ilike("content", `%${k}%`));
+    }
+
+    if (out.length === 0) {
+      const fallback = sanitizeTerm(legalRefs[0] || keywords[0] || "");
+      if (fallback) {
+        await run(`fallback_content:${fallback}`, () => base().ilike("content", `%${fallback}%`));
+        await run(`fallback_filename:${fallback}`, () => base().ilike("metadata->>filename", `%${fallback}%`));
+      }
+    }
+
+    console.log(`[RAG] Found ${out.length} docs in ${category}`);
+    return out.slice(0, limit);
+  } catch (error) {
+    console.error(`[RAG] Error in queryByCategory(${category}):`, error);
+    return [];
+  }
 }
 
-/**
- * Query específico para BOE
- */
 export async function queryBOE(keywords?: string[]): Promise<any[]> {
-    const supabase = getSupabaseClient();
-    if (!supabase) return [];
-    
-    console.log('[RAG] Querying BOE documents...');
-    
-    try {
-        let query = supabase
-            .from('library_documents')
-            .select('id, content, metadata')
-            .eq('metadata->>category', 'BOE');
-        
-        // Buscar específicamente por archivos relevantes
-        const filenames = keywords && keywords.length > 0
-            ? keywords.map(k => `metadata->>filename.ilike.%${k}%`).join(',')
-            : `metadata->>filename.ilike.%Convocatoria%,metadata->>filename.ilike.%Temario%`;
-        
-        if (filenames) {
-            query = query.or(filenames);
-        }
-        
-        const { data, error } = await query.limit(20);
-        
-        if (error) {
-            console.error('[RAG] Error querying BOE:', error.message);
-            return [];
-        }
-        
-        console.log(`[RAG] Found ${data?.length || 0} BOE documents`);
-        
-        return data || [];
-        
-    } catch (error) {
-        console.error('[RAG] Error in queryBOE:', error);
-        return [];
+  const supabase = getSupabaseClient();
+  if (!supabase) return [];
+
+  const terms = uniqTerms([...(keywords || []), "Convocatoria", "Temario", "BOE", "BOC"]).slice(0, 6);
+  const seen = new Set<number>();
+  const out: any[] = [];
+
+  for (const t of terms) {
+    const { data, error } = await supabase
+      .from("library_documents")
+      .select("id, content, metadata")
+      .ilike("metadata->>filename", `%${t}%`)
+      .limit(8);
+    if (error) continue;
+    for (const row of data || []) {
+      if (!seen.has(row.id)) {
+        seen.add(row.id);
+        out.push(row);
+      }
     }
+  }
+
+  return out.slice(0, 20);
 }
 
-/**
- * Query específico para PRACTICE (supuestos)
- */
 export async function queryPractice(topicKeywords: string[], limit: number = 20): Promise<any[]> {
-    const supabase = getSupabaseClient();
-    if (!supabase) return [];
-    
-    console.log('[RAG] Querying PRACTICE supuestos...', topicKeywords);
-    
-    try {
-        let query = supabase
-            .from('library_documents')
-            .select('id, content, metadata')
-            .eq('metadata->>category', 'PRACTICE');
-        
-        // Buscar por keywords en filename o content
-        if (topicKeywords.length > 0) {
-            const conditions = topicKeywords.flatMap(keyword => [
-                `metadata->>filename.ilike.%${keyword}%`,
-                `content.ilike.%${keyword}%`
-            ]).join(',');
-            
-            if (conditions) {
-                query = query.or(conditions);
-            }
-        }
-        
-        const { data, error } = await query
-            .order('metadata->>filename', { ascending: true })
-            .limit(limit);
-        
-        if (error) {
-            console.error('[RAG] Error querying PRACTICE:', error.message);
-            return [];
-        }
-        
-        console.log(`[RAG] Found ${data?.length || 0} PRACTICE documents`);
-        
-        return data || [];
-        
-    } catch (error) {
-        console.error('[RAG] Error in queryPractice:', error);
-        return [];
+  const supabase = getSupabaseClient();
+  if (!supabase) return [];
+
+  const terms = uniqTerms(["Supuesto", "ENUNCIADO", "SOLUCIÓN", ...topicKeywords]).slice(0, 8);
+  const seen = new Set<number>();
+  const out: any[] = [];
+
+  for (const t of terms) {
+    if (out.length >= limit) break;
+    const { data, error } = await supabase
+      .from("library_documents")
+      .select("id, content, metadata")
+      .ilike("metadata->>filename", `%${t}%`)
+      .limit(Math.max(5, Math.ceil(limit / 2)));
+    if (error) continue;
+    for (const row of data || []) {
+      if (!seen.has(row.id)) {
+        seen.add(row.id);
+        out.push(row);
+      }
     }
+  }
+
+  return out.slice(0, limit);
 }
 
-/**
- * Query específico para CORE (normativa base)
- */
 export async function queryCore(topicTitle: string, limit: number = 15): Promise<any[]> {
-    return queryByCategory(topicTitle, 'CORE', limit);
+  return queryByCategory(topicTitle, "CORE", limit);
 }
 
-/**
- * Query específico para SUPPLEMENTARY (material apoyo)
- */
 export async function querySupplementary(topicTitle: string, limit: number = 10): Promise<any[]> {
-    return queryByCategory(topicTitle, 'SUPPLEMENTARY', limit);
+  return queryByCategory(topicTitle, "SUPPLEMENTARY", limit);
 }
 
 // ============================================
-// HELPER FUNCTIONS
+// HELPERS
 // ============================================
 
-/**
- * Extraer keywords del título del tema
- */
 function extractKeywords(topicTitle: string): string[] {
-    const stopWords = ['de', 'del', 'la', 'el', 'los', 'las', 'por', 'que', 'para', 'con', 'en', 'una', 'uno', 'y', 'o'];
-    
-    const words = topicTitle
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "") // Quitar acentos
-        .split(/[\s,\-_]+/)
-        .filter(w => w.length > 3 && !stopWords.includes(w));
-    
-    return [...new Set(words)]; // Eliminar duplicados
+  const stopWords = [
+    "de",
+    "del",
+    "la",
+    "el",
+    "los",
+    "las",
+    "por",
+    "que",
+    "para",
+    "con",
+    "en",
+    "una",
+    "uno",
+    "y",
+    "o",
+  ];
+
+  const words = (topicTitle || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .split(/[\s,\-_]+/)
+    .filter((w) => w.length > 3 && !stopWords.includes(w));
+
+  return [...new Set(words)];
 }
 
-/**
- * Generar variantes de filename para búsqueda flexible
- */
+function extractLegalRefs(text: string): string[] {
+  const out: string[] = [];
+  const refs = (text || "").match(/(?:ley|decreto|orden|real\s+decreto)\s*(\d+[-/]\d+|\d+)/gi) || [];
+  for (const r of refs.slice(0, 4)) {
+    const num = r.match(/(\d+[-/]\d+|\d+)/)?.[1];
+    if (!num) continue;
+    out.push(num, num.replace("/", "-"), num.replace("-", "/"), num.replace(/[-/]/g, "_"));
+  }
+  return [...new Set(out)];
+}
+
 export function generateFilenameVariants(filename: string): string[] {
-    const base = filename
-        .replace(/\.pdf$/i, '')
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, ""); // Quitar acentos
-    
-    const variants: string[] = [];
-    
-    // Variante original sin extensión
-    variants.push(base);
-    
-    // Variante con guiones bajos
-    variants.push(base.replace(/[,\s]+/g, '_').replace(/_+/g, '_'));
-    
-    // Variante solo con guiones bajos (como está en Supabase)
-    variants.push(base.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_'));
-    
-    // Extraer referencias de ley
-    const lawMatch = base.match(/ley\s*(\d+[-/]?\d*)/i);
-    if (lawMatch) {
-        variants.push(`Ley_${lawMatch[1].replace('/', '-')}`);
-        variants.push(`ley ${lawMatch[1]}`);
-    }
-    
-    // Extraer decreto
-    const decretoMatch = base.match(/decreto\s*(\d+[-/]?\d*)/i);
-    if (decretoMatch) {
-        variants.push(`Decreto_${decretoMatch[1].replace('/', '-')}`);
-    }
-    
-    // Palabras clave importantes
-    const keywords = extractKeywords(base);
-    variants.push(...keywords);
-    
-    return [...new Set(variants)].filter(v => v.length > 2);
+  const base = (filename || "")
+    .replace(/\.pdf$/i, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  const variants: string[] = [];
+  variants.push(base);
+  variants.push(base.replace(/[,\s]+/g, "_").replace(/_+/g, "_"));
+  variants.push(base.replace(/[^a-zA-Z0-9]/g, "_").replace(/_+/g, "_"));
+
+  const lawMatch = base.match(/ley\s*(\d+[-/]?\d*)/i);
+  if (lawMatch) {
+    variants.push(`Ley_${lawMatch[1].replace("/", "-")}`);
+    variants.push(`ley ${lawMatch[1]}`);
+  }
+
+  const decretoMatch = base.match(/decreto\s*(\d+[-/]?\d*)/i);
+  if (decretoMatch) {
+    variants.push(`Decreto_${decretoMatch[1].replace("/", "-")}`);
+  }
+
+  variants.push(...extractKeywords(base));
+  return [...new Set(variants)].filter((v) => v.length > 2);
 }
 
-/**
- * Convertir chunks a formato de evidencia para prompts
- */
 export function formatChunksAsEvidence(chunks: DocumentChunk[], maxChunks: number = 10): string {
-    return chunks
-        .slice(0, maxChunks)
-        .map((chunk, idx) => 
-            `[${idx + 1}] (id:${chunk.source_id}, file:${chunk.filename}, cat:${chunk.category}, chunk:${chunk.chunk_index}, conf:${chunk.confidence.toFixed(2)})\n${chunk.fragment.slice(0, 700)}...`
-        )
-        .join('\n\n');
+  return chunks
+    .slice(0, maxChunks)
+    .map(
+      (chunk, idx) =>
+        `[${idx + 1}] (id:${chunk.source_id}, file:${chunk.filename}, cat:${chunk.category}, chunk:${chunk.chunk_index}, conf:${chunk.confidence.toFixed(
+          2
+        )})\n${chunk.fragment.slice(0, 700)}...`
+    )
+    .join("\n\n");
 }
