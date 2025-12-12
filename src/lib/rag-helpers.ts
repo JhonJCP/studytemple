@@ -131,21 +131,31 @@ export async function queryByCategory(
     const filenameVariants = filenameHint ? generateFilenameVariants(filenameHint).slice(0, 4) : [];
     
     try {
-        // Nota: filtrar por metadata->>category en SQL puede fallar dependiendo de PostgREST;
-        // hacemos búsqueda amplia y filtramos por metadata.category en código.
+        // Nota: en algunos despliegues `library_documents` no expone category dentro de metadata
+        // o el filtro `metadata->>category` puede no funcionar; usamos heurísticas por filename + contenido.
         const baseQuery = supabase
             .from('library_documents')
-            .select('id, content, metadata')
-            ;
+            .select('id, content, metadata');
+
+        const categoryFilenameHints: Record<DocumentCategory, string[]> = {
+            BOE: ['Convocatoria', 'Temario', 'BOE'],
+            PRACTICE: ['Supuesto', 'SUPUESTO', 'ENUNCIADO', 'SOLUCIÓN', 'Solución'],
+            CORE: ['Ley', 'LEY', 'Decreto', 'DECRETO', 'Reglamento', 'REGLAMENTO', 'Real Decreto', 'Texto Refundido'],
+            SUPPLEMENTARY: []
+        };
 
         const byFilenameConditions: string[] = [];
         for (const v of filenameVariants) {
             const safe = v.replace(/[%]/g, "");
             if (safe) byFilenameConditions.push(`metadata->>filename.ilike.%${safe}%`);
         }
+        for (const h of categoryFilenameHints[category] || []) {
+            const safe = h.replace(/[%]/g, "");
+            if (safe) byFilenameConditions.push(`metadata->>filename.ilike.%${safe}%`);
+        }
 
         const byContentConditions: string[] = [];
-        for (const k of keywords.slice(0, 3)) {
+        for (const k of keywords.slice(0, 4)) {
             const safe = k.replace(/[%]/g, "");
             if (safe) byContentConditions.push(`content.ilike.%${safe}%`);
         }
@@ -160,8 +170,6 @@ export async function queryByCategory(
                 return;
             }
             for (const row of data || []) {
-                const rowCat = row?.metadata?.category || row?.metadata?.Category;
-                if (String(rowCat).toUpperCase() !== category) continue;
                 if (!seen.has(row.id)) {
                     seen.add(row.id);
                     out.push(row);
@@ -169,7 +177,7 @@ export async function queryByCategory(
             }
         };
 
-        // Fase 1: filename (mejor para leyes/reglamentos)
+        // Fase 1: filename (mejor para leyes/reglamentos/supuestos)
         if (byFilenameConditions.length > 0) {
             await run(baseQuery.or(byFilenameConditions.join(',')), 'filename');
         }
