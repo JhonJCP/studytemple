@@ -9,6 +9,15 @@ export async function saveStudyPlan(masterPlan: any, constraints: any) {
     if (!user) return { success: false, error: "Not authenticated" };
 
     try {
+        const sanitizedSchedule = Array.isArray(masterPlan?.daily_schedule)
+            ? masterPlan.daily_schedule.map((s: any) => ({
+                ...s,
+                date: typeof s?.date === 'string'
+                    ? s.date
+                    : (s?.date ? new Date(s.date).toISOString().split('T')[0] : null),
+            }))
+            : [];
+
         // ✅ Guardar en user_planning (tabla correcta)
         const { error } = await supabase
             .from('user_planning')
@@ -16,10 +25,10 @@ export async function saveStudyPlan(masterPlan: any, constraints: any) {
                 user_id: user.id,
                 strategic_analysis: masterPlan.strategic_analysis,
                 topic_time_estimates: masterPlan.topic_time_estimates,
-                daily_schedule: masterPlan.daily_schedule,
+                daily_schedule: sanitizedSchedule,
                 is_active: true,
                 updated_at: new Date().toISOString()
-            });
+            }, { onConflict: 'user_id,is_active' });
         
         if (error) {
             console.error('[CALENDAR] Save error:', error);

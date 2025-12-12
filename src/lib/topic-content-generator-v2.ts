@@ -14,7 +14,7 @@
  * - Enfoque en parte práctica del examen
  */
 
-import { GlobalPlannerWithRealPlanning, type StrategicPlan } from "./global-planner";
+import { GlobalPlannerWithRealPlanning, type StrategicPlan, type PlanningData } from "./global-planner";
 import { ExpertPractical, type ExpertOutput } from "./expert-practical";
 import { ExpertTeorico } from "./expert-teorico";
 import { ExpertTecnico } from "./expert-tecnico";
@@ -102,6 +102,7 @@ export class TopicContentGeneratorV2 {
     private telemetry: GeneratorTelemetry;
     private cancelled: boolean = false;
     private userId?: string;
+    private planningData?: PlanningData;
     
     private globalPlanner: GlobalPlannerWithRealPlanning;
     private expertPractical: ExpertPractical;
@@ -114,7 +115,8 @@ export class TopicContentGeneratorV2 {
         topicId: string, 
         currentDate?: string,
         onStateChange?: (state: OrchestrationState) => void,
-        userId?: string
+        userId?: string,
+        planningData?: PlanningData
     ) {
         this.state = {
             topicId,
@@ -125,6 +127,7 @@ export class TopicContentGeneratorV2 {
         this.onStateChange = onStateChange;
         this.telemetry = new GeneratorTelemetry();
         this.userId = userId;
+        this.planningData = planningData;
         
         // Inicializar expertos
         const apiKey = getAPIKey();
@@ -213,6 +216,10 @@ export class TopicContentGeneratorV2 {
             });
             
             this.telemetry.log('planner', 'start');
+
+            if (this.planningData) {
+                this.globalPlanner.primePlanning(this.planningData);
+            }
             
             const strategicPlan = await this.globalPlanner.plan({
                 currentTopic: this.state.topicId,
@@ -470,4 +477,3 @@ export async function generateTopicContentWithTrace(
     const result = await generator.generate();
     return { result, state: generator.getState() };
 }
-

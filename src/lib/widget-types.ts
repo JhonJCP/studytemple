@@ -11,13 +11,16 @@
 
 export type WidgetType =
     | 'mnemonic'    // Regla mnemotécnica
+    | 'mnemonic_generator' // Mnemotecnia on-demand (UI)
     | 'timeline'    // Línea temporal
     | 'diagram'     // Diagrama Mermaid
     | 'analogy'     // Analogía/Historia
     | 'image'       // Imagen generada
+    | 'infografia'  // Infografía visual on-demand (UI)
     | 'audio'       // Audio TTS
     | 'formula'     // Fórmula matemática
     | 'quiz'        // Mini-test
+    | 'case_practice' // Mini caso práctico on-demand (UI)
     | 'alert'       // Alerta de contenido augmentado
     | 'video_loop'; // Video/animación
 

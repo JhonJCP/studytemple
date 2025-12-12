@@ -114,3 +114,4 @@ No linter errors found en:
 **Bloqueantes:** ❌ Ninguno  
 **Riesgo:** 🟢 Bajo (build passing, backwards compatible)
 
+

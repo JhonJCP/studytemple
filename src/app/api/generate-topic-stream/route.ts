@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { TopicContentGeneratorV2 as TopicContentGenerator } from "@/lib/topic-content-generator-v2";
 import type { OrchestrationState, GeneratedTopicContent } from "@/lib/widget-types";
 import { createClient } from "@/utils/supabase/server";
+import type { PlanningData } from "@/lib/global-planner";
 
 export const runtime = "nodejs";
 const OVERALL_TIMEOUT_MS = parseInt(process.env.GENERATION_TIMEOUT_MS || "600000", 10); // 10 minutos para generación profunda
@@ -84,6 +85,7 @@ export async function GET(req: NextRequest) {
             (async () => {
                 // 1) Intentar devolver caché si hay usuario y no es force
                 let supabaseUser: string | null = null;
+                let planningData: PlanningData | undefined = undefined;
                 try {
                     const supabase = await createClient();
                     const { data: { user } } = await supabase.auth.getUser();
@@ -107,6 +109,26 @@ export async function GET(req: NextRequest) {
                             return;
                         }
                     }
+
+                    // 1.1) Cargar planning activo del usuario (para planner correcto y rápido)
+                    if (user) {
+                        const { data: planningRow, error: planningErr } = await supabase
+                            .from("user_planning")
+                            .select("strategic_analysis, topic_time_estimates, daily_schedule")
+                            .eq("user_id", user.id)
+                            .eq("is_active", true)
+                            .order("created_at", { ascending: false })
+                            .limit(1)
+                            .maybeSingle();
+
+                        if (!planningErr && planningRow) {
+                            planningData = {
+                                strategic_analysis: (planningRow as any).strategic_analysis || "",
+                                topic_time_estimates: (planningRow as any).topic_time_estimates || [],
+                                daily_schedule: (planningRow as any).daily_schedule || [],
+                            };
+                        }
+                    }
                 } catch (e) {
                     log(`Error consultando Supabase`, e);
                     // ignorar errores de supabase para no romper streaming
@@ -122,7 +144,8 @@ export async function GET(req: NextRequest) {
                             telemetryEvents: generator.getTelemetry().length 
                         });
                     },
-                    supabaseUser || undefined // userId para cargar planning desde DB
+                    supabaseUser || undefined, // userId para cargar planning desde DB
+                    planningData
                 );
                 
                 activeGenerators.set(topicId, generator);

@@ -7,7 +7,7 @@
  * - Analizar BOE y PRACTICE para scoring de importancia
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { ConcisionStrategy } from "./widget-types";
 import fs from "fs";
@@ -113,7 +113,7 @@ export class GlobalPlannerWithRealPlanning {
     private dailySchedule: DailyScheduleEntry[];
     private boeAnalysisCache: BOEAnalysis | null = null;
     private practicePatternsCache: PracticePatterns | null = null;
-    private supabase: ReturnType<typeof createClient> | null;
+    private supabase: ReturnType<typeof createSupabaseClient> | null;
     private planningLoadedFromDB: boolean = false;
     
     constructor() {
@@ -122,7 +122,7 @@ export class GlobalPlannerWithRealPlanning {
         const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
         
         if (SUPABASE_URL && SUPABASE_KEY) {
-            this.supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+            this.supabase = createSupabaseClient(SUPABASE_URL, SUPABASE_KEY);
         } else {
             this.supabase = null;
             console.warn('[PLANNER] Supabase not configured');
@@ -132,22 +132,24 @@ export class GlobalPlannerWithRealPlanning {
         this.topicTimeEstimates = [];
         this.dailySchedule = [];
     }
+
+    /**
+     * Inyectar planning ya cargado (por ejemplo, desde el API route con Supabase authed).
+     * Esto evita depender de RLS/anon keys dentro del planner.
+     */
+    primePlanning(planningData: PlanningData) {
+        this.topicTimeEstimates = planningData.topic_time_estimates || [];
+        this.dailySchedule = planningData.daily_schedule || [];
+        this.planningLoadedFromDB = true;
+    }
     
     /**
      * Cargar planning desde base de datos (si aún no está cargado)
      */
     private async ensurePlanningLoaded(userId?: string): Promise<void> {
-        // #region debug log
-        fetch('http://127.0.0.1:7242/ingest/39163fbb-29a9-4306-9e29-f6e8f98c5b6e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'global-planner.ts:ensurePlanningLoaded:entry',message:'Loading planning',data:{userId,alreadyLoaded:this.planningLoadedFromDB},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
-        
         if (this.planningLoadedFromDB) return;
         
         const planningData = await this.loadPlanningFromDB(userId);
-        
-        // #region debug log
-        fetch('http://127.0.0.1:7242/ingest/39163fbb-29a9-4306-9e29-f6e8f98c5b6e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'global-planner.ts:ensurePlanningLoaded:loaded',message:'Planning loaded from DB',data:{topicCount:planningData.topic_time_estimates.length,scheduleCount:planningData.daily_schedule.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
         
         this.topicTimeEstimates = planningData.topic_time_estimates;
         this.dailySchedule = planningData.daily_schedule;
@@ -198,7 +200,9 @@ export class GlobalPlannerWithRealPlanning {
             topicEstimate.recommendedContentLength
         );
         
-        const targetWords = this.calculateTargetWords(topicEstimate.recommendedContentLength);
+        const targetWordsBase = this.calculateTargetWords(topicEstimate.recommendedContentLength);
+        const isLegalTopic = /ley|decreto|reglamento/i.test(topicEstimate.topicTitle);
+        const targetWords = isLegalTopic ? Math.max(targetWordsBase, 900) : targetWordsBase;
         
         return {
             // USAR TIEMPO DEL PLANNING (no calcularlo)
@@ -210,7 +214,7 @@ export class GlobalPlannerWithRealPlanning {
             // Calcular target words según recommendedContentLength
             targetWords,
             
-            targetSections: strategy === 'detailed' ? 5 : 4,
+            targetSections: Math.max(strategy === 'detailed' ? 5 : 4, isLegalTopic ? 5 : 4),
             
             // DATOS DE SUPUESTOS PRÁCTICOS
             practiceRelevance: topicPattern?.percentage || 0,
@@ -391,38 +395,66 @@ export class GlobalPlannerWithRealPlanning {
      * Cargar planning desde base de datos
      */
     private async loadPlanningFromDB(userId?: string): Promise<PlanningData> {
-        if (!this.supabase) {
-            console.warn('[PLANNER] Supabase not configured, trying filesystem fallback');
-            return this.loadPlanningFromFilesystem();
-        }
-        
         try {
-            // Si no hay userId, intentar obtener el usuario actual
-            let targetUserId = userId;
-            
-            if (!targetUserId) {
-                const { data: userData } = await this.supabase.auth.getUser();
-                targetUserId = userData.user?.id;
+            // 1) Preferir cliente autenticado (server client) si estamos en contexto Next.js
+            try {
+                const { createClient: createServerClient } = await import("@/utils/supabase/server");
+                const supabase = await createServerClient();
+                const { data: { user } } = await supabase.auth.getUser();
+                const targetUserId = userId || user?.id;
+                
+                if (targetUserId) {
+                    const { data, error } = await supabase
+                        .from('user_planning')
+                        .select('strategic_analysis, topic_time_estimates, daily_schedule')
+                        .eq('user_id', targetUserId)
+                        .eq('is_active', true)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                    
+                    if (!error && data) {
+                        const topicEstimates = (data as any).topic_time_estimates || [];
+                        const dailySchedule = (data as any).daily_schedule || [];
+                        console.log(`[PLANNER] Loaded planning from DB (authed) with ${topicEstimates.length} topics`);
+                        return {
+                            strategic_analysis: (data as any).strategic_analysis || '',
+                            topic_time_estimates: topicEstimates,
+                            daily_schedule: dailySchedule
+                        };
+                    }
+                }
+            } catch (e) {
+                // No hay contexto de cookies / import no disponible: continuar a fallback
+                console.warn('[PLANNER] Server supabase client unavailable, falling back');
             }
             
-            if (!targetUserId) {
-                console.warn('[PLANNER] No user authenticated, using filesystem fallback');
+            // 2) Fallback: cliente supabase-js sin sesión (solo funcionará si RLS/ACL lo permite o hay service role)
+            if (!this.supabase) {
+                console.warn('[PLANNER] Supabase not configured, trying filesystem fallback');
                 return this.loadPlanningFromFilesystem();
             }
             
-            // Consultar planning activo del usuario
+            const targetUserId = userId;
+            if (!targetUserId) {
+                console.warn('[PLANNER] No userId provided, using filesystem fallback');
+                return this.loadPlanningFromFilesystem();
+            }
+            
             const { data, error } = await this.supabase
                 .from('user_planning')
                 .select('strategic_analysis, topic_time_estimates, daily_schedule')
                 .eq('user_id', targetUserId)
                 .eq('is_active', true)
-                .maybeSingle() as { 
-                    data: { 
-                        strategic_analysis: string; 
-                        topic_time_estimates: any; 
-                        daily_schedule: any; 
-                    } | null; 
-                    error: any 
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle() as {
+                    data: {
+                        strategic_analysis: string;
+                        topic_time_estimates: any;
+                        daily_schedule: any;
+                    } | null;
+                    error: any
                 };
             
             if (error) {
@@ -621,4 +653,3 @@ export class GlobalPlannerWithRealPlanning {
         };
     }
 }
-

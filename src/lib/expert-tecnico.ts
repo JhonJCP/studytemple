@@ -12,6 +12,7 @@ import { queryByCategory, formatChunksAsEvidence, type DocumentChunk } from "./r
 import type { TopicWithGroup } from "./syllabus-hierarchy";
 import type { ExpertOutput } from "./expert-practical";
 import { LEGAL_ACADEMIC_FORMAT } from "./prompts/legal-academic-template";
+import { safeParseJSON, countWords } from "./json-utils";
 
 interface ExpertTecnicoParams {
     topic: TopicWithGroup;
@@ -30,8 +31,8 @@ export class ExpertTecnico {
         console.log(`[EXPERT-TECNICO] Generating for: ${params.topic.title}`);
         
         // Query a CORE y SUPPLEMENTARY
-        const coreChunks = await queryByCategory(params.topic.title, 'CORE', 10);
-        const suppChunks = await queryByCategory(params.topic.title, 'SUPPLEMENTARY', 8);
+        const coreChunks = await queryByCategory(params.topic.title, 'CORE', 12, params.topic.originalFilename);
+        const suppChunks = await queryByCategory(params.topic.title, 'SUPPLEMENTARY', 10, params.topic.originalFilename);
         
         const allChunks = [...coreChunks, ...suppChunks].map((doc: any) => ({
             source_id: `db-${doc.id}`,
@@ -135,9 +136,12 @@ RESPONDE JSON:
             
             const result = await model.generateContent(prompt);
             const raw = result.response.text();
-            const json = JSON.parse(raw);
+            const { json, error } = safeParseJSON(raw);
+            if (error || !json) {
+                throw new Error(`JSON parse error: ${error || 'unknown'}`);
+            }
             
-            const wordCount = this.countWords(json.content || '');
+            const wordCount = countWords(json.content || '');
             console.log(`[EXPERT-TECNICO] Generated ${wordCount} words`);
             
             return {
@@ -162,11 +166,5 @@ RESPONDE JSON:
             };
         }
     }
-    
-    private countWords(text: string): number {
-        if (!text) return 0;
-        return text.trim().split(/\s+/).filter(w => w.length > 0).length;
-    }
 }
-
 

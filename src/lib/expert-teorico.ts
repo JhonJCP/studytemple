@@ -12,6 +12,7 @@ import { queryByCategory, formatChunksAsEvidence, type DocumentChunk } from "./r
 import type { TopicWithGroup } from "./syllabus-hierarchy";
 import type { ExpertOutput } from "./expert-practical";
 import { LEGAL_ACADEMIC_FORMAT, EXPERT_TEORICO_TEMPLATE } from "./prompts/legal-academic-template";
+import { safeParseJSON, countWords } from "./json-utils";
 
 interface ExpertTeoricoParams {
     topic: TopicWithGroup;
@@ -68,7 +69,7 @@ TU TAREA: TRANSCRIPCIÓN Y ANÁLISIS LEGAL
 
 Genera "Marco Normativo Clave" (~${params.targetWords} palabras) con:
 
-1. **Objeto y Clasificación** (usar § y transcripciones literales):
+1. **Objeto y Clasificación** (usar ¶ y transcripciones literales):
    - Qué regula la norma
    - Clasificaciones según la ley (transcribir artículo completo)
    - Usar bullet structure jerárquica
@@ -78,7 +79,7 @@ Genera "Marco Normativo Clave" (~${params.targetWords} palabras) con:
    - Transcribir LITERALMENTE: "Artículo X establece: '[TEXTO EXACTO DE LA LEY]'"
    - Añadir interpretación técnica breve después
 
-3. **Competencias** (estructura § clara):
+3. **Competencias** (estructura ¶ clara):
    - Qué organismo tiene competencia (transcribir artículo)
    - Responsabilidades específicas (lista numerada si procede)
 
@@ -86,41 +87,13 @@ Genera "Marco Normativo Clave" (~${params.targetWords} palabras) con:
    - Normativa de desarrollo
    - Leyes relacionadas
 
-⚠️ CRÍTICO: 
-- USA SOLO LA EVIDENCIA (no inventes artículos)
-- TRANSCRIBE literalmente (entre comillas)
-- Cita número de artículo DESPUÉS de cada afirmación
-- Usa § para estructura temática
-- ${params.targetWords} palabras ±30
-- INCLUYE sourceMetadata con chunkId y originalText para CADA sección
+CRÍTICO:
+- Usa SOLO la evidencia (no inventes artículos).
+- Incluye transcripciones literales (entre comillas) copiadas de la evidencia.
+- Cita (Art. N ...) al final de afirmaciones relevantes.
+- Objetivo de longitud: ~${params.targetWords} palabras.
 
-RESPONDE JSON con sourceMetadata:
-{
-  "content": "[Markdown con formato académico-legal]",
-  "sections": [
-    {
-      "id": "clasificacion",
-      "title": "Clasificación según la Ley",
-      "text": "La LCC distingue § :\\n• **Regionales**: Corresponden a la CA § .",
-      "sourceMetadata": {
-        "document": "[filename del chunk]",
-        "article": "Artículo 3",
-        "chunkId": "[source_id del chunk]",
-        "originalText": "[Transcripción COMPLETA del artículo]",
-        "confidence": 0.95
-      }
-    }
-  ],
-  "literalArticles": [
-    {
-      "article": "Artículo 3",
-      "text": "[Transcripción literal completa]",
-      "interpretation": "[Breve explicación técnica]"
-    }
-  ],
-  "references": ["Art. 3 Ley 9/1991", "Art. 5", ...],
-  "confidence": 0.95
-}
+RESPONDE usando EXACTAMENTE el JSON definido en EXPERT_TEORICO_TEMPLATE (sin campos extra).
 `;
         
         try {
@@ -137,9 +110,12 @@ RESPONDE JSON con sourceMetadata:
             
             const result = await model.generateContent(prompt);
             const raw = result.response.text();
-            const json = JSON.parse(raw);
+            const { json, error } = safeParseJSON(raw);
+            if (error || !json) {
+                throw new Error(`JSON parse error: ${error || 'unknown'}`);
+            }
             
-            const wordCount = this.countWords(json.content || '');
+            const wordCount = countWords(json.content || '');
             console.log(`[EXPERT-TEORICO] Generated ${wordCount} words`);
             
             // Extraer sourceMetadata si está disponible
@@ -154,7 +130,8 @@ RESPONDE JSON con sourceMetadata:
                     wordCount,
                     source: 'CORE',
                     sections: sections, // Incluir secciones con metadata
-                    literalArticles: json.literalArticles || []
+                    literalArticles: json.literalArticles || [],
+                    sources: json.sources || null
                 }
             };
             
@@ -169,7 +146,7 @@ RESPONDE JSON con sourceMetadata:
     }
     
     private async queryCoreDocuments(topic: TopicWithGroup): Promise<DocumentChunk[]> {
-        const rawChunks = await queryByCategory(topic.title, 'CORE', 15);
+        const rawChunks = await queryByCategory(topic.title, 'CORE', 20, topic.originalFilename);
         
         return rawChunks.map((doc: any) => ({
             source_id: `db-${doc.id}`,
@@ -180,11 +157,4 @@ RESPONDE JSON con sourceMetadata:
             confidence: 0.9
         }));
     }
-    
-    private countWords(text: string): number {
-        if (!text) return 0;
-        return text.trim().split(/\s+/).filter(w => w.length > 0).length;
-    }
 }
-
-

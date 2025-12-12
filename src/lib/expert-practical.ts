@@ -9,6 +9,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { queryByCategory, formatChunksAsEvidence, type DocumentChunk } from "./rag-helpers";
 import type { TopicWithGroup } from "./syllabus-hierarchy";
 import { LEGAL_ACADEMIC_FORMAT, EXPERT_PRACTICAL_TEMPLATE } from "./prompts/legal-academic-template";
+import { safeParseJSON, countWords } from "./json-utils";
 
 // ============================================
 // TYPES
@@ -137,9 +138,9 @@ RESPONDE EXCLUSIVAMENTE JSON:
   "keyFormulas": [
     {
       "formula": "zona_protección = distancia según tipo",
-      "reference": "Art. 7 Ley 9/1991",
+      "reference": "Art. X norma aplicable",
       "appearsIn": ["Supuesto 1", "Supuesto 11"],
-      "example": "Carretera estatal → 50m"
+      "example": "Caso típico → aplicar distancia según tipo"
     }
   ],
   "commonMistakes": ["Error común 1", "Error común 2"],
@@ -162,20 +163,18 @@ RESPONDE EXCLUSIVAMENTE JSON:
             
             const result = await model.generateContent(prompt);
             const raw = result.response.text();
-            
-            let json: any;
-            try {
-                json = JSON.parse(raw);
-            } catch (parseErr) {
-                console.error('[EXPERT-PRACTICAL] JSON parse error:', parseErr);
+
+            const { json, error } = safeParseJSON(raw);
+            if (error || !json) {
+                console.error('[EXPERT-PRACTICAL] JSON parse error:', error);
                 return {
                     content: this.generateFallbackContent(params.topic, params.targetWords),
                     confidence: 0.6,
                     gaps: ['Error parseando respuesta del modelo']
                 };
             }
-            
-            const wordCount = this.countWords(json.content || '');
+
+            const wordCount = countWords(json.content || '');
             
             console.log(`[EXPERT-PRACTICAL] Generated ${wordCount} words (target: ${params.targetWords})`);
             
@@ -263,11 +262,6 @@ RESPONDE EXCLUSIVAMENTE JSON:
     /**
      * Contar palabras
      */
-    private countWords(text: string): number {
-        if (!text) return 0;
-        return text.trim().split(/\s+/).filter(w => w.length > 0).length;
-    }
-    
     /**
      * Generar contenido fallback si no hay PRACTICE disponible
      */
@@ -306,5 +300,3 @@ Para resolver supuestos prácticos relacionados con **${topic.title}**, se recom
 `;
     }
 }
-
-

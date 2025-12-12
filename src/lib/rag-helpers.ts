@@ -118,7 +118,8 @@ export async function queryRAGMultiCategory(params: RAGQueryParams): Promise<Doc
 export async function queryByCategory(
     topicTitle: string,
     category: DocumentCategory,
-    limit: number = 10
+    limit: number = 10,
+    filenameHint?: string
 ): Promise<any[]> {
     const supabase = getSupabaseClient();
     if (!supabase) return [];
@@ -127,6 +128,7 @@ export async function queryByCategory(
     
     // Extraer keywords del título
     const keywords = extractKeywords(topicTitle);
+    const filenameVariants = filenameHint ? generateFilenameVariants(filenameHint).slice(0, 4) : [];
     
     try {
         let query = supabase
@@ -134,16 +136,21 @@ export async function queryByCategory(
             .select('id, content, metadata')
             .eq('metadata->>category', category);
         
-        // Añadir filtros de keywords si hay
-        if (keywords.length > 0) {
-            const keywordConditions = keywords
-                .slice(0, 3) // Primeras 3 keywords
-                .map(k => `content.ilike.%${k}%`)
-                .join(',');
-            
-            if (keywordConditions) {
-                query = query.or(keywordConditions);
-            }
+        // Añadir filtros de keywords/filename si hay (OR)
+        const orConditions: string[] = [];
+
+        for (const k of keywords.slice(0, 3)) {
+            const safe = k.replace(/[%]/g, "");
+            if (safe) orConditions.push(`content.ilike.%${safe}%`);
+        }
+
+        for (const v of filenameVariants) {
+            const safe = v.replace(/[%]/g, "");
+            if (safe) orConditions.push(`metadata->>filename.ilike.%${safe}%`);
+        }
+
+        if (orConditions.length > 0) {
+            query = query.or(orConditions.join(','));
         }
         
         const { data, error } = await query
@@ -333,9 +340,8 @@ export function formatChunksAsEvidence(chunks: DocumentChunk[], maxChunks: numbe
     return chunks
         .slice(0, maxChunks)
         .map((chunk, idx) => 
-            `[${idx + 1}] (${chunk.filename}, conf:${chunk.confidence.toFixed(2)})\n${chunk.fragment.slice(0, 600)}...`
+            `[${idx + 1}] (id:${chunk.source_id}, file:${chunk.filename}, cat:${chunk.category}, chunk:${chunk.chunk_index}, conf:${chunk.confidence.toFixed(2)})\n${chunk.fragment.slice(0, 700)}...`
         )
         .join('\n\n');
 }
-
 
