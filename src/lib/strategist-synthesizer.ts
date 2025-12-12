@@ -14,6 +14,7 @@ import type { CurationReport } from "./expert-curator";
 import type { StrategicPlan } from "./global-planner";
 import type { GeneratedTopicContent, TopicSection } from "./widget-types";
 import type { TopicWithGroup } from "./syllabus-hierarchy";
+import { LEGAL_ACADEMIC_FORMAT, STRATEGIST_SYNTHESIZER_TEMPLATE } from "./prompts/legal-academic-template";
 
 // ============================================
 // STRATEGIST SYNTHESIZER CLASS
@@ -47,6 +48,10 @@ export class StrategistSynthesizer {
         console.log(`[STRATEGIST] Practice readiness: ${(params.curationReport.practiceReadiness * 100).toFixed(0)}%`);
         
         const prompt = `
+${LEGAL_ACADEMIC_FORMAT}
+
+${STRATEGIST_SYNTHESIZER_TEMPLATE}
+
 Eres el ESTRATEGA SINTETIZADOR para preparación de PARTE PRÁCTICA de oposición ITOP.
 
 CONTEXTO ESTRATÉGICO:

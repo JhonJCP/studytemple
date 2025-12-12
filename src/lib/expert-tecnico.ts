@@ -11,6 +11,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { queryByCategory, formatChunksAsEvidence, type DocumentChunk } from "./rag-helpers";
 import type { TopicWithGroup } from "./syllabus-hierarchy";
 import type { ExpertOutput } from "./expert-practical";
+import { LEGAL_ACADEMIC_FORMAT } from "./prompts/legal-academic-template";
 
 interface ExpertTecnicoParams {
     topic: TopicWithGroup;
@@ -55,6 +56,8 @@ export class ExpertTecnico {
         const evidenceSummary = formatChunksAsEvidence(allChunks, 12);
         
         const prompt = `
+${LEGAL_ACADEMIC_FORMAT}
+
 Eres un EXPERTO TÉCNICO en ingeniería de obras públicas.
 
 TEMA: "${params.topic.title}"
@@ -165,4 +168,5 @@ RESPONDE JSON:
         return text.trim().split(/\s+/).filter(w => w.length > 0).length;
     }
 }
+
 

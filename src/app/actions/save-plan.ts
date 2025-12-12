@@ -9,21 +9,27 @@ export async function saveStudyPlan(masterPlan: any, constraints: any) {
     if (!user) return { success: false, error: "Not authenticated" };
 
     try {
-        await supabase.from('study_plans').upsert({
-            user_id: user.id,
-            // Map to correct DB columns
-            schedule: masterPlan.daily_schedule,
-            ai_metadata: {
+        // ✅ Guardar en user_planning (tabla correcta)
+        const { error } = await supabase
+            .from('user_planning')
+            .upsert({
+                user_id: user.id,
                 strategic_analysis: masterPlan.strategic_analysis,
-                topic_time_estimates: masterPlan.topic_time_estimates
-            },
-            availability_json: constraints.availability,
-            goal_date: constraints.goalDate,
-            last_updated_with_ai: new Date().toISOString()
-        });
+                topic_time_estimates: masterPlan.topic_time_estimates,
+                daily_schedule: masterPlan.daily_schedule,
+                is_active: true,
+                updated_at: new Date().toISOString()
+            });
+        
+        if (error) {
+            console.error('[CALENDAR] Save error:', error);
+            return { success: false, error: error.message };
+        }
+        
+        console.log('[CALENDAR] ✅ Planning saved successfully');
         return { success: true };
     } catch (error) {
-        console.error("Save Plan Error:", error);
+        console.error('[CALENDAR] Save exception:', error);
         return { success: false, error: String(error) };
     }
 }
@@ -35,19 +41,41 @@ export async function getLatestStudyPlan() {
     if (!user) return { success: false, error: "Not authenticated" };
 
     try {
+        // ✅ CORRECCIÓN: Consultar user_planning (tabla correcta)
         const { data, error } = await supabase
-            .from('study_plans')
-            .select('*')
+            .from('user_planning')  // ← Cambio crítico
+            .select('strategic_analysis, topic_time_estimates, daily_schedule, is_active')
             .eq('user_id', user.id)
+            .eq('is_active', true)
             .order('created_at', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
 
-        if (error && error.code !== 'PGRST116') return { success: false, error: String(error.message) }; // PGs error 116 is no rows found
-        if (!data) return { success: true, plan: null }; // No plan found
+        if (error) {
+            console.error('[CALENDAR] Error loading planning:', error);
+            return { success: false, error: error.message };
+        }
+        
+        if (!data) {
+            console.log('[CALENDAR] No active planning found');
+            return { success: true, plan: null };
+        }
 
-        return { success: true, plan: data };
+        console.log(`[CALENDAR] ✅ Loaded ${data.topic_time_estimates?.length || 0} topics from user_planning`);
+
+        // ✅ Mapear a estructura esperada por el calendario
+        return { 
+            success: true, 
+            plan: {
+                schedule: data.daily_schedule || [],  // Array de sesiones
+                ai_metadata: {
+                    strategic_analysis: data.strategic_analysis || '',
+                    topic_time_estimates: data.topic_time_estimates || []
+                }
+            }
+        };
     } catch (error) {
+        console.error('[CALENDAR] Exception:', error);
         return { success: false, error: String(error) };
     }
 }

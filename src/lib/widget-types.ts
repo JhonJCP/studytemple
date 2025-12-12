@@ -90,6 +90,24 @@ export interface VideoContent {
 export type SectionLevel = 'h1' | 'h2' | 'h3';
 export type SourceType = 'library' | 'augmented' | 'mixed';
 
+// ============================================
+// SOURCE METADATA (para referencias interactivas)
+// ============================================
+
+export interface SourceChunkMetadata {
+    chunkId: string;
+    article: string;
+    page?: number;
+    originalText: string;
+    confidence: number;
+}
+
+export interface SectionSourceMetadata {
+    primaryDocument: string;
+    articles: string[];
+    chunks: SourceChunkMetadata[];
+}
+
 export interface TopicSection {
     id: string;
     title: string;
@@ -100,6 +118,7 @@ export interface TopicSection {
         widgets: WidgetDefinition[];
     };
     children?: TopicSection[];
+    sourceMetadata?: SectionSourceMetadata;
 }
 
 // ============================================

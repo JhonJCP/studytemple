@@ -11,6 +11,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { queryByCategory, formatChunksAsEvidence, type DocumentChunk } from "./rag-helpers";
 import type { TopicWithGroup } from "./syllabus-hierarchy";
 import type { ExpertOutput } from "./expert-practical";
+import { LEGAL_ACADEMIC_FORMAT, EXPERT_TEORICO_TEMPLATE } from "./prompts/legal-academic-template";
 
 interface ExpertTeoricoParams {
     topic: TopicWithGroup;
@@ -45,7 +46,9 @@ export class ExpertTeorico {
         const evidenceSummary = formatChunksAsEvidence(coreChunks, 12);
         
         const prompt = `
-Eres un EXPERTO LEGAL especializado en normativa de obras públicas.
+${LEGAL_ACADEMIC_FORMAT}
+
+${EXPERT_TEORICO_TEMPLATE}
 
 TEMA: "${params.topic.title}"
 DOCUMENTO BASE: "${params.topic.originalFilename}"
@@ -60,40 +63,63 @@ ${params.criticalLaws.map(l => `- ${l.law}: ${l.articles.join(', ')}`).join('\n'
 ` : ''}
 
 ═══════════════════════════════════════════════════════════════
-TU TAREA
+TU TAREA: TRANSCRIPCIÓN Y ANÁLISIS LEGAL
 ═══════════════════════════════════════════════════════════════
 
-Genera la sección "Marco Legal y Normativo" (~${params.targetWords} palabras) cubriendo:
+Genera "Marco Normativo Clave" (~${params.targetWords} palabras) con:
 
-1. **Objeto y Ámbito** de la norma (2 párrafos):
-   - Qué regula esta normativa
-   - A quién aplica y dónde
-   
-2. **Artículos Clave** con transcripción literal:
-   - 3-4 artículos fundamentales
-   - Cita EXACTA: "Art. 3 de la Ley 9/1991 establece que..."
-   - Interpretación técnica
+1. **Objeto y Clasificación** (usar § y transcripciones literales):
+   - Qué regula la norma
+   - Clasificaciones según la ley (transcribir artículo completo)
+   - Usar bullet structure jerárquica
 
-3. **Competencias** y órganos responsables:
-   - Quién tiene competencia (Estado, CCAA, Cabildos, Ayuntamientos)
-   - Distribución de responsabilidades
-   
-4. **Referencias Cruzadas**:
-   - Otras leyes relacionadas
+2. **Artículos Clave Transcritos**:
+   - Seleccionar 3-5 artículos FUNDAMENTALES
+   - Transcribir LITERALMENTE: "Artículo X establece: '[TEXTO EXACTO DE LA LEY]'"
+   - Añadir interpretación técnica breve después
+
+3. **Competencias** (estructura § clara):
+   - Qué organismo tiene competencia (transcribir artículo)
+   - Responsabilidades específicas (lista numerada si procede)
+
+4. **Referencias Normativas**:
    - Normativa de desarrollo
+   - Leyes relacionadas
 
-REQUISITOS:
-- USA SOLO LA EVIDENCIA proporcionada (NO inventes artículos)
-- Cita artículos EXACTOS de la evidencia
-- Formato Markdown limpio (h3, listas, negritas)
+⚠️ CRÍTICO: 
+- USA SOLO LA EVIDENCIA (no inventes artículos)
+- TRANSCRIBE literalmente (entre comillas)
+- Cita número de artículo DESPUÉS de cada afirmación
+- Usa § para estructura temática
 - ${params.targetWords} palabras ±30
+- INCLUYE sourceMetadata con chunkId y originalText para CADA sección
 
-RESPONDE JSON:
+RESPONDE JSON con sourceMetadata:
 {
-  "content": "[Markdown de ${params.targetWords} palabras]",
-  "references": ["Ley 9/1991 Art. 3", "Art. 5", "Decreto 131/1995", ...],
-  "confidence": 0.9,
-  "gaps": ["Opcional: conceptos que no encontraste en evidencia"]
+  "content": "[Markdown con formato académico-legal]",
+  "sections": [
+    {
+      "id": "clasificacion",
+      "title": "Clasificación según la Ley",
+      "text": "La LCC distingue § :\\n• **Regionales**: Corresponden a la CA § .",
+      "sourceMetadata": {
+        "document": "[filename del chunk]",
+        "article": "Artículo 3",
+        "chunkId": "[source_id del chunk]",
+        "originalText": "[Transcripción COMPLETA del artículo]",
+        "confidence": 0.95
+      }
+    }
+  ],
+  "literalArticles": [
+    {
+      "article": "Artículo 3",
+      "text": "[Transcripción literal completa]",
+      "interpretation": "[Breve explicación técnica]"
+    }
+  ],
+  "references": ["Art. 3 Ley 9/1991", "Art. 5", ...],
+  "confidence": 0.95
 }
 `;
         
@@ -116,6 +142,9 @@ RESPONDE JSON:
             const wordCount = this.countWords(json.content || '');
             console.log(`[EXPERT-TEORICO] Generated ${wordCount} words`);
             
+            // Extraer sourceMetadata si está disponible
+            const sections = json.sections || [];
+            
             return {
                 content: json.content || '',
                 references: json.references || [],
@@ -123,7 +152,9 @@ RESPONDE JSON:
                 gaps: json.gaps || [],
                 metadata: {
                     wordCount,
-                    source: 'CORE'
+                    source: 'CORE',
+                    sections: sections, // Incluir secciones con metadata
+                    literalArticles: json.literalArticles || []
                 }
             };
             
@@ -155,4 +186,5 @@ RESPONDE JSON:
         return text.trim().split(/\s+/).filter(w => w.length > 0).length;
     }
 }
+
 

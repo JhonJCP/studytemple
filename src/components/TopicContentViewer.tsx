@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { HierarchicalOutline } from "./HierarchicalOutline";
 import { OrchestratorFlow } from "./OrchestratorFlow";
 import { WidgetFactory } from "./WidgetFactory";
+import { ContentWithSources } from "./ContentWithSources";
 import type {
     TopicSection,
     GeneratedTopicContent,
@@ -470,26 +471,45 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
     const canRetry = error && retryCountRef.current < MAX_RETRIES;
 
     return (
-        <div className="min-h-screen flex flex-col bg-background">
-            {/* Header */}
-            <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-white/5 px-6 py-4">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <Link
-                            href={`/syllabus/group/${topic.groupIndex}`}
-                            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                        >
-                            <ArrowLeft className="w-5 h-5 text-white/50" />
-                        </Link>
-                        <div>
-                            <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1">
-                                {topic.groupTitle}
-                            </p>
-                            <h1 className="text-xl font-black text-white leading-tight max-w-2xl">
-                                {topic.title}
-                            </h1>
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900">
+            {/* Header limpio estilo NotebookLM */}
+            <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl border-b">
+                <div className="max-w-7xl mx-auto px-6 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <Link
+                                href={`/syllabus/group/${topic.groupIndex}`}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                            >
+                                <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                            </Link>
+                            <div>
+                                <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-1">
+                                    {topic.groupTitle}
+                                </p>
+                                <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
+                                    {topic.title}
+                                </h1>
+                                <div className="flex items-center gap-4 mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                    {content?.metadata && (
+                                        <>
+                                            <span className="flex items-center gap-1">
+                                                <Clock className="h-4 w-4" />
+                                                {content.metadata.estimatedStudyTime} min
+                                            </span>
+                                            <span className={cn(
+                                                "px-2 py-0.5 rounded text-xs font-medium",
+                                                content.metadata.complexity === 'High' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                                                content.metadata.complexity === 'Medium' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                                                'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                            )}>
+                                                {content.metadata.complexity}
+                                            </span>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
                         </div>
-                    </div>
 
                     <div className="flex items-center gap-3">
                         {/* Status Badge */}
@@ -532,30 +552,48 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                             </motion.button>
                         )}
 
-                        {/* Generate Button */}
-                        <motion.button
-                            onClick={() => handleGenerate(false)}
-                            disabled={isGenerating}
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            className={cn(
-                                "flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all",
-                                isGenerating
-                                    ? "bg-white/10 text-white/50 cursor-wait"
-                                    : "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40"
-                            )}
-                        >
-                            {isGenerating ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                                <Sparkles className="w-4 h-4" />
-                            )}
-                            {content ? 'Regenerar' : 'Generar Temario'}
-                        </motion.button>
+                        <div className="flex items-center gap-3">
+                            {/* Status Badge */}
+                            <div className={cn(
+                                "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium",
+                                status.color
+                            )}>
+                                <status.icon className={cn("w-4 h-4", status.animate && "animate-spin")} />
+                                {status.text}
+                            </div>
+
+                            {/* Generate Button */}
+                            <button
+                                onClick={() => handleGenerate(false)}
+                                disabled={isGenerating}
+                                className={cn(
+                                    "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all",
+                                    isGenerating
+                                        ? "bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-wait"
+                                        : "bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                                )}
+                            >
+                                {isGenerating ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <RefreshCw className="w-4 h-4" />
+                                )}
+                                {content ? 'Regenerar' : 'Generar Tema'}
+                            </button>
+
+                            {/* Toggle Orchestrator */}
+                            <button
+                                onClick={() => setShowOrchestrator(!showOrchestrator)}
+                                className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                            >
+                                {showOrchestrator ? 'Ocultar' : 'Ver'} proceso IA
+                            </button>
+                        </div>
                     </div>
                 </div>
+            </div>
 
-                {/* Orchestrator Toggle */}
+            {/* Orchestrator Toggle */}
                 {(showOrchestrator || isGenerating) && (
                     <motion.div
                         initial={{ height: 0, opacity: 0 }}
@@ -623,127 +661,187 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                 </AnimatePresence>
             </header>
 
-            {/* Main Layout */}
-            <div className="flex-1 flex overflow-hidden">
-                {/* Sidebar: Hierarchical Outline */}
-                <aside className="w-80 border-r border-white/5 bg-black/20 flex-shrink-0 overflow-hidden">
-                    <HierarchicalOutline
-                        sections={sections}
-                        activeSectionId={activeSectionId || undefined}
-                        onSectionClick={setActiveSectionId}
-                        generatingIds={isGenerating ? flatSections.map(s => s.id) : []}
-                    />
-                </aside>
-
-                {/* Content Area */}
-                <main className="flex-1 overflow-y-auto p-8">
-                    {!content ? (
-                        // Empty State
-                        <div className="h-full flex flex-col items-center justify-center text-center">
-                            <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-6">
-                                <Sparkles className="w-10 h-10 text-white/20" />
+            {/* Layout 2 columnas: Contenido + Sidebar */}
+            <div className="max-w-7xl mx-auto px-6 py-8">
+                <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
+                    {/* Columna principal: Contenido */}
+                    <main className="space-y-8">
+                        {!content ? (
+                            // Empty State
+                            <div className="h-full flex flex-col items-center justify-center text-center py-16">
+                                <div className="w-20 h-20 bg-gray-200 dark:bg-gray-800 rounded-full flex items-center justify-center mb-6">
+                                    <Sparkles className="w-10 h-10 text-gray-400 dark:text-gray-600" />
+                                </div>
+                                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+                                    Contenido pendiente de generación
+                                </h2>
+                                <p className="text-gray-600 dark:text-gray-400 max-w-md mb-8">
+                                    Haz clic en &quot;Generar Tema&quot; para que los agentes de IA analicen
+                                    este tema y creen contenido optimizado para tu estudio.
+                                </p>
+                                <button
+                                    onClick={() => handleGenerate(false)}
+                                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors shadow-sm"
+                                >
+                                    <Sparkles className="w-5 h-5" />
+                                    Generar Tema
+                                </button>
                             </div>
-                            <h2 className="text-2xl font-bold text-white mb-3">
-                                Contenido pendiente de generación
-                            </h2>
-                            <p className="text-white/50 max-w-md mb-8">
-                                Haz clic en &quot;Generar Temario&quot; para que los agentes de IA analicen
-                                este tema y creen contenido optimizado para tu estudio.
-                            </p>
-                            <button
-                                onClick={() => handleGenerate(false)}
-                                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-xl hover:scale-105 transition-transform"
-                            >
-                                <Sparkles className="w-5 h-5" />
-                                Generar Temario
-                            </button>
-                        </div>
-                    ) : (
-                        // Content Sections
-                        <div className="max-w-4xl mx-auto space-y-8">
-                            {content.sections.map((section) => (
-                                <SectionRenderer
-                                    key={section.id}
-                                    section={section}
-                                    topicId={content.topicId}
-                                    isActive={section.id === activeSectionId}
-                                    onActivate={() => setActiveSectionId(section.id)}
-                                />
-                            ))}
-                        </div>
-                    )}
-                </main>
-            </div>
+                        ) : (
+                            <>
+                                {/* Índice sticky */}
+                                <nav className="sticky top-24 bg-white dark:bg-gray-900 rounded-xl border p-6 shadow-sm">
+                                    <h3 className="text-sm font-semibold mb-4 text-gray-900 dark:text-white">En esta página</h3>
+                                    <ol className="space-y-2 text-sm">
+                                        {content.sections.map(s => (
+                                            <li key={s.id}>
+                                                <a
+                                                    href={`#${s.id}`}
+                                                    className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                                >
+                                                    {s.title}
+                                                </a>
+                                            </li>
+                                        ))}
+                                    </ol>
+                                </nav>
 
-            {/* Metadata Footer */}
-            {content && (
-                <footer className="border-t border-white/5 px-6 py-3 bg-black/20 text-xs text-white/40">
-                    <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-4">
-                            <span className="flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                {content.metadata.estimatedStudyTime} min estimados
-                            </span>
-                            <span>
-                                Complejidad: {content.metadata.complexity}
-                            </span>
-                        </div>
-                        <span>
-                            Generado: {new Date(content.metadata.generatedAt).toLocaleString()}
-                        </span>
-                    </div>
-                    
-                    {/* Practice Metrics */}
-                    {content.metadata.practiceMetrics && (
-                        <div className="pt-2 border-t border-white/5 flex items-center gap-6">
-                            {content.metadata.practiceMetrics.practiceReadiness !== undefined && (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-white/60 font-semibold">🎯 Practice Ready:</span>
-                                    <span className={cn(
-                                        "font-bold",
-                                        content.metadata.practiceMetrics.practiceReadiness >= 0.9 ? "text-green-400" :
-                                        content.metadata.practiceMetrics.practiceReadiness >= 0.8 ? "text-yellow-400" :
-                                        "text-orange-400"
-                                    )}>
-                                        {(content.metadata.practiceMetrics.practiceReadiness * 100).toFixed(0)}%
-                                    </span>
+                                {/* Secciones con referencias */}
+                                {content.sections.map((section) => (
+                                    <article
+                                        id={section.id}
+                                        key={section.id}
+                                        className="bg-white dark:bg-gray-900 rounded-2xl border shadow-sm p-8 scroll-mt-24"
+                                    >
+                                        <h2 className="text-xl font-semibold mb-6 flex items-center gap-3 text-gray-900 dark:text-white">
+                                            {section.title}
+                                            {section.sourceMetadata && section.sourceMetadata.articles.length > 0 && (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-normal rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                                                    <FileText className="h-3 w-3" />
+                                                    {section.sourceMetadata.articles.length} refs
+                                                </span>
+                                            )}
+                                        </h2>
+
+                                        <ContentWithSources
+                                            text={section.content.text}
+                                            sourceMetadata={section.sourceMetadata}
+                                        />
+
+                                        {/* Widgets */}
+                                        {section.content.widgets && section.content.widgets.length > 0 && (
+                                            <div className="mt-6">
+                                                <WidgetFactory
+                                                    widgets={section.content.widgets}
+                                                    topicId={content.topicId}
+                                                />
+                                            </div>
+                                        )}
+                                    </article>
+                                ))}
+                            </>
+                        )}
+                    </main>
+
+                    {/* Sidebar: Fuentes y métricas */}
+                    {content && (
+                        <aside className="space-y-6">
+                            {/* Documentos fuente */}
+                            <div className="sticky top-24 bg-white dark:bg-gray-900 rounded-xl border p-6 shadow-sm">
+                                <h3 className="text-sm font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
+                                    <FileText className="h-4 w-4" />
+                                    Fuentes
+                                </h3>
+                                <ul className="space-y-3 text-sm">
+                                    {content.metadata.sourceDocuments?.map(doc => (
+                                        <li key={doc} className="flex items-start gap-2">
+                                            <div className="mt-0.5 h-5 w-5 rounded bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                                                <FileText className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                                            </div>
+                                            <div>
+                                                <div className="font-medium text-gray-900 dark:text-white text-xs">{doc}</div>
+                                                <button className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1">
+                                                    Ver documento completo →
+                                                </button>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+
+                            {/* Practice Metrics */}
+                            {content.metadata.practiceMetrics && (
+                                <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 rounded-xl border border-green-200 dark:border-green-800 p-6">
+                                    <h3 className="text-sm font-semibold mb-4 text-gray-900 dark:text-white">Métricas Prácticas</h3>
+                                    <div className="space-y-3 text-sm">
+                                        {content.metadata.practiceMetrics.practiceReadiness !== undefined && (
+                                            <div>
+                                                <div className="text-gray-600 dark:text-gray-400 text-xs">Readiness</div>
+                                                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                                                    {(content.metadata.practiceMetrics.practiceReadiness * 100).toFixed(0)}%
+                                                </div>
+                                            </div>
+                                        )}
+                                        {content.metadata.practiceMetrics.formulasIncluded !== undefined && (
+                                            <div>
+                                                <div className="text-gray-600 dark:text-gray-400 text-xs">Fórmulas</div>
+                                                <div className="font-semibold text-gray-900 dark:text-white">
+                                                    {content.metadata.practiceMetrics.formulasIncluded}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {content.metadata.practiceMetrics.appearsInSupuestos && content.metadata.practiceMetrics.appearsInSupuestos.length > 0 && (
+                                            <div>
+                                                <div className="text-gray-600 dark:text-gray-400 text-xs">Aparece en</div>
+                                                <div className="font-semibold text-gray-900 dark:text-white">
+                                                    {content.metadata.practiceMetrics.appearsInSupuestos.length} supuestos
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
-                            
-                            {content.metadata.practiceMetrics.conceptsFromRealSupuestos !== undefined && (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-white/60">📚 Conceptos de supuestos reales:</span>
-                                    <span className="text-white/80 font-semibold">
-                                        {content.metadata.practiceMetrics.conceptsFromRealSupuestos}
-                                    </span>
+
+                            {/* Audio Player (si existe) */}
+                            {content.metadata.audioUrl && (
+                                <div className="bg-white dark:bg-gray-900 rounded-xl border p-6 shadow-sm">
+                                    <h3 className="text-sm font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
+                                        <Volume2 className="h-4 w-4" />
+                                        Podcast
+                                    </h3>
+                                    <audio controls className="w-full" src={content.metadata.audioUrl}>
+                                        Tu navegador no soporta audio.
+                                    </audio>
                                 </div>
                             )}
-                            
-                            {content.metadata.practiceMetrics.formulasIncluded !== undefined && (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-white/60">🧮 Fórmulas:</span>
-                                    <span className="text-white/80 font-semibold">
-                                        {content.metadata.practiceMetrics.formulasIncluded}
-                                    </span>
+
+                            {/* Generate Audio Button */}
+                            {content && !content.metadata.audioUrl && !isGeneratingAudio && (
+                                <button
+                                    onClick={handleGenerateAudio}
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
+                                >
+                                    <Volume2 className="h-4 w-4" />
+                                    Generar Podcast
+                                </button>
+                            )}
+
+                            {isGeneratingAudio && (
+                                <div className="flex items-center justify-center gap-2 px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Generando audio...
                                 </div>
                             )}
-                            
-                            {content.metadata.practiceMetrics.appearsInSupuestos && 
-                             content.metadata.practiceMetrics.appearsInSupuestos.length > 0 && (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-white/60">📋 Aparece en:</span>
-                                    <span className="text-white/80 font-semibold">
-                                        {content.metadata.practiceMetrics.appearsInSupuestos.slice(0, 3).join(', ')}
-                                        {content.metadata.practiceMetrics.appearsInSupuestos.length > 3 && 
-                                            ` +${content.metadata.practiceMetrics.appearsInSupuestos.length - 3} más`
-                                        }
-                                    </span>
+
+                            {audioError && (
+                                <div className="text-xs text-red-600 dark:text-red-400 p-3 bg-red-100 dark:bg-red-900/30 rounded">
+                                    {audioError}
                                 </div>
                             )}
-                        </div>
+                        </aside>
                     )}
-                </footer>
-            )}
+                </div>
+            </div>
             
             {/* Audio Player - Solo si ya está generado */}
             {content && content.metadata.audioUrl && (

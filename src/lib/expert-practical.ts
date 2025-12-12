@@ -8,6 +8,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { queryByCategory, formatChunksAsEvidence, type DocumentChunk } from "./rag-helpers";
 import type { TopicWithGroup } from "./syllabus-hierarchy";
+import { LEGAL_ACADEMIC_FORMAT, EXPERT_PRACTICAL_TEMPLATE } from "./prompts/legal-academic-template";
 
 // ============================================
 // TYPES
@@ -68,7 +69,9 @@ export class ExpertPractical {
         const evidenceSummary = formatChunksAsEvidence(practiceChunks, 15);
         
         const prompt = `
-Eres un EXPERTO EN RESOLUCIÓN DE SUPUESTOS PRÁCTICOS de oposición ITOP.
+${LEGAL_ACADEMIC_FORMAT}
+
+${EXPERT_PRACTICAL_TEMPLATE}
 
 TEMA: "${params.topic.title}"
 GRUPO: "${params.topic.groupTitle}"
@@ -303,4 +306,5 @@ Para resolver supuestos prácticos relacionados con **${topic.title}**, se recom
 `;
     }
 }
+
 
