@@ -125,10 +125,11 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
     const sections = content?.sections || generateBaseHierarchy(topic);
     const flatSections = flattenSections(sections);
 
-    // Cargar persistencia local (si no hay contenido inicial desde Supabase)
+    // Cargar persistencia local (desde Supabase o localStorage) cuando cambia el tema
+    // IMPORTANTE: no depender de eventSource/timeoutId para no sobrescribir el contenido generado en vivo.
     useEffect(() => {
         let loadedContent: GeneratedTopicContent | null = null;
-        
+
         if (initialContent) {
             loadedContent = hydrateContent(initialContent);
             setContent(loadedContent);
@@ -163,14 +164,15 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
         } catch {
             // ignore storage parse errors
         }
+    }, [topic.id, initialContent]);
 
+    // Cleanup de recursos asíncronos
+    useEffect(() => {
         return () => {
             eventSource?.close();
-            if (timeoutId) {
-                clearTimeout(timeoutId);
-            }
+            if (timeoutId) clearTimeout(timeoutId);
         };
-    }, [topic.id, initialContent, eventSource, timeoutId]);
+    }, [eventSource, timeoutId]);
 
     // Persistir cambios
     useEffect(() => {

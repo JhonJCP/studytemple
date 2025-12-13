@@ -69,7 +69,7 @@ TU TAREA: TRANSCRIPCIÓN Y ANÁLISIS LEGAL
 
 Genera "Marco Normativo Clave" (~${params.targetWords} palabras) con:
 
-1. **Objeto y Clasificación** (usar ¶ y transcripciones literales):
+1. **Objeto y Clasificación** (con transcripciones literales):
    - Qué regula la norma
    - Clasificaciones según la ley (transcribir artículo completo)
    - Usar bullet structure jerárquica
@@ -79,7 +79,7 @@ Genera "Marco Normativo Clave" (~${params.targetWords} palabras) con:
    - Transcribir LITERALMENTE: "Artículo X establece: '[TEXTO EXACTO DE LA LEY]'"
    - Añadir interpretación técnica breve después
 
-3. **Competencias** (estructura ¶ clara):
+3. **Competencias** (estructura clara):
    - Qué organismo tiene competencia (transcribir artículo)
    - Responsabilidades específicas (lista numerada si procede)
 
