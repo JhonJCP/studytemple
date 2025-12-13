@@ -10,6 +10,7 @@ import { TopicContentViewer } from "@/components/TopicContentViewer";
 import { AIFlowPanel } from "@/components/AIFlowPanel";
 import { StudyPodcastPanel } from "@/components/StudyPodcastPanel";
 import { TopicMetaPanel } from "@/components/TopicMetaPanel";
+import { GenerateWidgetsPanel } from "@/components/GenerateWidgetsPanel";
 
 interface Props {
     date: string;
@@ -129,6 +130,13 @@ export function StudyWorkspace({
                             initialScript={initialAudioScript}
                             initialDuration={initialAudioDuration}
                         />
+                        {content && (
+                            <GenerateWidgetsPanel
+                                topicId={topic.id}
+                                content={content}
+                                onContentChange={(next) => setContent(next)}
+                            />
+                        )}
                         {content && <TopicMetaPanel content={content} />}
 
                         <details className="glass-card p-4">
@@ -147,4 +155,3 @@ export function StudyWorkspace({
         </div>
     );
 }
-

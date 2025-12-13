@@ -1,8 +1,8 @@
 /**
  * WIDGET TYPES - Sistema de Widgets y Estructura de Contenido
- * 
- * Tipos TypeScript para el sistema de generación de temarios
- * con orquestación de agentes IA.
+ *
+ * Tipos TypeScript para el sistema de generaciÃ³n de temarios
+ * con orquestaciÃ³n de agentes IA.
  */
 
 // ============================================
@@ -10,29 +10,32 @@
 // ============================================
 
 export type WidgetType =
-    | 'mnemonic'    // Regla mnemotécnica
+    | 'mnemonic'    // Regla mnemotÃ©cnica
     | 'mnemonic_generator' // Mnemotecnia on-demand (UI)
-    | 'timeline'    // Línea temporal
+    | 'timeline'    // LÃ­nea temporal
+    | 'timeline_generator' // Timeline on-demand (UI)
     | 'diagram'     // Diagrama Mermaid
-    | 'analogy'     // Analogía/Historia
+    | 'diagram_generator' // Diagrama on-demand (UI)
+    | 'analogy'     // AnalogÃ­a/Historia
     | 'image'       // Imagen generada
-    | 'infografia'  // Infografía visual on-demand (UI)
+    | 'infografia'  // InfografÃ­a visual on-demand (UI)
     | 'audio'       // Audio TTS
-    | 'formula'     // Fórmula matemática
+    | 'formula'     // FÃ³rmula matemÃ¡tica
     | 'quiz'        // Mini-test
-    | 'case_practice' // Mini caso práctico on-demand (UI)
+    | 'quiz_generator' // Quiz on-demand (UI)
+    | 'case_practice' // Mini caso prÃ¡ctico on-demand (UI)
     | 'alert'       // Alerta de contenido augmentado
-    | 'video_loop'; // Video/animación
+    | 'video_loop'; // Video/animaciÃ³n
 
-// Definición genérica de widget
+// DefiniciÃ³n genÃ©rica de widget
 export interface WidgetDefinition {
     type: WidgetType;
     content: unknown;
-    generatable: boolean; // Si requiere generación adicional (ej: imagen)
+    generatable: boolean; // Si requiere generaciÃ³n adicional (ej: imagen)
     generated?: boolean;  // Si ya fue generado
 }
 
-// Contenidos específicos por tipo de widget
+// Contenidos especÃ­ficos por tipo de widget
 export interface MnemonicContent {
     rule: string;
     explanation: string;
@@ -43,7 +46,7 @@ export interface TimelineContent {
 }
 
 export interface DiagramContent {
-    structure: string; // Código Mermaid
+    structure: string; // CÃ³digo Mermaid
 }
 
 export interface AnalogyContent {
@@ -136,7 +139,7 @@ export interface TopicMetadata {
     sourceDocuments: string[];
     generatedAt: Date;
     audioUrl?: string; // URL del podcast generado
-    audioGeneratedAt?: string; // Timestamp de generación de audio
+    audioGeneratedAt?: string; // Timestamp de generaciÃ³n de audio
     health?: {
         totalWords: number;
         avgWordsPerSection: number;
@@ -146,7 +149,7 @@ export interface TopicMetadata {
         wordGoalMet: boolean;
     };
     practiceMetrics?: {
-        practiceReadiness?: number; // 0-1 (% de contenido útil para supuestos)
+        practiceReadiness?: number; // 0-1 (% de contenido Ãºtil para supuestos)
         conceptsFromRealSupuestos?: number;
         formulasIncluded?: number;
         examplesProvided?: number;
@@ -165,7 +168,7 @@ export interface GeneratedTopicContent {
 }
 
 // ============================================
-// ESTADOS DE GENERACIÓN
+// ESTADOS DE GENERACIÃ“N
 // ============================================
 
 export type GenerationStatus =
@@ -179,10 +182,19 @@ export type GenerationStatus =
     | 'error';         // Error
 
 // ============================================
-// AGENTES DE ORQUESTACIÓN
+// AGENTES DE ORQUESTACIÃ“N
 // ============================================
 
-export type AgentRole = 'librarian' | 'auditor' | 'timekeeper' | 'strategist' | 'planner' | 'expert-teorico' | 'expert-practical' | 'expert-tecnico' | 'curator';
+export type AgentRole =
+    | 'librarian'
+    | 'auditor'
+    | 'timekeeper'
+    | 'strategist'
+    | 'planner'
+    | 'expert-teorico'
+    | 'expert-practical'
+    | 'expert-tecnico'
+    | 'curator';
 
 export interface AgentStep {
     role: AgentRole;
@@ -204,19 +216,20 @@ export interface OrchestrationState {
 }
 
 // ============================================
-// ESTRATEGIA DE CONCISIÓN (TimeKeeper)
+// ESTRATEGIA DE CONCISIÃ“N (TimeKeeper)
 // ============================================
 
 export type ConcisionStrategy =
     | 'executive_summary'  // Muy poco tiempo: solo puntos clave
     | 'condensed'          // Poco tiempo: resumen con lo esencial
-    | 'balanced'           // Tiempo normal: explicación equilibrada
-    | 'detailed'           // Mucho tiempo: explicación profunda
-    | 'exhaustive';        // Sin límite: máximo detalle
+    | 'balanced'           // Tiempo normal: explicaciÃ³n equilibrada
+    | 'detailed'           // Mucho tiempo: explicaciÃ³n profunda
+    | 'exhaustive';        // Sin lÃ­mite: mÃ¡ximo detalle
 
 export interface TimeKeeperDecision {
     availableMinutes: number;
     recommendedTokens: number;
     strategy: ConcisionStrategy;
-    widgetBudget: number; // Número máximo de widgets a generar
+    widgetBudget: number; // NÃºmero mÃ¡ximo de widgets a generar
 }
+

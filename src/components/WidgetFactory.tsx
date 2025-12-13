@@ -10,8 +10,11 @@ import {
 import { InfografiaWidget } from "./widgets/InfografiaWidget";
 import { MnemonicGeneratorWidget } from "./widgets/MnemonicGeneratorWidget";
 import { CasePracticeWidget } from "./widgets/CasePracticeWidget";
+import { DiagramGeneratorWidget } from "./widgets/DiagramGeneratorWidget";
+import { TimelineGeneratorWidget } from "./widgets/TimelineGeneratorWidget";
 import { FormulaWidget } from "./widgets/FormulaWidget";
 import { QuizWidget } from "./widgets/QuizWidget";
+import { QuizGeneratorWidget } from "./widgets/QuizGeneratorWidget";
 import type { WidgetDefinition } from "@/lib/widget-types";
 import { motion } from "framer-motion";
 
@@ -41,6 +44,9 @@ const WIDGET_MAP: Record<string, React.ComponentType<{ content: any }>> = {
     infografia: InfografiaWidget,
     mnemonic_generator: MnemonicGeneratorWidget,
     case_practice: CasePracticeWidget,
+    diagram_generator: DiagramGeneratorWidget,
+    timeline_generator: TimelineGeneratorWidget,
+    quiz_generator: QuizGeneratorWidget,
     formula: FormulaWidget,
     quiz: QuizWidget,
 };

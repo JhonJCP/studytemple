@@ -10,6 +10,9 @@ import { createClient } from "@/utils/supabase/server";
 import { generateInfografia } from "@/lib/widget-brains/infografia-brain";
 import { generateMnemonic } from "@/lib/widget-brains/mnemonic-brain";
 import { generateCasePractice } from "@/lib/widget-brains/case-practice-brain";
+import { generateQuiz } from "@/lib/widget-brains/quiz-brain";
+import { generateDiagram } from "@/lib/widget-brains/diagram-brain";
+import { generateTimeline } from "@/lib/widget-brains/timeline-brain";
 
 export const runtime = "nodejs";
 
@@ -105,6 +108,21 @@ function getCachedResult(widgetType: string, widget: any) {
         return null;
     }
 
+    if (widgetType === "diagram") {
+        if (c.structure) return { structure: c.structure };
+        return null;
+    }
+
+    if (widgetType === "timeline") {
+        if (Array.isArray(c.steps) && c.steps.length) return { steps: c.steps };
+        return null;
+    }
+
+    if (widgetType === "quiz") {
+        if (Array.isArray(c.questions) && c.questions.length) return { questions: c.questions };
+        return null;
+    }
+
     return null;
 }
 
@@ -186,6 +204,22 @@ export async function POST(req: NextRequest) {
                 frame: widgetData.frame,
                 concept: widgetData.concept,
             });
+        } else if (widgetType === "diagram") {
+            result = await generateDiagram({
+                frame: widgetData.frame,
+                concept: widgetData.concept,
+            });
+        } else if (widgetType === "timeline") {
+            result = await generateTimeline({
+                frame: widgetData.frame,
+                concept: widgetData.concept,
+            });
+        } else if (widgetType === "quiz") {
+            result = await generateQuiz({
+                frame: widgetData.frame,
+                focus: widgetData.focus || widgetData.concept || "Conceptos clave",
+                questionsCount: widgetData.questionsCount,
+            });
         } else {
             return NextResponse.json({ error: `Unknown widget type: ${widgetType}` }, { status: 400 });
         }
@@ -207,6 +241,12 @@ export async function POST(req: NextRequest) {
         } else if (widgetType === "case_practice") {
             nextContent.scenario = result.scenario;
             nextContent.solution = result.solution;
+        } else if (widgetType === "diagram") {
+            nextContent.structure = result.structure;
+        } else if (widgetType === "timeline") {
+            nextContent.steps = result.steps;
+        } else if (widgetType === "quiz") {
+            nextContent.questions = result.questions;
         }
 
         nextWidget.content = nextContent;

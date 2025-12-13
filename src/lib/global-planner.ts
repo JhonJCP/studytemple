@@ -206,8 +206,8 @@ export class GlobalPlannerWithRealPlanning {
                 return {
                     timeAllocation,
                     strategy,
-                    targetWords: isLegalTopic ? 1800 : 1200,
-                    targetSections: isLegalTopic ? 7 : 6,
+                    targetWords: isLegalTopic ? 2800 : 1800,
+                    targetSections: isLegalTopic ? 9 : 7,
                     practiceRelevance: 0,
                     practiceExamples: [],
                     commonCalculations: [],
@@ -248,7 +248,7 @@ export class GlobalPlannerWithRealPlanning {
             /ley|decreto|reglamento/i.test(topicEstimate.topicTitle) ||
             /ley|decreto|reglamento/i.test(params.topicTitle || "") ||
             /ley|decreto|reglamento/i.test(params.originalFilename || "");
-        const targetWords = isLegalTopic ? Math.max(Math.round(targetWordsBase * 1.5), 1800) : targetWordsBase;
+        const targetWords = isLegalTopic ? Math.max(Math.round(targetWordsBase * 2.0), 2800) : targetWordsBase;
         
         return {
             // USAR TIEMPO DEL PLANNING (no calcularlo)
@@ -621,8 +621,8 @@ export class GlobalPlannerWithRealPlanning {
         return {
             timeAllocation: 60,
             strategy: isLegalTopic ? 'detailed' : 'balanced',
-            targetWords: isLegalTopic ? 1800 : 1200,
-            targetSections: isLegalTopic ? 7 : 6,
+            targetWords: isLegalTopic ? 2800 : 1800,
+            targetSections: isLegalTopic ? 9 : 7,
             practiceRelevance: 0,
             practiceExamples: [],
             commonCalculations: [],

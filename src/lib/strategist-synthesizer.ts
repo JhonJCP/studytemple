@@ -30,14 +30,46 @@ export class StrategistSynthesizer {
     strategicPlan: StrategicPlan;
     warnings: string[];
   }): GeneratedTopicContent {
-    const sections: TopicSection[] = params.drafts.map((d, idx) => ({
+    const combined = this.sanitizeMarkdown(params.drafts.map((d) => d?.content || "").join("\n\n"));
+    const lines = combined
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && !l.startsWith("```"))
+      .slice(0, 40)
+      .map((l) => (l.startsWith("-") || /^\d+\./.test(l) ? l : `- ${l.replace(/^#+\s*/, "")}`))
+      .join("\n");
+
+    const fallbackPreface: TopicSection[] = [
+      {
+        id: "fallback_imperdibles",
+        title: "Imperdibles (fallback)",
+        level: "h2",
+        sourceType: "mixed",
+        content: { text: lines || "- (Sin contenido suficiente en fallback)", widgets: [] },
+      },
+      {
+        id: "fallback_resumen_oro",
+        title: "Resumen de oro (fallback)",
+        level: "h2",
+        sourceType: "mixed",
+        content: {
+          text:
+            combined.slice(0, 1400) ||
+            "No se pudo sintetizar el resumen de oro por fallo de generación. Usa los bloques siguientes como base.",
+          widgets: [],
+        },
+      },
+    ];
+
+    const draftSections: TopicSection[] = params.drafts.map((d, idx) => ({
       id: `fallback_${idx}`,
-      title:
-        idx === 0 ? "Resumen teórico (fallback)" : idx === 1 ? "Aplicación práctica (fallback)" : "Notas técnicas (fallback)",
+      title: idx === 0 ? "Resumen teórico (fallback)" : idx === 1 ? "Aplicación práctica (fallback)" : "Notas técnicas (fallback)",
       level: "h2",
       sourceType: "mixed",
       content: { text: this.sanitizeMarkdown(d?.content || ""), widgets: [] },
     }));
+
+    const sections: TopicSection[] = [...fallbackPreface, ...draftSections];
 
     const totalWords = sections.reduce((sum, s) => sum + countWords(s.content.text), 0);
 
@@ -96,8 +128,9 @@ export class StrategistSynthesizer {
       /ley|decreto|reglamento/i.test(params.topic.title) ||
       /ley|decreto|reglamento/i.test(params.topic.originalFilename || "");
 
-    const desiredSections = Math.max(params.strategicPlan.targetSections, isLegalTopic ? 7 : 6);
-    const targetWords = Math.max(params.strategicPlan.targetWords, isLegalTopic ? 1800 : 1200);
+    // V2 (post-persistencia): apuntar a temarios más largos y pedagógicos, con secciones "Imperdibles" + "Resumen de oro"
+    const desiredSections = Math.max(params.strategicPlan.targetSections, isLegalTopic ? 9 : 7);
+    const targetWords = Math.max(params.strategicPlan.targetWords, isLegalTopic ? 2800 : 1800);
 
     const sourcePool = params.drafts
       .map((d) => d.metadata?.sources)
@@ -177,6 +210,7 @@ ${this.formatCriticalConcepts(params.curationReport)}
 
       const sections: any[] = Array.isArray(candidate.sections) ? candidate.sections : [];
       const wordTotal = sections.reduce((sum, s) => sum + countWords(s?.content?.text || ""), 0);
+      const titles = sections.map((s) => String(s?.title || "")).join(" | ").toLowerCase();
 
       if (wordTotal < targetWords * 0.85) {
         issues.push(`Texto demasiado corto: ${wordTotal} palabras (objetivo >= ${Math.round(targetWords * 0.85)})`);
@@ -186,13 +220,29 @@ ${this.formatCriticalConcepts(params.curationReport)}
       if (sectionsWithoutText > 0) issues.push(`Hay ${sectionsWithoutText} secciones con texto vacío/corto`);
 
       const sectionsWithSources = sections.filter((s) => s?.sourceMetadata?.chunks?.length).length;
-      if (sectionsWithSources < Math.min(3, sections.length)) {
-        issues.push("Faltan sourceMetadata.chunks (mínimo 3 secciones con fuentes)");
+      if (sectionsWithSources < Math.min(4, sections.length)) {
+        issues.push("Faltan sourceMetadata.chunks (mínimo 4 secciones con fuentes)");
+      }
+
+      if (!titles.includes("imperdibles")) {
+        issues.push('Falta sección "Imperdibles"');
+      }
+
+      if (!/resumen.*oro|oro/.test(titles)) {
+        issues.push('Falta sección "Resumen de oro"');
+      }
+
+      const widgetCount = sections.reduce(
+        (sum, s) => sum + (Array.isArray(s?.content?.widgets) ? s.content.widgets.length : 0),
+        0
+      );
+      if (widgetCount < 10) {
+        issues.push(`Pocos widgets: ${widgetCount} (mínimo 10 repartidos en secciones)`);
       }
 
       const combinedText = sections.map((s) => s?.content?.text || "").join("\n");
       const refs = (combinedText.match(/\(Art\.\s*\d+/g) || []).length;
-      if (refs < 10 && isLegalTopic) issues.push("Pocas citas (Art. N) para tema legal (mínimo 10)");
+      if (refs < 12 && isLegalTopic) issues.push("Pocas citas (Art. N) para tema legal (mínimo 12)");
 
       if (isLegalTopic) {
         const t = combinedText.toLowerCase();
