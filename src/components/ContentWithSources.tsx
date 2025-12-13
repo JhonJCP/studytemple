@@ -82,9 +82,24 @@ export function ContentWithSources({ text, sourceMetadata }: ContentWithSourcesP
         while ((match = refPattern.exec(content)) !== null) {
             const start = match.index;
             const full = match[0];
+
+            // Si la referencia va dentro de (...) o [...], ampliar hasta el cierre para no partir "Ley 9/1991", "RCC", etc.
+            let fullSpan = full;
+            const openChar = content[start];
+            const closeChar = openChar === "(" ? ")" : openChar === "[" ? "]" : null;
+            if (closeChar) {
+                const maxLookahead = 80;
+                const endIdx = content.indexOf(closeChar, start);
+                if (endIdx !== -1 && endIdx - start <= maxLookahead) {
+                    fullSpan = content.slice(start, endIdx + 1);
+                }
+            }
+
             if (start > last) out.push(content.slice(last, start));
 
-            const chunk = findBestChunk(full);
+            const articleOnlyMatch = fullSpan.match(/\b(Art\.?|Art[ií]culo)\s*\d+(?:\.(?:\d+|[a-z]))*/i);
+            const articleKey = articleOnlyMatch ? articleOnlyMatch[0] : full;
+            const chunk = findBestChunk(articleKey);
             if (chunk) {
                 const source: SourceInfo = {
                     document: sourceMetadata.primaryDocument,
@@ -96,15 +111,15 @@ export function ContentWithSources({ text, sourceMetadata }: ContentWithSourcesP
                 out.push(
                     <SourceReference
                         key={`ref-${start}-${chunk.chunkId || chunk.article}`}
-                        text={full}
+                        text={fullSpan}
                         source={source}
                     />
                 );
             } else {
-                out.push(full);
+                out.push(fullSpan);
             }
 
-            last = start + full.length;
+            last = start + fullSpan.length;
         }
 
         if (last < content.length) out.push(content.slice(last));
@@ -145,4 +160,3 @@ export function ContentWithSources({ text, sourceMetadata }: ContentWithSourcesP
         </div>
     );
 }
-
