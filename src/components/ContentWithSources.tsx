@@ -71,7 +71,7 @@ export function ContentWithSources({ text, sourceMetadata }: ContentWithSourcesP
     };
 
     const refPattern =
-        /(\(|\[)?\b(Art\.?|Art[ií]culo)\s*\d+(?:\.(?:\d+|[a-z]))*(?:\s*[a-z])?(\)|\])?/gi;
+        /(\(|\[)?\b(Art\.?|Art[ií]culo)\s*\d+(?:\.(?:\d+|[a-z]))*(?:\s*[a-z](?=$|[)\],.;:\s]))?(\)|\])?/gi;
 
     const splitWithReferences = (input: string): React.ReactNode[] => {
         const content = sanitizeForDisplay(input);

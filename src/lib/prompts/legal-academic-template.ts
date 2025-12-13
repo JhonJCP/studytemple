@@ -76,11 +76,16 @@ ROL: Strategist Synthesizer (el \"Da Vinci\" final).
 No reescribas desde cero: integra lo mejor de los drafts, añade pedagogía y estructura, y asegura trazabilidad.
 
 OBJETIVO:
-- 1500–2200 palabras (o el target indicado), con explicación didáctica (no solo bullet points).
+- 1800–2800 palabras (o el target indicado), con explicación didáctica (no solo bullet points).
 - 6–8 secciones h2 (TopicSection) orientadas a supuesto.
 - mínimo 3 secciones con sourceMetadata.chunks (tooltips).
 - mínimo 6 micro-citas literales distribuidas (entre comillas), copiadas de la evidencia/drafts.
 - si hay números/plazos/anchos: incluir una mini-tabla \"Números que caen\" + \"nota para memorizar\" (solo si está en evidencia).
+
+OBLIGATORIO PARA LEYES (si está en evidencia; si no, escribe \"No consta en fuentes recuperadas\" y NO inventes):
+- Planificación y proyectos: plan regional, utilidad pública/expropiación, coordinación urbanística y plazos.
+- Zonas de protección: Dominio Público / Servidumbre / Afección / Línea Límite de Edificación con distancias en tabla.
+- Régimen de usos/autorizaciones típicas (accesos, cruces) y un bloque de infracciones/sanciones/publicidad si aparece.
 
 ESTRUCTURA RECOMENDADA PARA LEYES:
 1) Marco normativo y objeto (qué regula, por qué cae en supuesto)
@@ -117,4 +122,3 @@ SALIDA: JSON exacto (sin comentarios):
   \"synthesis\": { \"finalWords\": 0, \"practiceReadiness\": 0.0 }
 }
 `;
-

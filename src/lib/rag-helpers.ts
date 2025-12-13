@@ -120,6 +120,47 @@ export async function queryByCategory(
   const keywords = extractKeywords(topicTitle);
   const filenameVariants = filenameHint ? generateFilenameVariants(filenameHint).slice(0, 6) : [];
   const legalRefs = extractLegalRefs(topicTitle);
+  const contextText = `${topicTitle || ""} ${filenameHint || ""}`.toLowerCase();
+  const domainTerms: string[] = [];
+
+  // Heurística: cuando el tema es viario/carreteras, empujar términos que suelen vivir en capítulos posteriores
+  if (/carreter|viari|autovi|autopis|servidumbre|afecci|dominio publico|edificaci/i.test(contextText)) {
+    domainTerms.push(
+      "dominio público",
+      "dominio publico",
+      "servidumbre",
+      "afección",
+      "afeccion",
+      "línea límite de edificación",
+      "linea limite de edificacion",
+      "plan regional",
+      "información pública",
+      "informacion publica",
+      "utilidad pública",
+      "utilidad publica",
+      "urgente ocupación",
+      "urgente ocupacion",
+      "expropiación",
+      "expropiacion",
+      "dos meses",
+      "publicidad",
+      "infracciones",
+      "sanciones"
+    );
+  }
+
+  if (/9[-/_ ]?1991/.test(contextText)) {
+    domainTerms.push(
+      "artículo 25",
+      "articulo 25",
+      "artículo 26",
+      "articulo 26",
+      "artículo 27",
+      "articulo 27",
+      "artículo 28",
+      "articulo 28"
+    );
+  }
 
   const categoryFilenameHints: Record<DocumentCategory, string[]> = {
     BOE: ["Convocatoria", "Temario", "BOE", "BOC"],
@@ -134,7 +175,7 @@ export async function queryByCategory(
     ...legalRefs,
   ]).slice(0, 12);
 
-  const contentPatterns = uniqTerms([...legalRefs, ...keywords]).slice(0, 12);
+  const contentPatterns = uniqTerms([...legalRefs, ...domainTerms, ...keywords]).slice(0, 18);
 
   console.log("[RAG] Querying:", {
     category,
@@ -147,7 +188,8 @@ export async function queryByCategory(
 
   const seen = new Set<number>();
   const out: any[] = [];
-  const perQueryLimit = Math.max(3, Math.ceil(limit / 2));
+  // Mantener por-query pequeño para diversificar (evitar solo el inicio del PDF)
+  const perQueryLimit = Math.min(6, Math.max(3, Math.ceil(limit / 5)));
 
   const addRows = (rows: any[]) => {
     for (const row of rows || []) {
@@ -170,19 +212,22 @@ export async function queryByCategory(
   };
 
   try {
-    // Si tenemos filenameHint, intentar primero traer más fragmentos del documento principal para cubrir distintas secciones
+    // Si tenemos filenameHint, traer una muestra del inicio + final del documento principal para cubrir distintas secciones
     if (filenameHint && filenameHint.length > 3) {
       const hint = sanitizeTerm(filenameHint.replace(/\.pdf$/i, ""));
-      const primaryLimit = Math.max(limit, 25);
+      const primarySeed = Math.min(20, Math.max(10, Math.ceil(limit * 0.6)));
+      const half = Math.ceil(primarySeed / 2);
       const patterns = uniqTerms([hint, filenameVariants[0] || ""]).slice(0, 2);
       for (const pat of patterns) {
         if (!pat) continue;
-        const { data, error } = await base()
-          .ilike("metadata->>filename", `%${pat}%`)
-          .order("id", { ascending: true })
-          .limit(primaryLimit);
-        if (!error) addRows(data || []);
-        if (out.length >= limit) break;
+        const q = (ascending: boolean) =>
+          base().ilike("metadata->>filename", `%${pat}%`).order("id", { ascending }).limit(half);
+
+        const { data: ascData, error: ascErr } = await q(true);
+        if (!ascErr) addRows(ascData || []);
+
+        const { data: descData, error: descErr } = await q(false);
+        if (!descErr) addRows(descData || []);
       }
     }
 

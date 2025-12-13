@@ -52,7 +52,7 @@ export class StrategistSynthesizer {
       /ley|decreto|reglamento/i.test(params.topic.originalFilename || "");
 
     const desiredSections = Math.max(params.strategicPlan.targetSections, isLegalTopic ? 7 : 6);
-    const targetWords = Math.max(params.strategicPlan.targetWords, isLegalTopic ? 1600 : 1200);
+    const targetWords = Math.max(params.strategicPlan.targetWords, isLegalTopic ? 1800 : 1200);
 
     const sourcePool = params.drafts
       .map((d) => d.metadata?.sources)
@@ -146,7 +146,7 @@ ${this.formatCriticalConcepts(params.curationReport)}
 
       const combinedText = sections.map((s) => s?.content?.text || "").join("\n");
       const refs = (combinedText.match(/\(Art\.\s*\d+/g) || []).length;
-      if (refs < 8 && isLegalTopic) issues.push("Pocas citas (Art. N) para tema legal (mínimo 8)");
+      if (refs < 10 && isLegalTopic) issues.push("Pocas citas (Art. N) para tema legal (mínimo 10)");
 
       return issues;
     };
