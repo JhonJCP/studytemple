@@ -53,6 +53,7 @@ interface GenerationError {
 const contentStorageKey = (topicId: string) => `topic_content_${topicId}`;
 const traceStorageKey = (topicId: string) => `topic_trace_${topicId}`;
 const MAX_RETRIES = 3;
+const CLIENT_GENERATION_GUARD_MS = 9 * 60 * 1000; // 9 min (server suele ser 10 min)
 
 function hydrateContent(data?: GeneratedTopicContent | null): GeneratedTopicContent | null {
     if (!data) return null;
@@ -111,8 +112,8 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
     const [orchestrationState, setOrchestrationState] = useState<OrchestrationState>(() =>
         hydrateOrchestrationState(topic.id)
     );
-    const [eventSource, setEventSource] = useState<EventSource | null>(null);
-    const [timeoutId, setTimeoutId] = useState<number | null>(null);
+    const eventSourceRef = useRef<EventSource | null>(null);
+    const guardTimeoutRef = useRef<number | null>(null);
     const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
     const [showOrchestrator, setShowOrchestrator] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -169,10 +170,18 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
     // Cleanup de recursos asíncronos
     useEffect(() => {
         return () => {
-            eventSource?.close();
-            if (timeoutId) clearTimeout(timeoutId);
+            try {
+                eventSourceRef.current?.close();
+            } catch {
+                // ignore
+            }
+            eventSourceRef.current = null;
+            if (guardTimeoutRef.current) {
+                clearTimeout(guardTimeoutRef.current);
+                guardTimeoutRef.current = null;
+            }
         };
-    }, [eventSource, timeoutId]);
+    }, []);
 
     // Persistir cambios
     useEffect(() => {
@@ -195,13 +204,15 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
 
     // Cancelar generación en curso
     const handleCancel = useCallback(async () => {
-        if (eventSource) {
-            eventSource.close();
-            setEventSource(null);
+        try {
+            eventSourceRef.current?.close();
+        } catch {
+            // ignore
         }
-        if (timeoutId) {
-            clearTimeout(timeoutId);
-            setTimeoutId(null);
+        eventSourceRef.current = null;
+        if (guardTimeoutRef.current) {
+            clearTimeout(guardTimeoutRef.current);
+            guardTimeoutRef.current = null;
         }
 
         // También notificar al servidor para limpiar recursos
@@ -224,18 +235,20 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
             timestamp: new Date(),
             retryCount: retryCountRef.current
         });
-    }, [eventSource, timeoutId, topic.id]);
+    }, [topic.id]);
 
     // Generar contenido
     const handleGenerate = useCallback(async (isRetry = false) => {
         // Cerrar cualquier stream previo
-        if (eventSource) {
-            eventSource.close();
-            setEventSource(null);
+        try {
+            eventSourceRef.current?.close();
+        } catch {
+            // ignore
         }
-        if (timeoutId) {
-            clearTimeout(timeoutId);
-            setTimeoutId(null);
+        eventSourceRef.current = null;
+        if (guardTimeoutRef.current) {
+            clearTimeout(guardTimeoutRef.current);
+            guardTimeoutRef.current = null;
         }
 
         // Limpiar error previo
@@ -281,6 +294,7 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
             // Preferimos streaming SSE para ver onStateChange en vivo
             const url = `/api/generate-topic-stream?topicId=${encodeURIComponent(topic.id)}&force=${isForce}`;
             const es = new EventSource(url);
+            eventSourceRef.current = es;
 
             es.addEventListener("state", (evt) => {
                 try {
@@ -344,12 +358,16 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                         retryCount: retryCountRef.current
                     });
                 } finally {
-                    es.close();
-                    setEventSource(null);
+                    try {
+                        es.close();
+                    } catch {
+                        // ignore
+                    }
+                    if (eventSourceRef.current === es) eventSourceRef.current = null;
                     setIsGenerating(false);
-                    if (timeoutId) {
-                        clearTimeout(timeoutId);
-                        setTimeoutId(null);
+                    if (guardTimeoutRef.current) {
+                        clearTimeout(guardTimeoutRef.current);
+                        guardTimeoutRef.current = null;
                     }
                 }
             });
@@ -371,33 +389,37 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                     timestamp: new Date(),
                     retryCount: retryCountRef.current
                 });
-                es.close();
-                setEventSource(null);
+                try {
+                    es.close();
+                } catch {
+                    // ignore
+                }
+                if (eventSourceRef.current === es) eventSourceRef.current = null;
                 setIsGenerating(false);
-                if (timeoutId) {
-                    clearTimeout(timeoutId);
-                    setTimeoutId(null);
+                if (guardTimeoutRef.current) {
+                    clearTimeout(guardTimeoutRef.current);
+                    guardTimeoutRef.current = null;
                 }
             });
 
-            setEventSource(es);
-
-            // Seguridad: si el stream no cierra en 300s (5 min), marcamos error
-            const guard = window.setTimeout(() => {
-                es.close();
-                setEventSource(null);
+            // Seguridad: si el stream no cierra, marcamos error (sin depender de estado para evitar closures stale)
+            guardTimeoutRef.current = window.setTimeout(() => {
+                // Si ya no es el EventSource activo, no hacer nada
+                if (eventSourceRef.current !== es) return;
+                try {
+                    es.close();
+                } catch {
+                    // ignore
+                }
+                eventSourceRef.current = null;
                 setIsGenerating(false);
-                setOrchestrationState(prev => ({
-                    ...prev,
-                    status: 'error'
-                }));
+                setOrchestrationState(prev => ({ ...prev, status: 'error' }));
                 setError({
-                    message: 'Tiempo de generación agotado en cliente (130s)',
+                    message: `Tiempo de generación agotado en cliente (${Math.round(CLIENT_GENERATION_GUARD_MS / 1000)}s)`,
                     timestamp: new Date(),
                     retryCount: retryCountRef.current
                 });
-            }, 300000); // 5 minutos para permitir razonamiento profundo de todos los cerebros
-            setTimeoutId(guard);
+            }, CLIENT_GENERATION_GUARD_MS);
         } catch (err) {
             console.error("Error during topic generation", err);
             setOrchestrationState(prev => ({ ...prev, status: 'error' }));
@@ -408,7 +430,7 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
             });
             setIsGenerating(false);
         }
-    }, [topic.id, topic.title, content, eventSource, timeoutId]);
+    }, [topic.id, topic.title, content]);
 
     // Reintento automático (solo si no superó MAX_RETRIES)
     const handleRetry = useCallback(() => {
