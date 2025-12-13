@@ -84,7 +84,7 @@ Responde JSON:
         
         try {
             const model = this.genAI.getGenerativeModel({
-                model: 'gemini-2.0-flash-exp',
+                model: 'gemini-3-pro-preview',
                 generationConfig: {
                     temperature: 0.8,
                     responseMimeType: "application/json"
@@ -211,4 +211,3 @@ Responde JSON:
         }
     }
 }
-

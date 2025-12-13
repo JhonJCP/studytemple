@@ -21,7 +21,7 @@ export class MultiAgentOrchestrator {
 
     // AGENT 2: THE AUDITOR (Gap Analysis)
     private async askAuditor(topic: string, libraryContext: string): Promise<AgentResponse> {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+        const model = genAI.getGenerativeModel({ model: "gemini-3-pro-preview" });
 
         const prompt = `
         ACTÚA COMO: Auditor Oficial del BOE de Obras Públicas.
@@ -55,7 +55,7 @@ export class MultiAgentOrchestrator {
     // AGENT 3: THE STRATEGIST (Synthesis)
     private async askStrategist(topic: string, auditorReport: AgentResponse, libraryContext: string): Promise<any> {
         const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-pro-latest",
+            model: "gemini-3-pro-preview",
             generationConfig: { responseMimeType: "application/json" }
         });
 

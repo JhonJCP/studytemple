@@ -183,7 +183,7 @@ ${hasEvidence ? 'IMPORTANTE: Basa tu respuesta SOLO en los fragmentos proporcion
 
     // Obtener instancia lazy
     const genAI = getGenAI();
-    const modelName = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
+    const modelName = "gemini-3-pro-preview";
     const model = genAI.getGenerativeModel({
       model: modelName,
       generationConfig: {

@@ -26,7 +26,7 @@ export async function generateCasePractice(params: CasePracticeParams): Promise<
     const genAI = new GoogleGenerativeAI(apiKey);
     
     const model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-3-pro-preview',
         generationConfig: {
             temperature: 0.7,
             responseMimeType: "application/json"
@@ -77,4 +77,3 @@ Responde JSON:
         throw new Error(`Failed to generate case practice: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 }
-

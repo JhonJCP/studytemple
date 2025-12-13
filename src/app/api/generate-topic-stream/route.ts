@@ -135,7 +135,9 @@ export async function GET(req: NextRequest) {
                 }
 
                 // 2) Generación con streaming de estado
-                const generator = new TopicContentGenerator(
+                let generator: TopicContentGenerator;
+                try {
+                    generator = new TopicContentGenerator(
                     topicId, 
                     new Date().toISOString().split('T')[0], // currentDate
                     (state: OrchestrationState) => {
@@ -146,7 +148,15 @@ export async function GET(req: NextRequest) {
                     },
                     supabaseUser || undefined, // userId para cargar planning desde DB
                     planningData
-                );
+                    );
+                } catch (error) {
+                    const errorMsg = error instanceof Error ? error.message : "Error desconocido";
+                    log(`Error creando generador: ${errorMsg}`);
+                    send("error", { message: errorMsg, phase: "init" });
+                    clearTimeout(timeout);
+                    cleanup();
+                    return;
+                }
                 
                 activeGenerators.set(topicId, generator);
                 log(`Generador creado y registrado`);

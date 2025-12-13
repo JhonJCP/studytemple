@@ -35,8 +35,12 @@ function safeGetAPIKey(): string | null {
     return process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || null;
 }
 
-// Modelo Gemini 3 Pro Preview - Requiere config especial (2048+ tokens, temp 1.0, prompts complejos)
-let MODEL = process.env.GEMINI_MODEL || "gemini-3-pro-preview";
+// Modelo Gemini 3 Pro Preview (obligatorio; sin fallbacks)
+const REQUESTED_MODEL = "gemini-3-pro-preview";
+const MODEL = REQUESTED_MODEL;
+if (process.env.GEMINI_MODEL && process.env.GEMINI_MODEL !== REQUESTED_MODEL) {
+    console.warn(`[GENERATOR] Ignorando GEMINI_MODEL=${process.env.GEMINI_MODEL}; usando ${REQUESTED_MODEL}`);
+}
 
 // Initialized lazily
 let _genAI: GoogleGenerativeAI | null = null;
@@ -47,14 +51,7 @@ function getGenAI(): GoogleGenerativeAI {
     return _genAI;
 }
 
-// Función para cambiar a modelo fallback si el principal falla (ej: 404 Not Found)
-function switchToFallbackModel() {
-    if (MODEL !== "gemini-1.5-pro") {
-        console.warn(`[GENERATOR] Switching model from ${MODEL} to gemini-1.5-pro due to API error.`);
-        MODEL = "gemini-1.5-pro";
-    }
-}
-// Nota: Si gemini-3-pro-preview falla, intentará con gemini-1.5-pro como fallback
+// Nota: No se permite fallback de modelo.
 
 // Supabase para RAG (lazy initialization)
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -275,7 +272,7 @@ async function fetchDocumentChunksFromSupabase(
         searchVariants: variants.slice(0, 5) // Log primeras 5 variantes
     });
 
-    let chunks: DocumentChunk[] = [];
+    const chunks: DocumentChunk[] = [];
     const seenIds = new Set<string>();
 
     // Función helper para añadir chunks sin duplicados
@@ -493,14 +490,6 @@ async function generateJSONWithRetry(
         } catch (err) {
             lastError = err instanceof Error ? err.message : 'LLM error';
 
-            // Detectar error 404 o Not Found e intentar con fallback
-            if (lastError.includes('404') || lastError.toLowerCase().includes('not found')) {
-                switchToFallbackModel();
-                // Reintentar inmediatamente con el nuevo modelo en la siguiente iteración si quedan intentos,
-                // o forzar uno extra si era el último
-                if (attempt === maxRetries) maxRetries++;
-            }
-
             logDebug(`${label}: LLM error (intento ${attempt + 1})`, lastError);
         }
     }
@@ -522,22 +511,6 @@ async function generateTextWithRetry(
         );
         return res.response.text().trim();
     } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        if (errMsg.includes('404') || errMsg.toLowerCase().includes('not found')) {
-            switchToFallbackModel();
-            // Retry once with new model
-            try {
-                const modelFallback = getTextModel();
-                const res = await withTimeout(
-                    modelFallback.generateContent(prompt),
-                    timeoutMs,
-                    `${label} (fallback)`
-                );
-                return res.response.text().trim();
-            } catch (retryErr) {
-                logDebug(`${label}: Fallback LLM failed`, retryErr);
-            }
-        }
         logDebug(`${label}: LLM failed`, err);
         return null;
     }

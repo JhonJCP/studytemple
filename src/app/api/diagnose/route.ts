@@ -96,8 +96,8 @@ export async function GET() {
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
       
-      // Usar el modelo configurado (gemini-2.0-flash-exp - único que funciona según tests)
-      const modelName = process.env.GEMINI_MODEL || "gemini-2.0-flash-exp";
+      // Usar SIEMPRE gemini-3-pro-preview para evitar "modelos tontos"
+      const modelName = "gemini-3-pro-preview";
       result.connectivity.geminiModelUsed = modelName;
       
       const model = genAI.getGenerativeModel({
@@ -134,9 +134,7 @@ export async function GET() {
   if (apiKey) {
     const modelsToTest = [
       { name: "gemini-3-pro-preview", config: { maxOutputTokens: 2048, temperature: 1.0 } },  // Más tokens y temperatura
-      { name: "gemini-2.0-flash-exp", config: { maxOutputTokens: 100, temperature: 0.7 } },
-      { name: "gemini-1.5-flash", config: { maxOutputTokens: 100, temperature: 0.7 } },
-      { name: "gemini-pro", config: { maxOutputTokens: 100, temperature: 0.7 } }
+      // Nota: mantener solo el modelo gold standard
     ];
     const testResults: any[] = [];
     
@@ -227,4 +225,3 @@ export async function GET() {
     },
   });
 }
-

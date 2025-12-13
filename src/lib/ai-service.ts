@@ -14,9 +14,9 @@ interface GenerationConfig {
 }
 
 export const AI_MODELS = {
-    MASTER: "gemini-1.5-pro-latest", // "Gemini 3 Pro"
-    VISUAL: "gemini-1.5-pro-latest", // Using Pro for diagrams as requested
-    FAST: "gemini-1.5-flash-latest", // "Nano Banana"
+    MASTER: "gemini-3-pro-preview",
+    VISUAL: "gemini-3-pro-preview",
+    FAST: "gemini-3-pro-preview",
 };
 
 const SYSTEM_PROMPT_CORE = `

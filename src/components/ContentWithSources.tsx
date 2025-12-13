@@ -20,7 +20,7 @@ export function ContentWithSources({ text, sourceMetadata }: ContentWithSourcesP
     // Si no hay metadata, renderizar markdown normal
     if (!sourceMetadata || !sourceMetadata.chunks || sourceMetadata.chunks.length === 0) {
         return (
-            <div className="prose prose-lg dark:prose-invert max-w-none">
+            <div className="max-w-none text-gray-900 dark:text-gray-100 leading-relaxed">
                 <ReactMarkdown>{text}</ReactMarkdown>
             </div>
         );
@@ -106,7 +106,7 @@ export function ContentWithSources({ text, sourceMetadata }: ContentWithSourcesP
     const parts = parseWithReferences(text);
 
     return (
-        <div className="prose prose-lg dark:prose-invert max-w-none">
+        <div className="max-w-none text-gray-900 dark:text-gray-100 leading-relaxed">
             {parts.map((part, i) =>
                 part.type === 'reference' && part.source ? (
                     <SourceReference key={i} text={part.text || ''} source={part.source} />
@@ -117,5 +117,4 @@ export function ContentWithSources({ text, sourceMetadata }: ContentWithSourcesP
         </div>
     );
 }
-
 

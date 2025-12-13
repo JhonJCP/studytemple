@@ -29,7 +29,7 @@ export async function generateInfografia(params: InfografiaParams): Promise<stri
     
     // Paso 1: Analizar frame y crear prompt optimizado
     const analysisModel = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash-exp'
+        model: 'gemini-3-pro-preview'
     });
     
     const analysisPrompt = `
@@ -60,18 +60,9 @@ Responde SOLO el prompt para imagen, sin explicaciones adicionales:
         console.log('[INFOGRAFIA-BRAIN] Generated image prompt (first 200 chars):', imagePrompt.slice(0, 200));
         
         // Paso 2: Generar imagen con gemini-3-pro-image
-        // Nota: Verificar disponibilidad del modelo. Si no existe, usar alternativa
-        let imageModel;
-        try {
-            imageModel = genAI.getGenerativeModel({
-                model: 'gemini-3-pro-image'
-            });
-        } catch (modelError) {
-            console.warn('[INFOGRAFIA-BRAIN] gemini-3-pro-image not available, trying gemini-2.5-flash-image');
-            imageModel = genAI.getGenerativeModel({
-                model: 'gemini-2.5-flash-image'
-            });
-        }
+        const imageModel = genAI.getGenerativeModel({
+            model: 'gemini-3-pro-image'
+        });
         
         const result = await imageModel.generateContent([imagePrompt]);
         const imagePart = result.response.candidates?.[0]?.content?.parts
@@ -115,4 +106,3 @@ Responde SOLO el prompt para imagen, sin explicaciones adicionales:
         throw new Error(`Failed to generate infografia: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 }
-
