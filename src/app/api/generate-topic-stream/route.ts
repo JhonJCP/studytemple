@@ -8,7 +8,9 @@ export const runtime = "nodejs";
 // Vercel: permitir streams largos (capado por plan si aplica)
 // OJO: en Hobby/Free el máximo puede ser menor; 300s ya es el tope típico permitido.
 export const maxDuration = 300;
-const OVERALL_TIMEOUT_MS = parseInt(process.env.GENERATION_TIMEOUT_MS || "600000", 10); // 10 minutos para generación profunda
+// Alinear el timeout con el límite real de la Function para evitar cierres abruptos (SSE "connection error").
+const DEFAULT_TIMEOUT_MS = Math.max(30_000, maxDuration * 1000 - 15_000);
+const OVERALL_TIMEOUT_MS = parseInt(process.env.GENERATION_TIMEOUT_MS || String(DEFAULT_TIMEOUT_MS), 10);
 // Siempre loguear para trazabilidad en Vercel
 const ENABLE_LOGGING = true;
 const HEARTBEAT_MS = parseInt(process.env.SSE_HEARTBEAT_MS || "15000", 10); // mantener viva la conexión (proxies/idle)

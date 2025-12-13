@@ -24,6 +24,51 @@ export class StrategistSynthesizer {
     this.genAI = new GoogleGenerativeAI(apiKey);
   }
 
+  private buildFallbackContent(params: {
+    topic: TopicWithGroup;
+    drafts: ExpertOutput[];
+    strategicPlan: StrategicPlan;
+    warnings: string[];
+  }): GeneratedTopicContent {
+    const sections: TopicSection[] = params.drafts.map((d, idx) => ({
+      id: `fallback_${idx}`,
+      title:
+        idx === 0 ? "Resumen teórico (fallback)" : idx === 1 ? "Aplicación práctica (fallback)" : "Notas técnicas (fallback)",
+      level: "h2",
+      sourceType: "mixed",
+      content: { text: this.sanitizeMarkdown(d?.content || ""), widgets: [] },
+    }));
+
+    const totalWords = sections.reduce((sum, s) => sum + countWords(s.content.text), 0);
+
+    return {
+      topicId: params.topic.id,
+      title: params.topic.title,
+      metadata: {
+        complexity: params.strategicPlan.complexity,
+        estimatedStudyTime: params.strategicPlan.timeAllocation,
+        sourceDocuments: [params.topic.originalFilename].filter(Boolean) as string[],
+        generatedAt: new Date(),
+        health: {
+          totalWords,
+          avgWordsPerSection: sections.length ? Math.round(totalWords / sections.length) : 0,
+          sectionsBelowThreshold: sections.filter((s) => countWords(s.content.text) < 150).length,
+          minWordsPerSection: 150,
+          totalSections: sections.length,
+          wordGoalMet: totalWords >= Math.round(params.strategicPlan.targetWords * 0.5),
+        },
+        practiceMetrics: {
+          practiceReadiness: 0.7,
+          appearsInSupuestos: params.strategicPlan.practiceExamples || [],
+        },
+      },
+      sections,
+      widgets: [],
+      qualityStatus: "needs_improvement",
+      warnings: params.warnings.length ? params.warnings : ["Fallback aplicado: contenido generado sin síntesis del estratega"],
+    };
+  }
+
   private sanitizeMarkdown(text: string): string {
     return (text || "")
       .replace(/\u00b6/g, "")
@@ -98,7 +143,8 @@ ${this.formatCriticalConcepts(params.curationReport)}
       model: "gemini-3-pro-preview",
       generationConfig: {
         temperature: 0.6,
-        maxOutputTokens: 16384,
+        // Mantener por debajo del límite típico de Vercel (5 min) evitando respuestas gigantes
+        maxOutputTokens: 8192,
         responseMimeType: "application/json",
         topP: 0.85,
         topK: 40,
@@ -168,16 +214,30 @@ ${this.formatCriticalConcepts(params.curationReport)}
       return issues;
     };
 
-    let json = await attemptOnce(0);
-    let issues = validate(json);
-    if (issues.length > 0) {
-      console.warn("[STRATEGIST] Quality gate failed, retrying...", issues);
-      json = await attemptOnce(1, issues);
-      issues = validate(json);
-      if (issues.length > 0) {
-        console.warn("[STRATEGIST] Quality gate still failing, final retry...", issues);
-        json = await attemptOnce(2, issues);
+    let json: any;
+    const synthesisWarnings: string[] = [];
+
+    try {
+      json = await attemptOnce(0);
+    } catch (e) {
+      synthesisWarnings.push("Fallo parseando JSON del estratega (intento 1)");
+      try {
+        json = await attemptOnce(1, ["JSON inválido / parse error"]);
+      } catch {
+        synthesisWarnings.push("Fallo parseando JSON del estratega (intento 2). Aplicando fallback.");
+        return this.buildFallbackContent({
+          topic: params.topic,
+          drafts: params.drafts,
+          strategicPlan: params.strategicPlan,
+          warnings: synthesisWarnings,
+        });
       }
+    }
+
+    const issues = validate(json);
+    if (issues.length > 0) {
+      console.warn("[STRATEGIST] Quality gate warnings (sin reintentos para evitar timeouts):", issues);
+      synthesisWarnings.push(...issues.map((i) => `Quality gate: ${i}`));
     }
 
     const rawSections: any[] = Array.isArray(json.sections) ? json.sections : [];
@@ -242,11 +302,14 @@ ${this.formatCriticalConcepts(params.curationReport)}
       },
       sections: normalizedSections,
       widgets: Array.isArray(json.widgets) ? (json.widgets as WidgetDefinition[]) : [],
-      qualityStatus: practiceReadiness >= 0.9 ? "ok" : "needs_improvement",
+      qualityStatus: practiceReadiness >= 0.9 && synthesisWarnings.length === 0 ? "ok" : "needs_improvement",
       warnings:
-        practiceReadiness < 0.9
-          ? [`Practice readiness ${(practiceReadiness * 100).toFixed(0)}% por debajo del objetivo 90%`]
-          : [],
+        [
+          ...(practiceReadiness < 0.9
+            ? [`Practice readiness ${(practiceReadiness * 100).toFixed(0)}% por debajo del objetivo 90%`]
+            : []),
+          ...synthesisWarnings,
+        ].filter(Boolean),
     };
 
     return content;
