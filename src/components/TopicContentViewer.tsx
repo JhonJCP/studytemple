@@ -15,13 +15,9 @@ import {
     AlertTriangle,
     RefreshCw,
     StopCircle,
-    Volume2,
-    Play,
-    Pause
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { HierarchicalOutline } from "./HierarchicalOutline";
 import { OrchestratorFlow } from "./OrchestratorFlow";
 import { WidgetFactory } from "./WidgetFactory";
 import { ContentWithSources } from "./ContentWithSources";
@@ -31,7 +27,7 @@ import type {
     OrchestrationState,
     AgentStep
 } from "@/lib/widget-types";
-import { TopicWithGroup, generateBaseHierarchy, flattenSections } from "@/lib/syllabus-hierarchy";
+import { TopicWithGroup } from "@/lib/syllabus-hierarchy";
 
 // ============================================
 // TIPOS
@@ -40,6 +36,8 @@ import { TopicWithGroup, generateBaseHierarchy, flattenSections } from "@/lib/sy
 interface TopicContentViewerProps {
     topic: TopicWithGroup;
     initialContent?: GeneratedTopicContent;
+    variant?: "page" | "embedded";
+    onContentChange?: (content: GeneratedTopicContent | null) => void;
 }
 
 interface GenerationError {
@@ -129,27 +127,59 @@ function getContentWordCount(content: GeneratedTopicContent | null): number {
     return estimateWordCountFromSections(content?.sections);
 }
 
+function countGeneratedWidgets(content: GeneratedTopicContent | null): number {
+    if (!content?.sections?.length) return 0;
+    let count = 0;
+
+    const visitSection = (section: TopicSection) => {
+        const widgets = section.content?.widgets || [];
+        for (const w of widgets) {
+            if (!w) continue;
+            if ((w as any).generated === true) {
+                count += 1;
+                continue;
+            }
+            const c = (w as any).content;
+            if (c && typeof c === "object") {
+                if ((c as any).imageUrl || (c as any).generatedRule || (c as any).scenario) {
+                    count += 1;
+                }
+            }
+        }
+        if (section.children?.length) section.children.forEach(visitSection);
+    };
+
+    content.sections.forEach(visitSection);
+    return count;
+}
+
 function pickNewestContent(...candidates: Array<GeneratedTopicContent | null | undefined>): GeneratedTopicContent | null {
     let best: GeneratedTopicContent | null = null;
     let bestTime = 0;
     let bestWords = 0;
     let bestSections = 0;
+    let bestWidgets = 0;
     for (const c of candidates) {
         const cc = c || null;
         if (!cc) continue;
         const t = getGeneratedAtMs(cc);
         const words = getContentWordCount(cc);
         const sections = countSections(cc.sections);
+        const widgets = countGeneratedWidgets(cc);
         const isBetter =
             !best ||
             t > bestTime ||
-            (t === bestTime && (words > bestWords || (words === bestWords && sections > bestSections)));
+            (t === bestTime &&
+                (words > bestWords ||
+                    (words === bestWords &&
+                        (widgets > bestWidgets || (widgets === bestWidgets && sections > bestSections)))));
 
         if (isBetter) {
             best = cc;
             bestTime = t;
             bestWords = words;
             bestSections = sections;
+            bestWidgets = widgets;
         }
     }
     return best;
@@ -188,24 +218,22 @@ function hydrateOrchestrationState(topicId: string, raw?: OrchestrationState, ha
 // COMPONENTE PRINCIPAL
 // ============================================
 
-export function TopicContentViewer({ topic, initialContent }: TopicContentViewerProps) {
+export function TopicContentViewer({
+    topic,
+    initialContent,
+    variant = "page",
+    onContentChange,
+}: TopicContentViewerProps) {
     const [content, setContent] = useState<GeneratedTopicContent | null>(() => hydrateContent(initialContent));
     const [orchestrationState, setOrchestrationState] = useState<OrchestrationState>(() =>
         hydrateOrchestrationState(topic.id)
     );
     const eventSourceRef = useRef<EventSource | null>(null);
     const guardTimeoutRef = useRef<number | null>(null);
-    const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
     const [showOrchestrator, setShowOrchestrator] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState<GenerationError | null>(null);
     const retryCountRef = useRef(0);
-    const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
-    const [audioError, setAudioError] = useState<string | null>(null);
-
-    // Secciones a mostrar (generadas o base)
-    const sections = content?.sections || generateBaseHierarchy(topic);
-    const flatSections = flattenSections(sections);
 
     // Cargar persistencia local (desde Supabase o localStorage) cuando cambia el tema
     // IMPORTANTE: no depender de eventSource/timeoutId para no sobrescribir el contenido generado en vivo.
@@ -274,6 +302,10 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
             // ignore storage errors
         }
     }, [content, topic.id, topic.title, topic.originalFilename]);
+
+    useEffect(() => {
+        onContentChange?.(content);
+    }, [content, onContentChange]);
 
     useEffect(() => {
         if (!orchestrationState || (!orchestrationState.steps.length && !orchestrationState.result)) return;
@@ -524,45 +556,6 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
             handleGenerate(true);
         }
     }, [handleGenerate]);
-    
-    // Generar audio/podcast
-    const handleGenerateAudio = useCallback(async () => {
-        if (!content) return;
-        
-        setIsGeneratingAudio(true);
-        setAudioError(null);
-        
-        try {
-            const res = await fetch('/api/generate-audio', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ topicId: topic.id })
-            });
-            
-            const data = await res.json();
-            
-            if (!res.ok) {
-                throw new Error(data.error || 'Error generating audio');
-            }
-            
-            // Actualizar content con audioUrl
-            setContent(prev => prev ? {
-                ...prev,
-                metadata: {
-                    ...prev.metadata,
-                    audioUrl: data.audioUrl
-                }
-            } : null);
-            
-            console.log('[VIEWER] Audio generated:', data.cached ? '(cached)' : '(new)');
-            
-        } catch (err) {
-            console.error('[VIEWER] Error generating audio:', err);
-            setAudioError(err instanceof Error ? err.message : 'Error desconocido');
-        } finally {
-            setIsGeneratingAudio(false);
-        }
-    }, [content, topic.id]);
 
     // Status badge - SOLO usa isGenerating para mostrar "Generando", NO orchestrationState.status
     const getStatusBadge = () => {
@@ -590,6 +583,183 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
 
     const status = getStatusBadge();
     const canRetry = error && retryCountRef.current < MAX_RETRIES;
+
+    if (variant === "embedded") {
+        return (
+            <div>
+                <div className="p-4 border-b border-white/10">
+                    <div className="flex items-center justify-between gap-3">
+                        <div
+                            className={cn(
+                                "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold",
+                                status.color
+                            )}
+                        >
+                            <status.icon className={cn("w-4 h-4", status.animate && "animate-spin")} />
+                            {status.text}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            {isGenerating && (
+                                <button
+                                    onClick={handleCancel}
+                                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 transition-all"
+                                >
+                                    <StopCircle className="w-4 h-4" />
+                                    Cancelar
+                                </button>
+                            )}
+
+                            {canRetry && !isGenerating && (
+                                <button
+                                    onClick={handleRetry}
+                                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 transition-all"
+                                >
+                                    <RefreshCw className="w-4 h-4" />
+                                    Reintentar
+                                </button>
+                            )}
+
+                            <button
+                                onClick={() => handleGenerate(false)}
+                                disabled={isGenerating}
+                                className={cn(
+                                    "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border",
+                                    isGenerating
+                                        ? "bg-white/5 text-white/40 cursor-wait border-white/10"
+                                        : "bg-white text-black hover:bg-gray-200 border-transparent"
+                                )}
+                            >
+                                {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                                {content ? "Regenerar" : "Generar tema"}
+                            </button>
+
+                            <button
+                                onClick={() => setShowOrchestrator(!showOrchestrator)}
+                                className="px-3 py-2 text-xs font-bold text-white/70 hover:bg-white/5 rounded-xl transition-colors border border-white/10"
+                            >
+                                {showOrchestrator ? "Ocultar" : "Ver"} proceso IA
+                            </button>
+                        </div>
+                    </div>
+
+                    {(showOrchestrator || isGenerating) && (
+                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} className="mt-4">
+                            <OrchestratorFlow state={orchestrationState} onClose={() => setShowOrchestrator(false)} />
+                        </motion.div>
+                    )}
+
+                    <AnimatePresence>
+                        {error && !isGenerating && (
+                            <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="mt-4"
+                            >
+                                <div
+                                    className={cn(
+                                        "rounded-xl p-4 border",
+                                        (error.severity ?? "error") === "warning"
+                                            ? "bg-amber-500/10 border-amber-500/30"
+                                            : "bg-red-500/10 border-red-500/30"
+                                    )}
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <AlertTriangle
+                                            className={cn(
+                                                "w-5 h-5 flex-shrink-0 mt-0.5",
+                                                (error.severity ?? "error") === "warning" ? "text-amber-400" : "text-red-400"
+                                            )}
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <h4
+                                                className={cn(
+                                                    "text-sm font-bold mb-1",
+                                                    (error.severity ?? "error") === "warning" ? "text-amber-400" : "text-red-400"
+                                                )}
+                                            >
+                                                {(error.severity ?? "error") === "warning" ? "Aviso de calidad" : "Error en la generación"}
+                                            </h4>
+                                            <p
+                                                className={cn(
+                                                    "text-xs mb-2",
+                                                    (error.severity ?? "error") === "warning" ? "text-amber-300/80" : "text-red-300/80"
+                                                )}
+                                            >
+                                                {error.message}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setError(null)}
+                                            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                                            aria-label="Cerrar"
+                                        >
+                                            <XCircle
+                                                className={cn(
+                                                    "w-4 h-4",
+                                                    (error.severity ?? "error") === "warning" ? "text-amber-400" : "text-red-400"
+                                                )}
+                                            />
+                                        </button>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+
+                <div className="p-4 space-y-6">
+                    {!content ? (
+                        <div className="py-12 flex flex-col items-center text-center">
+                            <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-5 border border-white/10">
+                                <Sparkles className="w-8 h-8 text-white/40" />
+                            </div>
+                            <h2 className="text-xl font-black text-white mb-2">Contenido pendiente de generación</h2>
+                            <p className="text-white/60 max-w-md mb-6 text-sm">
+                                Haz clic en “Generar tema” para crear un temario más extenso, pedagógico y trazable.
+                            </p>
+                            <button
+                                onClick={() => handleGenerate(false)}
+                                className="flex items-center gap-2 px-6 py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                            >
+                                <Sparkles className="w-5 h-5" />
+                                Generar tema
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            {content.sections.map((section) => (
+                                <article
+                                    id={section.id}
+                                    key={section.id}
+                                    className="bg-white dark:bg-gray-950 rounded-2xl border border-white/10 shadow-sm p-6 scroll-mt-24"
+                                >
+                                    <h2 className="text-lg font-black mb-5 flex items-center gap-3 text-gray-900 dark:text-white">
+                                        {section.title}
+                                        {section.sourceMetadata && section.sourceMetadata.articles.length > 0 && (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-normal rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                                                <FileText className="h-3 w-3" />
+                                                {section.sourceMetadata.articles.length} refs
+                                            </span>
+                                        )}
+                                    </h2>
+
+                                    <ContentWithSources text={section.content.text} sourceMetadata={section.sourceMetadata} />
+
+                                    {section.content.widgets && section.content.widgets.length > 0 && (
+                                        <div className="mt-6">
+                                            <WidgetFactory widgets={section.content.widgets} topicId={content.topicId} widgetIdPrefix={section.id} />
+                                        </div>
+                                    )}
+                                </article>
+                            ))}
+                        </>
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900">
@@ -880,6 +1050,7 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                                                 <WidgetFactory
                                                     widgets={section.content.widgets}
                                                     topicId={content.topicId}
+                                                    widgetIdPrefix={section.id}
                                                 />
                                             </div>
                                         )}
@@ -948,97 +1119,13 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                                 </div>
                             )}
 
-                            {/* Audio Player (si existe) */}
-                            {content.metadata.audioUrl && (
-                                <div className="bg-white dark:bg-gray-900 rounded-xl border p-6 shadow-sm">
-                                    <h3 className="text-sm font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
-                                        <Volume2 className="h-4 w-4" />
-                                        Podcast
-                                    </h3>
-                                    <audio controls className="w-full" src={content.metadata.audioUrl}>
-                                        Tu navegador no soporta audio.
-                                    </audio>
-                                </div>
-                            )}
-
-                            {/* Generate Audio Button */}
-                            {content && !content.metadata.audioUrl && !isGeneratingAudio && (
-                                <button
-                                    onClick={handleGenerateAudio}
-                                    className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
-                                >
-                                    <Volume2 className="h-4 w-4" />
-                                    Generar Podcast
-                                </button>
-                            )}
-
-                            {isGeneratingAudio && (
-                                <div className="flex items-center justify-center gap-2 px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    Generando audio...
-                                </div>
-                            )}
-
-                            {audioError && (
-                                <div className="text-xs text-red-600 dark:text-red-400 p-3 bg-red-100 dark:bg-red-900/30 rounded">
-                                    {audioError}
-                                </div>
-                            )}
+                            {/* Audio UI moved to /study sidebar */}
                         </aside>
                     )}
                 </div>
             </div>
             
-            {/* Audio Player - Solo si ya está generado */}
-            {content && content.metadata.audioUrl && (
-                <div className="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-xl border-t border-white/10 p-4 z-50">
-                    <div className="max-w-4xl mx-auto">
-                        <audio 
-                            controls 
-                            className="w-full"
-                            src={content.metadata.audioUrl}
-                        >
-                            Tu navegador no soporta audio HTML5.
-                        </audio>
-                        <p className="text-xs text-white/40 text-center mt-2">
-                            🎧 Podcast resumen - Duración estimada: ~15 min
-                        </p>
-                    </div>
-                </div>
-            )}
-            
-            {/* Botón para generar audio si no existe */}
-            {content && !content.metadata.audioUrl && !isGeneratingAudio && (
-                <button
-                    onClick={handleGenerateAudio}
-                    className="fixed bottom-4 right-4 px-4 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-xl shadow-lg flex items-center gap-2 font-bold transition-colors z-40"
-                >
-                    <Volume2 className="w-4 h-4" />
-                    Generar Podcast
-                </button>
-            )}
-            
-            {/* Indicador de generación de audio */}
-            {isGeneratingAudio && (
-                <div className="fixed bottom-4 right-4 px-4 py-3 bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-xl shadow-lg flex items-center gap-2 font-bold z-40">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Generando podcast...
-                </div>
-            )}
-            
-            {/* Error de audio */}
-            {audioError && (
-                <div className="fixed bottom-4 right-4 px-4 py-3 bg-red-500/20 border border-red-500/30 text-red-300 rounded-xl shadow-lg max-w-xs z-40">
-                    <p className="text-xs font-bold mb-1">Error al generar audio</p>
-                    <p className="text-xs">{audioError}</p>
-                    <button
-                        onClick={() => setAudioError(null)}
-                        className="text-xs underline mt-2"
-                    >
-                        Cerrar
-                    </button>
-                </div>
-            )}
+            {/* Audio UI moved to /study sidebar */}
         </div>
     );
 }
@@ -1122,6 +1209,7 @@ function SectionRenderer({ section, topicId, isActive, onActivate }: SectionRend
                                     <WidgetFactory 
                                         widgets={section.content.widgets} 
                                         topicId={topicId}
+                                        widgetIdPrefix={section.id}
                                     />
                                 </div>
                             )}

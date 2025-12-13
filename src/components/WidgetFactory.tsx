@@ -22,6 +22,7 @@ import { motion } from "framer-motion";
 interface WidgetFactoryProps {
     widgets: WidgetDefinition[];
     topicId?: string; // Needed for on-demand generation
+    widgetIdPrefix?: string; // Stable prefix (e.g. section id)
 }
 
 // ============================================
@@ -48,7 +49,7 @@ const WIDGET_MAP: Record<string, React.ComponentType<{ content: any }>> = {
 // COMPONENTE PRINCIPAL
 // ============================================
 
-export function WidgetFactory({ widgets, topicId }: WidgetFactoryProps) {
+export function WidgetFactory({ widgets, topicId, widgetIdPrefix }: WidgetFactoryProps) {
     if (!widgets || widgets.length === 0) {
         return null;
     }
@@ -76,16 +77,18 @@ export function WidgetFactory({ widgets, topicId }: WidgetFactoryProps) {
                 }
 
                 // Añadir metadata necesaria para widgets on-demand
-                const widgetContent = typeof widget.content === 'object' && widget.content !== null
-                    ? {
-                        ...widget.content,
-                        widgetId: `widget_${index}`,
-                        topicId: topicId
-                      }
-                    : {
-                        widgetId: `widget_${index}`,
-                        topicId: topicId
-                      };
+                const stableWidgetId = widgetIdPrefix ? `${widgetIdPrefix}:${index}` : `widget_${index}`;
+                const widgetContent =
+                    typeof widget.content === "object" && widget.content !== null
+                        ? {
+                              ...(widget.content as any),
+                              widgetId: (widget.content as any).widgetId || stableWidgetId,
+                              topicId: topicId,
+                          }
+                        : {
+                              widgetId: stableWidgetId,
+                              topicId: topicId,
+                          };
                 
                 return (
                     <motion.div

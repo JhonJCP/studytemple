@@ -1,140 +1,230 @@
 /**
  * API ENDPOINT - Generación de Widgets On-Demand
- * 
- * Este endpoint recibe peticiones del frontend para generar
- * widgets específicos usando los "cerebros" correspondientes.
+ *
+ * Flujo: click → generar → render → persistir (Supabase) → recarga OK.
+ * Persistimos el resultado dentro de `generated_content.content_json.sections[*].content.widgets[*].content`.
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/utils/supabase/server";
 import { generateInfografia } from "@/lib/widget-brains/infografia-brain";
 import { generateMnemonic } from "@/lib/widget-brains/mnemonic-brain";
 import { generateCasePractice } from "@/lib/widget-brains/case-practice-brain";
-import { createClient } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
-const WIDGET_TIMEOUT_MS = 120000; // 2 minutos para generación de widget
+
+type FoundWidget = { widget: any };
+
+function deepClone<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value));
+}
+
+function ensureWidgetIds(contentJson: any) {
+    if (!contentJson || typeof contentJson !== "object") return contentJson;
+
+    const cloned = deepClone(contentJson);
+
+    const visitSection = (section: any) => {
+        if (!section || typeof section !== "object") return;
+
+        const sectionId = section.id || "section";
+        const widgets = section?.content?.widgets;
+
+        if (Array.isArray(widgets)) {
+            section.content.widgets = widgets.map((w: any, idx: number) => {
+                const next = w && typeof w === "object" ? { ...w } : { type: w?.type, content: w?.content };
+                const nextContent = next.content && typeof next.content === "object" ? { ...next.content } : {};
+                const computedId = `${sectionId}:${idx}`;
+                nextContent.widgetId = nextContent.widgetId || computedId;
+                next.content = nextContent;
+                return next;
+            });
+        }
+
+        if (Array.isArray(section.children)) {
+            section.children.forEach(visitSection);
+        }
+    };
+
+    if (Array.isArray(cloned.sections)) {
+        cloned.sections.forEach(visitSection);
+    }
+
+    return cloned;
+}
+
+function findWidgetById(contentJson: any, widgetId: string): FoundWidget | null {
+    if (!contentJson || typeof contentJson !== "object") return null;
+    if (!widgetId) return null;
+
+    let found: FoundWidget | null = null;
+
+    const visitSection = (section: any) => {
+        if (found) return;
+        if (!section || typeof section !== "object") return;
+
+        const sectionId = section.id || "section";
+        const widgets = section?.content?.widgets;
+        if (Array.isArray(widgets)) {
+            for (let idx = 0; idx < widgets.length; idx++) {
+                const w = widgets[idx];
+                const wId = w?.content?.widgetId || `${sectionId}:${idx}`;
+                if (wId === widgetId) {
+                    found = { widget: w };
+                    return;
+                }
+            }
+        }
+
+        if (Array.isArray(section.children)) {
+            section.children.forEach(visitSection);
+        }
+    };
+
+    if (Array.isArray(contentJson.sections)) {
+        contentJson.sections.forEach(visitSection);
+    }
+
+    return found;
+}
+
+function getCachedResult(widgetType: string, widget: any) {
+    const c = widget?.content && typeof widget.content === "object" ? widget.content : {};
+
+    if (widgetType === "infografia") {
+        return c.imageUrl || null;
+    }
+
+    if (widgetType === "mnemonic") {
+        if (c.generatedRule && c.explanation) return { rule: c.generatedRule, explanation: c.explanation };
+        return null;
+    }
+
+    if (widgetType === "case_practice") {
+        if (c.scenario && c.solution) return { scenario: c.scenario, solution: c.solution };
+        return null;
+    }
+
+    return null;
+}
 
 export async function POST(req: NextRequest) {
     const startTime = Date.now();
-    
+
     try {
-        const { widgetType, widgetData, topicId, userId } = await req.json();
-        
-        console.log(`[WIDGET-API] Request: type=${widgetType}, topic=${topicId}`);
-        
-        // Verificar autenticación
+        const body = await req.json();
+        const widgetType = body?.widgetType as string | undefined;
+        const widgetData = body?.widgetData as any;
+        const topicId = body?.topicId as string | undefined;
+        const widgetId = widgetData?.widgetId as string | undefined;
+
+        if (!topicId || !widgetType || !widgetId) {
+            return NextResponse.json({ error: "Missing topicId/widgetType/widgetId" }, { status: 400 });
+        }
+
         const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        
+        const {
+            data: { user },
+        } = await supabase.auth.getUser();
+
         if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
-        
-        // Verificar si ya existe en caché (DB)
-        const { data: cachedWidget } = await supabase
-            .from('generated_content')
-            .select('content_json')
-            .eq('user_id', user.id)
-            .eq('topic_id', topicId)
-            .single();
-        
-        // Buscar widget en caché
-        if (cachedWidget?.content_json?.widgets) {
-            const existingWidget = cachedWidget.content_json.widgets.find(
-                (w: any) => w.id === widgetData.widgetId && w.generated === true
+
+        const { data: record, error: fetchError } = await supabase
+            .from("generated_content")
+            .select("id,content_json,updated_at")
+            .eq("user_id", user.id)
+            .eq("topic_id", topicId)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (fetchError) {
+            console.error("[WIDGET-API] Error reading generated_content:", fetchError);
+            return NextResponse.json({ error: "Failed to read generated content" }, { status: 500 });
+        }
+
+        if (!record?.content_json) {
+            return NextResponse.json({ error: "No generated content found for this topic" }, { status: 404 });
+        }
+
+        const contentJson = ensureWidgetIds(record.content_json);
+        const found = findWidgetById(contentJson, widgetId);
+        if (!found) {
+            return NextResponse.json(
+                { error: `Widget placeholder not found (${widgetId}). Regenera el tema si cambió la estructura.` },
+                { status: 404 }
             );
-            
-            if (existingWidget?.cachedResult) {
-                console.log(`[WIDGET-API] Using cached widget: ${widgetData.widgetId}`);
-                return NextResponse.json({ 
-                    success: true, 
-                    result: existingWidget.cachedResult,
-                    cached: true,
-                    elapsed: Date.now() - startTime 
-                });
-            }
         }
-        
-        // Generar widget según tipo
-        let result;
-        
-        switch (widgetType) {
-            case 'infografia':
-                result = await generateInfografia({
-                    frame: widgetData.frame,
-                    concept: widgetData.concept,
-                    topicId,
-                    widgetId: widgetData.widgetId || `widget_${Date.now()}`
-                });
-                break;
-                
-            case 'mnemonic':
-                result = await generateMnemonic({
-                    frame: widgetData.frame,
-                    termsToMemorize: widgetData.termsToMemorize || []
-                });
-                break;
-                
-            case 'case_practice':
-                result = await generateCasePractice({
-                    frame: widgetData.frame,
-                    concept: widgetData.concept
-                });
-                break;
-                
-            default:
-                return NextResponse.json(
-                    { error: `Unknown widget type: ${widgetType}` },
-                    { status: 400 }
-                );
+
+        const cached = getCachedResult(widgetType, found.widget);
+        if (cached) {
+            return NextResponse.json({
+                success: true,
+                result: cached,
+                cached: true,
+                elapsed: Date.now() - startTime,
+            });
         }
-        
-        // Guardar resultado en caché (actualizar generated_content)
-        if (cachedWidget?.content_json) {
-            const updatedWidgets = cachedWidget.content_json.widgets?.map((w: any) => {
-                if (w.id === widgetData.widgetId) {
-                    return {
-                        ...w,
-                        generated: true,
-                        cachedResult: result
-                    };
-                }
-                return w;
-            }) || [];
-            
-            await supabase
-                .from('generated_content')
-                .update({
-                    content_json: {
-                        ...cachedWidget.content_json,
-                        widgets: updatedWidgets
-                    }
-                })
-                .eq('user_id', user.id)
-                .eq('topic_id', topicId);
-            
-            console.log(`[WIDGET-API] Widget cached: ${widgetData.widgetId}`);
+
+        let result: any;
+        if (widgetType === "infografia") {
+            result = await generateInfografia({
+                frame: widgetData.frame,
+                concept: widgetData.concept,
+                topicId,
+                widgetId,
+            });
+        } else if (widgetType === "mnemonic") {
+            result = await generateMnemonic({
+                frame: widgetData.frame,
+                termsToMemorize: widgetData.termsToMemorize || [],
+            });
+        } else if (widgetType === "case_practice") {
+            result = await generateCasePractice({
+                frame: widgetData.frame,
+                concept: widgetData.concept,
+            });
+        } else {
+            return NextResponse.json({ error: `Unknown widget type: ${widgetType}` }, { status: 400 });
         }
-        
-        const elapsed = Date.now() - startTime;
-        console.log(`[WIDGET-API] Success: type=${widgetType}, elapsed=${elapsed}ms`);
-        
-        return NextResponse.json({ 
-            success: true, 
+
+        const widgetRef = findWidgetById(contentJson, widgetId);
+        if (!widgetRef) {
+            return NextResponse.json({ error: "Widget not found after generation" }, { status: 500 });
+        }
+
+        const nextWidget = widgetRef.widget;
+        const nextContent = nextWidget?.content && typeof nextWidget.content === "object" ? nextWidget.content : {};
+        nextContent.widgetId = nextContent.widgetId || widgetId;
+
+        if (widgetType === "infografia") {
+            nextContent.imageUrl = result;
+        } else if (widgetType === "mnemonic") {
+            nextContent.generatedRule = result.rule;
+            nextContent.explanation = result.explanation;
+        } else if (widgetType === "case_practice") {
+            nextContent.scenario = result.scenario;
+            nextContent.solution = result.solution;
+        }
+
+        nextWidget.content = nextContent;
+        nextWidget.generated = true;
+
+        await supabase.from("generated_content").update({ content_json: contentJson }).eq("id", record.id);
+
+        return NextResponse.json({
+            success: true,
             result,
             cached: false,
-            elapsed 
+            elapsed: Date.now() - startTime,
         });
-        
     } catch (error) {
-        console.error('[WIDGET-API] Error:', error);
+        console.error("[WIDGET-API] Error:", error);
         return NextResponse.json(
-            { 
-                error: error instanceof Error ? error.message : 'Unknown error',
-                elapsed: Date.now() - startTime
-            },
+            { error: error instanceof Error ? error.message : "Unknown error", elapsed: Date.now() - startTime },
             { status: 500 }
         );
     }
 }
-
