@@ -41,6 +41,8 @@ export default async function StudyPage({ params }: PageProps) {
                 .select("content_json,audio_url,audio_script,audio_duration,status,is_complete,topic_id,created_at,updated_at,user_id,id")
                 .eq("user_id", user.id)
                 .eq("topic_id", topic.id)
+                .order("updated_at", { ascending: false })
+                .limit(1)
                 .maybeSingle();
 
             if (data) {

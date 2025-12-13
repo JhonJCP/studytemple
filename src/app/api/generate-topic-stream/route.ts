@@ -126,6 +126,8 @@ export async function GET(req: NextRequest) {
                             .select("content_json")
                             .eq("user_id", user.id)
                             .eq("topic_id", topicId)
+                            .order("updated_at", { ascending: false })
+                            .limit(1)
                             .maybeSingle();
 
                         if (cached?.content_json) {
@@ -212,10 +214,12 @@ export async function GET(req: NextRequest) {
                     log(`Generación completada`, { elapsed: Date.now() - startTime });
 
                     // 3) Guardar en Supabase si hay usuario
+                    let persisted = false;
+                    let persistError: string | null = null;
                     if (supabaseUser) {
                         try {
                             const supabase = await createClient();
-                            await supabase.from("generated_content").upsert({
+                            const { error: upsertError } = await supabase.from("generated_content").upsert({
                                 user_id: supabaseUser,
                                 topic_id: topicId,
                                 content_json: result,
@@ -223,8 +227,15 @@ export async function GET(req: NextRequest) {
                                 status: "complete",
                                 updated_at: new Date().toISOString()
                             });
-                            log(`Contenido guardado en Supabase`);
+                            if (upsertError) {
+                                persistError = upsertError.message;
+                                log(`Error guardando en Supabase`, upsertError);
+                            } else {
+                                persisted = true;
+                                log(`Contenido guardado en Supabase`);
+                            }
                         } catch (e) {
+                            persistError = e instanceof Error ? e.message : "Error guardando en Supabase";
                             log(`Error guardando en Supabase`, e);
                             // si falla persistencia no romper el streaming
                         }
@@ -236,7 +247,9 @@ export async function GET(req: NextRequest) {
                         durationMs: Date.now() - startTime,
                         health: result.metadata.health,
                         qualityStatus: result.qualityStatus,
-                        warnings: result.warnings || []
+                        warnings: result.warnings || [],
+                        persisted,
+                        persistError
                     });
                     clearTimeout(timeout);
                     cleanup();

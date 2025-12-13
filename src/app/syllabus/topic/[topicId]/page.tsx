@@ -39,6 +39,8 @@ export default async function TopicPage({ params }: PageProps) {
                 .select("content_json")
                 .eq("user_id", user.id)
                 .eq("topic_id", topic.id)
+                .order("updated_at", { ascending: false })
+                .limit(1)
                 .maybeSingle();
             initialContent = data?.content_json as GeneratedTopicContent | undefined;
         }

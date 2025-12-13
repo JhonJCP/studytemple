@@ -51,17 +51,29 @@ interface GenerationError {
 }
 
 const contentStorageKey = (topicId: string) => `topic_content_${topicId}`;
+const stableTopicKey = (topic: TopicWithGroup) =>
+    `${topic.originalFilename || ""} ${topic.title || ""}`
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/\.[a-z0-9]+$/, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+const stableContentStorageKey = (topic: TopicWithGroup) => `topic_content_key_${stableTopicKey(topic)}`;
 const traceStorageKey = (topicId: string) => `topic_trace_${topicId}`;
 const MAX_RETRIES = 3;
 const CLIENT_GENERATION_GUARD_MS = 9 * 60 * 1000; // 9 min (server suele ser 10 min)
 
 function hydrateContent(data?: GeneratedTopicContent | null): GeneratedTopicContent | null {
     if (!data) return null;
+    const metadata = (data as any).metadata || {};
+    const generatedAtRaw = (metadata as any).generatedAt;
+    const generatedAt = generatedAtRaw ? new Date(generatedAtRaw) : new Date(0);
     return {
         ...data,
         metadata: {
-            ...data.metadata,
-            generatedAt: new Date(data.metadata.generatedAt),
+            ...metadata,
+            generatedAt,
         },
         sections: (data.sections || []).map(section => ({
             ...section,
@@ -72,6 +84,75 @@ function hydrateContent(data?: GeneratedTopicContent | null): GeneratedTopicCont
             children: section.children || [],
         })),
     };
+}
+
+function getGeneratedAtMs(content: GeneratedTopicContent | null): number {
+    if (!content?.metadata?.generatedAt) return 0;
+    const d = content.metadata.generatedAt instanceof Date ? content.metadata.generatedAt : new Date(content.metadata.generatedAt as any);
+    const t = d.getTime();
+    return Number.isFinite(t) ? t : 0;
+}
+
+function countSections(sections: TopicSection[] | undefined): number {
+    if (!sections?.length) return 0;
+    let count = 0;
+    const stack = [...sections];
+    while (stack.length) {
+        const s = stack.pop();
+        if (!s) continue;
+        count += 1;
+        if (s.children?.length) stack.push(...s.children);
+    }
+    return count;
+}
+
+function estimateWordCountFromSections(sections: TopicSection[] | undefined): number {
+    if (!sections?.length) return 0;
+    let words = 0;
+    const stack = [...sections];
+    while (stack.length) {
+        const s = stack.pop();
+        if (!s) continue;
+        const text = s.content?.text || "";
+        if (text) {
+            const w = text.trim().split(/\s+/).filter(Boolean).length;
+            words += w;
+        }
+        if (s.children?.length) stack.push(...s.children);
+    }
+    return words;
+}
+
+function getContentWordCount(content: GeneratedTopicContent | null): number {
+    const healthWords = content?.metadata?.health?.totalWords;
+    if (typeof healthWords === "number" && Number.isFinite(healthWords)) return healthWords;
+    return estimateWordCountFromSections(content?.sections);
+}
+
+function pickNewestContent(...candidates: Array<GeneratedTopicContent | null | undefined>): GeneratedTopicContent | null {
+    let best: GeneratedTopicContent | null = null;
+    let bestTime = 0;
+    let bestWords = 0;
+    let bestSections = 0;
+    for (const c of candidates) {
+        const cc = c || null;
+        if (!cc) continue;
+        const t = getGeneratedAtMs(cc);
+        const words = getContentWordCount(cc);
+        const sections = countSections(cc.sections);
+        const isBetter =
+            !best ||
+            t > bestTime ||
+            (t === bestTime && (words > bestWords || (words === bestWords && sections > bestSections)));
+
+        if (isBetter) {
+            best = cc;
+            bestTime = t;
+            bestWords = words;
+            bestSections = sections;
+        }
+    }
+    return best;
 }
 
 function hydrateOrchestrationState(topicId: string, raw?: OrchestrationState, hasContent?: boolean): OrchestrationState {
@@ -129,36 +210,36 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
     // Cargar persistencia local (desde Supabase o localStorage) cuando cambia el tema
     // IMPORTANTE: no depender de eventSource/timeoutId para no sobrescribir el contenido generado en vivo.
     useEffect(() => {
-        let loadedContent: GeneratedTopicContent | null = null;
+        let storedCanonical: GeneratedTopicContent | null = null;
+        let storedStable: GeneratedTopicContent | null = null;
+        let serverContent: GeneratedTopicContent | null = null;
+
+        try {
+            const stored = localStorage.getItem(contentStorageKey(topic.id));
+            if (stored) storedCanonical = hydrateContent(JSON.parse(stored));
+        } catch {
+            // ignore
+        }
+
+        try {
+            const stableStored = localStorage.getItem(stableContentStorageKey(topic));
+            if (stableStored) storedStable = hydrateContent(JSON.parse(stableStored));
+        } catch {
+            // ignore
+        }
 
         if (initialContent) {
-            loadedContent = hydrateContent(initialContent);
-            setContent(loadedContent);
-            try {
-                localStorage.setItem(contentStorageKey(topic.id), JSON.stringify(loadedContent));
-            } catch {
-                // ignore storage errors
-            }
-        } else {
-            try {
-                const stored = localStorage.getItem(contentStorageKey(topic.id));
-                if (stored) {
-                    const parsed = hydrateContent(JSON.parse(stored));
-                    if (parsed) {
-                        loadedContent = parsed;
-                        setContent(parsed);
-                    }
-                }
-            } catch {
-                // ignore
-            }
+            serverContent = hydrateContent(initialContent);
         }
+
+        const winner = pickNewestContent(serverContent, storedCanonical, storedStable);
+        if (winner) setContent(winner);
 
         // Cargar trace pasando si hay contenido para evitar estados "stuck"
         try {
             const storedTrace = localStorage.getItem(traceStorageKey(topic.id));
             if (storedTrace) {
-                const hasContent = Boolean(loadedContent || initialContent);
+                const hasContent = Boolean(winner);
                 const parsedTrace = hydrateOrchestrationState(topic.id, JSON.parse(storedTrace), hasContent);
                 setOrchestrationState(parsedTrace);
             }
@@ -188,10 +269,11 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
         if (!content) return;
         try {
             localStorage.setItem(contentStorageKey(topic.id), JSON.stringify(content));
+            localStorage.setItem(stableContentStorageKey(topic), JSON.stringify(content));
         } catch {
             // ignore storage errors
         }
-    }, [content, topic.id]);
+    }, [content, topic.id, topic.title, topic.originalFilename]);
 
     useEffect(() => {
         if (!orchestrationState || (!orchestrationState.steps.length && !orchestrationState.result)) return;
@@ -322,6 +404,8 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                     const health = data.health || hydratedContent?.metadata?.health;
                     const needsImprovement = data.qualityStatus === 'needs_improvement' || health?.wordGoalMet === false;
                     const warnings = (data.warnings as string[]) || [];
+                    const persistOk = Boolean(data.persisted);
+                    const persistError = typeof data.persistError === "string" && data.persistError.length ? data.persistError : null;
 
                     setOrchestrationState(prev => ({
                         ...prev,
@@ -331,9 +415,13 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                         result: hydratedContent || prev.result
                     }));
 
-                    if (needsImprovement) {
+                    const persistWarning = !persistOk
+                        ? `Persistencia: no se pudo guardar en tu cuenta${persistError ? ` (${persistError})` : ""}. Se mantiene guardado en este dispositivo.`
+                        : null;
+
+                    if (needsImprovement || persistWarning) {
                         const warningMessage =
-                            warnings.join(' | ') ||
+                            [...warnings, persistWarning].filter(Boolean).join(' | ') ||
                             (data.qualityStatus === 'needs_improvement'
                                 ? 'Calidad mejorable: el contenido no alcanza el objetivo. Puedes reintentar para enriquecer.'
                                 : 'Contenido mejorable: algunas secciones pueden ser demasiado cortas.');
