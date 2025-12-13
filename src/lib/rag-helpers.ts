@@ -201,6 +201,11 @@ export async function queryByCategory(
   };
 
   const base = () => supabase.from("library_documents").select("id, content, metadata");
+  const primaryFilenameHint = filenameHint ? sanitizeTerm(filenameHint.replace(/\.pdf$/i, "")) : "";
+  const restrictToPrimaryCore =
+    Boolean(primaryFilenameHint) &&
+    category === "CORE" &&
+    /ley|decreto|reglamento/i.test(contextText);
 
   const run = async (label: string, build: () => any) => {
     const { data, error } = await build().order("id", { ascending: true }).limit(perQueryLimit);
@@ -238,7 +243,10 @@ export async function queryByCategory(
 
     for (const k of contentPatterns) {
       if (out.length >= limit) break;
-      await run(`content:${k}`, () => base().ilike("content", `%${k}%`));
+      await run(`content:${k}`, () => {
+        const q = restrictToPrimaryCore ? base().ilike("metadata->>filename", `%${primaryFilenameHint}%`) : base();
+        return q.ilike("content", `%${k}%`);
+      });
     }
 
     if (out.length === 0) {
