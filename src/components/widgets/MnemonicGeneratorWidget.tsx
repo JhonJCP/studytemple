@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Zap, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
+import { postWidgetGenerate } from "./widget-generate";
 
 interface MnemonicGeneratorWidgetProps {
     content: {
@@ -26,25 +27,15 @@ export function MnemonicGeneratorWidget({ content }: MnemonicGeneratorWidgetProp
         setError(null);
         
         try {
-            const res = await fetch('/api/widgets/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    widgetType: 'mnemonic',
-                    widgetData: {
-                        frame: content.frame,
-                        termsToMemorize: content.termsToMemorize,
-                        widgetId: content.widgetId
-                    },
-                    topicId: content.topicId
-                })
+            const data = await postWidgetGenerate({
+                widgetType: "mnemonic",
+                widgetData: {
+                    frame: content.frame,
+                    termsToMemorize: content.termsToMemorize,
+                    widgetId: content.widgetId,
+                },
+                topicId: content.topicId,
             });
-            
-            const data = await res.json();
-            
-            if (!res.ok) {
-                throw new Error(data.error || 'Error generating mnemonic');
-            }
             
             setRule(data.result.rule);
             setExplanation(data.result.explanation);
@@ -66,21 +57,21 @@ export function MnemonicGeneratorWidget({ content }: MnemonicGeneratorWidgetProp
                 <Zap className="w-12 h-12 text-green-500/20" />
             </div>
 
-            <h4 className="text-xs font-black uppercase tracking-widest text-green-400 mb-4 flex items-center gap-2">
+            <h4 className="text-xs font-black uppercase tracking-widest text-green-700 mb-4 flex items-center gap-2">
                 <Zap className="w-4 h-4" /> Mnemotecnia Inteligente
             </h4>
             
             {!rule ? (
                 <div className="text-center py-8">
-                    <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Zap className="w-8 h-8 text-green-400" />
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Zap className="w-8 h-8 text-green-700" />
                     </div>
-                    <p className="text-sm text-white/60 mb-2">
+                    <p className="text-sm text-slate-600 mb-2">
                         Genera una regla mnemotécnica para:
                     </p>
                     <div className="flex flex-wrap gap-2 justify-center mb-6">
                         {content.termsToMemorize.map((term, i) => (
-                            <span key={i} className="px-3 py-1 bg-green-500/20 text-green-300 text-xs rounded-full">
+                            <span key={i} className="px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full">
                                 {term}
                             </span>
                         ))}
@@ -103,7 +94,7 @@ export function MnemonicGeneratorWidget({ content }: MnemonicGeneratorWidgetProp
                         )}
                     </button>
                     {error && (
-                        <p className="text-xs text-red-400 mt-4">
+                        <p className="text-xs text-red-600 mt-4">
                             Error: {error}
                         </p>
                     )}
@@ -111,13 +102,13 @@ export function MnemonicGeneratorWidget({ content }: MnemonicGeneratorWidgetProp
             ) : (
                 <div className="space-y-4">
                     <div className="text-center py-6">
-                        <div className="text-5xl font-black text-white tracking-tighter mb-4 drop-shadow-2xl">
+                        <div className="text-5xl font-black text-slate-900 tracking-tighter mb-4 drop-shadow-2xl">
                             {rule}
                         </div>
-                        <div className="text-lg text-green-100 font-medium">
+                        <div className="text-lg text-slate-700 font-medium">
                             {explanation?.split('.').map((part, i) => (
                                 part.trim() && (
-                                    <span key={i} className="block border-b border-green-500/10 py-1 last:border-0">
+                                    <span key={i} className="block border-b border-slate-200 py-1 last:border-0">
                                         {part.trim()}
                                     </span>
                                 )
@@ -127,7 +118,7 @@ export function MnemonicGeneratorWidget({ content }: MnemonicGeneratorWidgetProp
                     <button
                         onClick={handleGenerate}
                         disabled={isGenerating}
-                        className="text-xs text-green-400 hover:text-green-300 underline flex items-center gap-1 mx-auto disabled:opacity-50"
+                        className="text-xs text-green-700 hover:text-green-800 underline flex items-center gap-1 mx-auto disabled:opacity-50"
                     >
                         <RefreshCw className="w-3 h-3" />
                         Regenerar
@@ -137,4 +128,3 @@ export function MnemonicGeneratorWidget({ content }: MnemonicGeneratorWidgetProp
         </motion.div>
     );
 }
-

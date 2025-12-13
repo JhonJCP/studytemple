@@ -16,17 +16,17 @@ export function MnemonicWidget({ content }: { content: { rule: string, explanati
                 <Zap className="w-12 h-12 text-green-500/20" />
             </div>
 
-            <h4 className="text-xs font-black uppercase tracking-widest text-green-400 mb-4 flex items-center gap-2">
+            <h4 className="text-xs font-black uppercase tracking-widest text-green-700 mb-4 flex items-center gap-2">
                 <Zap className="w-4 h-4" /> Regla Mnemotécnica
             </h4>
 
             <div className="text-center py-6">
-                <div className="text-5xl font-black text-white tracking-tighter mb-4 drop-shadow-2xl">
+                <div className="text-5xl font-black text-slate-900 tracking-tighter mb-4 drop-shadow-2xl">
                     {content.rule}
                 </div>
-                <div className="text-lg text-green-100 font-medium">
+                <div className="text-lg text-slate-700 font-medium">
                     {content.explanation.split(',').map((part, i) => (
-                        <span key={i} className="block border-b border-green-500/10 py-1 last:border-0">
+                        <span key={i} className="block border-b border-slate-200 py-1 last:border-0">
                             {part.trim()}
                         </span>
                     ))}
@@ -42,20 +42,20 @@ export function MnemonicWidget({ content }: { content: { rule: string, explanati
 export function TimelineWidget({ content }: { content: { steps: { time: string, action: string }[] } }) {
     return (
         <div className="bg-gradient-to-br from-blue-500/10 to-transparent rounded-2xl p-6 border border-blue-500/20 backdrop-blur-sm">
-            <h4 className="text-xs font-black uppercase tracking-widest text-blue-400 mb-6 flex items-center gap-2">
+            <h4 className="text-xs font-black uppercase tracking-widest text-blue-700 mb-6 flex items-center gap-2">
                 <Clock className="w-4 h-4" /> Línea Temporal
             </h4>
 
             <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar snap-x">
                 {content.steps.map((step, idx) => (
                     <div key={idx} className="flex-none w-48 snap-center relative">
-                        <div className="w-full h-1 bg-blue-500/20 absolute top-3 left-0 rounded-full" />
+                        <div className="w-full h-1 bg-blue-200 absolute top-3 left-0 rounded-full" />
                         <div className="relative z-10 flex flex-col items-center text-center">
-                            <div className="w-6 h-6 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)] border-4 border-black mb-3 shrink-0" />
-                            <span className="text-xs font-bold text-blue-300 bg-blue-900/40 px-2 py-1 rounded mb-2 block w-full">
+                            <div className="w-6 h-6 bg-blue-600 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.35)] border-4 border-white mb-3 shrink-0" />
+                            <span className="text-xs font-bold text-blue-800 bg-blue-100 px-2 py-1 rounded mb-2 block w-full">
                                 {step.time}
                             </span>
-                            <p className="text-sm text-white/80 leading-snug">
+                            <p className="text-sm text-slate-700 leading-snug">
                                 {step.action}
                             </p>
                         </div>
@@ -72,12 +72,12 @@ export function TimelineWidget({ content }: { content: { steps: { time: string, 
 export function AnalogyWidget({ content }: { content: { story: string } }) {
     return (
         <div className="bg-gradient-to-br from-amber-500/10 to-transparent rounded-2xl p-6 border border-amber-500/20 backdrop-blur-sm">
-            <h4 className="text-xs font-black uppercase tracking-widest text-amber-400 mb-4 flex items-center gap-2">
+            <h4 className="text-xs font-black uppercase tracking-widest text-amber-800 mb-4 flex items-center gap-2">
                 <Brain className="w-4 h-4" /> Analogía Ingenieril
             </h4>
             <div className="flex gap-4 items-start">
                 <div className="text-4xl">🏗️</div>
-                <p className="text-lg text-white/90 italic font-serif leading-relaxed">
+                <p className="text-lg text-slate-900 italic font-serif leading-relaxed">
                     &quot;{content.story}&quot;
                 </p>
             </div>
@@ -99,7 +99,7 @@ export function DiagramWidget({ content }: { content: { structure: string } }) {
 
                 mermaid.initialize({
                     startOnLoad: false,
-                    theme: 'dark',
+                    theme: 'default',
                     securityLevel: 'loose',
                     fontFamily: 'Inter',
                 });
@@ -121,16 +121,16 @@ export function DiagramWidget({ content }: { content: { structure: string } }) {
     }, [content.structure]);
 
     return (
-        <div className="bg-white/5 rounded-2xl p-6 border border-white/10 backdrop-blur-sm">
-            <h4 className="text-xs font-black uppercase tracking-widest text-white/40 mb-4 flex items-center gap-2">
+        <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 backdrop-blur-sm">
+            <h4 className="text-xs font-black uppercase tracking-widest text-slate-700 mb-4 flex items-center gap-2">
                 <Variable className="w-4 h-4" /> Estructura Lógica
             </h4>
 
-            <div className="w-full overflow-x-auto flex justify-center py-4 bg-black/20 rounded-xl">
+            <div className="w-full overflow-x-auto flex justify-center py-4 bg-white rounded-xl border border-slate-200">
                 {svg ? (
                     <div dangerouslySetInnerHTML={{ __html: svg }} className="mermaid-svg opacity-90 hover:opacity-100 transition-opacity" />
                 ) : (
-                    <div className="animate-pulse flex gap-2 text-xs text-white/20">Generando Gráfico...</div>
+                    <div className="animate-pulse flex gap-2 text-xs text-slate-400">Generando Gráfico...</div>
                 )}
             </div>
         </div>

@@ -38,15 +38,15 @@ export function QuizWidget({ content }: QuizWidgetProps) {
             animate={{ opacity: 1, y: 0 }}
             className="bg-gradient-to-br from-purple-500/10 to-transparent rounded-2xl p-6 border border-purple-500/20 backdrop-blur-sm"
         >
-            <h4 className="text-xs font-black uppercase tracking-widest text-purple-400 mb-4 flex items-center gap-2">
+            <h4 className="text-xs font-black uppercase tracking-widest text-purple-700 mb-4 flex items-center gap-2">
                 <HelpCircle className="w-4 h-4" /> Test Rápido
             </h4>
             
             <div className="space-y-6">
                 {content.questions.map((q, qIdx) => (
                     <div key={qIdx} className="space-y-3">
-                        <p className="text-white font-semibold flex items-start gap-2">
-                            <span className="text-purple-400 font-bold">{qIdx + 1}.</span>
+                        <p className="text-slate-900 font-semibold flex items-start gap-2">
+                            <span className="text-purple-700 font-bold">{qIdx + 1}.</span>
                             <span>{q.question}</span>
                         </p>
                         <div className="space-y-2 pl-6">
@@ -67,7 +67,7 @@ export function QuizWidget({ content }: QuizWidgetProps) {
                                                     : 'bg-red-500/20 border-red-500'
                                                 : isSelected
                                                     ? 'bg-purple-500/20 border-purple-500'
-                                                    : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                                    : 'bg-white border-slate-200 hover:bg-slate-50'
                                         } ${showResults ? 'cursor-default' : 'cursor-pointer'}`}
                                     >
                                         {showResults && isSelected && (
@@ -96,8 +96,8 @@ export function QuizWidget({ content }: QuizWidgetProps) {
                         disabled={!allAnswered}
                         className={`mt-6 w-full py-3 font-bold rounded-xl transition-all ${
                             allAnswered
-                                ? 'bg-purple-500 text-white hover:bg-purple-600 cursor-pointer'
-                                : 'bg-white/10 text-white/40 cursor-not-allowed'
+                                ? 'bg-purple-600 text-white hover:bg-purple-700 cursor-pointer'
+                                : 'bg-slate-100 text-slate-500 cursor-not-allowed'
                         }`}
                     >
                         {allAnswered ? 'Comprobar Respuestas' : 'Responde todas las preguntas'}
@@ -106,12 +106,12 @@ export function QuizWidget({ content }: QuizWidgetProps) {
                     <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="mt-6 p-4 bg-black/40 rounded-xl border border-purple-500/30"
+                        className="mt-6 p-4 bg-purple-50 rounded-xl border border-purple-200"
                     >
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-white/60">Resultado</p>
-                                <p className="text-2xl font-bold text-white">
+                                <p className="text-sm text-slate-600">Resultado</p>
+                                <p className="text-2xl font-bold text-slate-900">
                                     {correctCount} / {content.questions.length}
                                 </p>
                             </div>
@@ -130,7 +130,7 @@ export function QuizWidget({ content }: QuizWidgetProps) {
                                 setAnswers(content.questions.map(() => null));
                                 setShowResults(false);
                             }}
-                            className="mt-4 w-full py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 text-sm font-bold rounded-lg transition-colors"
+                            className="mt-4 w-full py-2 bg-purple-100 hover:bg-purple-200 text-purple-800 text-sm font-bold rounded-lg transition-colors"
                         >
                             Reintentar
                         </button>
@@ -140,4 +140,3 @@ export function QuizWidget({ content }: QuizWidgetProps) {
         </motion.div>
     );
 }
-

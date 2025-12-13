@@ -561,24 +561,24 @@ export function TopicContentViewer({
     const getStatusBadge = () => {
         // Error tiene prioridad (pero solo si no estamos generando activamente)
         if (!isGenerating && ((error && (error.severity ?? 'error') === 'error') || orchestrationState.status === 'error')) {
-            return { icon: XCircle, text: 'Error', color: 'text-red-400 bg-red-500/20', animate: false };
+            return { icon: XCircle, text: 'Error', color: 'text-red-700 bg-red-100', animate: false };
         }
         if (!isGenerating && error && (error.severity ?? 'error') === 'warning') {
-            return { icon: AlertTriangle, text: 'Mejorable', color: 'text-amber-400 bg-amber-500/20', animate: false };
+            return { icon: AlertTriangle, text: 'Mejorable', color: 'text-amber-800 bg-amber-100', animate: false };
         }
         // Solo mostrar "Generando" cuando isGenerating es true (acción del usuario)
         if (isGenerating) {
-            return { icon: Loader2, text: 'Generando...', color: 'text-purple-400 bg-purple-500/20', animate: true };
+            return { icon: Loader2, text: 'Generando...', color: 'text-purple-700 bg-purple-100', animate: true };
         }
         // Contenido generado exitosamente
         if (content && orchestrationState.status === 'completed') {
-            return { icon: CheckCircle, text: 'Generado', color: 'text-green-400 bg-green-500/20', animate: false };
+            return { icon: CheckCircle, text: 'Generado', color: 'text-green-700 bg-green-100', animate: false };
         }
         // Hay contenido pero no sabemos el status (cargado de caché)
         if (content) {
-            return { icon: CheckCircle, text: 'Generado', color: 'text-green-400 bg-green-500/20', animate: false };
+            return { icon: CheckCircle, text: 'Generado', color: 'text-green-700 bg-green-100', animate: false };
         }
-        return { icon: FileText, text: 'Pendiente', color: 'text-white/40 bg-white/5', animate: false };
+        return { icon: FileText, text: 'Pendiente', color: 'text-slate-600 bg-slate-100', animate: false };
     };
 
     const status = getStatusBadge();
@@ -586,8 +586,8 @@ export function TopicContentViewer({
 
     if (variant === "embedded") {
         return (
-            <div>
-                <div className="p-4 border-b border-white/10">
+            <div className="bg-white text-slate-900">
+                <div className="p-4 border-b border-slate-200 bg-white/80 backdrop-blur">
                     <div className="flex items-center justify-between gap-3">
                         <div
                             className={cn(
@@ -603,7 +603,7 @@ export function TopicContentViewer({
                             {isGenerating && (
                                 <button
                                     onClick={handleCancel}
-                                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 transition-all"
+                                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-red-100 text-red-700 border border-red-200 hover:bg-red-200 transition-all"
                                 >
                                     <StopCircle className="w-4 h-4" />
                                     Cancelar
@@ -613,7 +613,7 @@ export function TopicContentViewer({
                             {canRetry && !isGenerating && (
                                 <button
                                     onClick={handleRetry}
-                                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 transition-all"
+                                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-amber-100 text-amber-900 border border-amber-200 hover:bg-amber-200 transition-all"
                                 >
                                     <RefreshCw className="w-4 h-4" />
                                     Reintentar
@@ -626,8 +626,8 @@ export function TopicContentViewer({
                                 className={cn(
                                     "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border",
                                     isGenerating
-                                        ? "bg-white/5 text-white/40 cursor-wait border-white/10"
-                                        : "bg-white text-black hover:bg-gray-200 border-transparent"
+                                        ? "bg-slate-100 text-slate-500 cursor-wait border-slate-200"
+                                        : "bg-blue-600 text-white hover:bg-blue-700 border-transparent"
                                 )}
                             >
                                 {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
@@ -636,7 +636,7 @@ export function TopicContentViewer({
 
                             <button
                                 onClick={() => setShowOrchestrator(!showOrchestrator)}
-                                className="px-3 py-2 text-xs font-bold text-white/70 hover:bg-white/5 rounded-xl transition-colors border border-white/10"
+                                className="px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors border border-slate-200"
                             >
                                 {showOrchestrator ? "Ocultar" : "Ver"} proceso IA
                             </button>
@@ -709,19 +709,19 @@ export function TopicContentViewer({
                     </AnimatePresence>
                 </div>
 
-                <div className="p-4 space-y-6">
+                <div className="p-8 space-y-10">
                     {!content ? (
                         <div className="py-12 flex flex-col items-center text-center">
-                            <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-5 border border-white/10">
-                                <Sparkles className="w-8 h-8 text-white/40" />
+                            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-5 border border-slate-200">
+                                <Sparkles className="w-8 h-8 text-slate-500" />
                             </div>
-                            <h2 className="text-xl font-black text-white mb-2">Contenido pendiente de generación</h2>
-                            <p className="text-white/60 max-w-md mb-6 text-sm">
+                            <h2 className="text-xl font-black text-slate-900 mb-2">Contenido pendiente de generación</h2>
+                            <p className="text-slate-600 max-w-md mb-6 text-sm">
                                 Haz clic en “Generar tema” para crear un temario más extenso, pedagógico y trazable.
                             </p>
                             <button
                                 onClick={() => handleGenerate(false)}
-                                className="flex items-center gap-2 px-6 py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors"
                             >
                                 <Sparkles className="w-5 h-5" />
                                 Generar tema
@@ -733,12 +733,12 @@ export function TopicContentViewer({
                                 <article
                                     id={section.id}
                                     key={section.id}
-                                    className="bg-white dark:bg-gray-950 rounded-2xl border border-white/10 shadow-sm p-6 scroll-mt-24"
+                                    className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 scroll-mt-24"
                                 >
-                                    <h2 className="text-lg font-black mb-5 flex items-center gap-3 text-gray-900 dark:text-white">
+                                    <h2 className="font-serif text-2xl md:text-3xl font-bold tracking-tight mb-5 flex items-center gap-3 text-slate-900">
                                         {section.title}
                                         {section.sourceMetadata && section.sourceMetadata.articles.length > 0 && (
-                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-normal rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded border border-blue-100 bg-blue-50 text-blue-700">
                                                 <FileText className="h-3 w-3" />
                                                 {section.sourceMetadata.articles.length} refs
                                             </span>

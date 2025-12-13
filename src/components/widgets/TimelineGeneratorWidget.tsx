@@ -5,6 +5,7 @@ import { Clock, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { TimelineWidget } from "./index";
+import { postWidgetGenerate } from "./widget-generate";
 
 interface TimelineGeneratorWidgetProps {
     content: {
@@ -26,22 +27,15 @@ export function TimelineGeneratorWidget({ content }: TimelineGeneratorWidgetProp
         setError(null);
 
         try {
-            const res = await fetch("/api/widgets/generate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    widgetType: "timeline",
-                    widgetData: {
-                        frame: content.frame,
-                        concept: content.concept,
-                        widgetId: content.widgetId,
-                    },
-                    topicId: content.topicId,
-                }),
+            const data = await postWidgetGenerate({
+                widgetType: "timeline",
+                widgetData: {
+                    frame: content.frame,
+                    concept: content.concept,
+                    widgetId: content.widgetId,
+                },
+                topicId: content.topicId,
             });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Error generating timeline");
 
             const next = data.result?.steps || data.result;
             setSteps(next);
@@ -57,11 +51,11 @@ export function TimelineGeneratorWidget({ content }: TimelineGeneratorWidgetProp
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             {!steps ? (
                 <div className="bg-gradient-to-br from-blue-500/10 to-transparent rounded-2xl p-6 border border-blue-500/20 backdrop-blur-sm">
-                    <h4 className="text-xs font-black uppercase tracking-widest text-blue-400 mb-4 flex items-center gap-2">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-blue-700 mb-4 flex items-center gap-2">
                         <Clock className="w-4 h-4" /> Timeline (generable)
                     </h4>
-                    <p className="text-sm text-white/70 mb-2">Genera una secuencia/pasos para:</p>
-                    <p className="text-base text-white font-bold mb-6">{content.concept}</p>
+                    <p className="text-sm text-slate-600 mb-2">Genera una secuencia/pasos para:</p>
+                    <p className="text-base text-slate-900 font-bold mb-6">{content.concept}</p>
                     <button
                         onClick={handleGenerate}
                         disabled={isGenerating}
@@ -79,7 +73,7 @@ export function TimelineGeneratorWidget({ content }: TimelineGeneratorWidgetProp
                             </>
                         )}
                     </button>
-                    {error && <p className="text-xs text-red-400 mt-4 text-center">Error: {error}</p>}
+                    {error && <p className="text-xs text-red-600 mt-4 text-center">Error: {error}</p>}
                 </div>
             ) : (
                 <div className="space-y-3">
@@ -87,7 +81,7 @@ export function TimelineGeneratorWidget({ content }: TimelineGeneratorWidgetProp
                     <button
                         onClick={handleGenerate}
                         disabled={isGenerating}
-                        className="text-xs text-blue-300 hover:text-blue-200 underline flex items-center gap-1 mx-auto disabled:opacity-50"
+                        className="text-xs text-blue-700 hover:text-blue-800 underline flex items-center gap-1 mx-auto disabled:opacity-50"
                     >
                         {isGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                         Regenerar timeline
@@ -97,4 +91,3 @@ export function TimelineGeneratorWidget({ content }: TimelineGeneratorWidgetProp
         </motion.div>
     );
 }
-

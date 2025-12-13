@@ -22,75 +22,28 @@ export function ContentWithSources({ text, sourceMetadata }: ContentWithSourcesP
             .replace(/[ \t]+\n/g, "\n")
             .replace(/\n{3,}/g, "\n\n");
 
-    const baseComponents: any = {
-        h1: (props: any) => (
-            <h1 className="text-2xl font-black text-gray-900 dark:text-white mt-6 mb-3">{props.children}</h1>
-        ),
-        h2: (props: any) => (
-            <h2 className="text-xl font-black text-gray-900 dark:text-white mt-6 mb-3">{props.children}</h2>
-        ),
-        h3: (props: any) => (
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mt-5 mb-2">{props.children}</h3>
-        ),
-        p: (props: any) => <p className="my-3 leading-relaxed text-gray-900 dark:text-gray-100">{props.children}</p>,
-        ul: (props: any) => (
-            <ul className="my-3 pl-6 list-disc space-y-1 text-gray-900 dark:text-gray-100">{props.children}</ul>
-        ),
-        ol: (props: any) => (
-            <ol className="my-3 pl-6 list-decimal space-y-1 text-gray-900 dark:text-gray-100">{props.children}</ol>
-        ),
-        blockquote: (props: any) => (
-            <blockquote className="my-4 border-l-4 border-primary/40 pl-4 text-gray-800 dark:text-gray-200">
-                {props.children}
-            </blockquote>
-        ),
+    const minimalComponents: any = {
         a: (props: any) => (
             <a
                 href={props.href}
-                className="text-blue-600 dark:text-blue-400 underline underline-offset-2 hover:opacity-90"
                 target={props.href?.startsWith("http") ? "_blank" : undefined}
                 rel={props.href?.startsWith("http") ? "noreferrer" : undefined}
             >
                 {props.children}
             </a>
         ),
-        code: (props: any) => {
-            if (props.inline) {
-                return (
-                    <code className="px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 font-mono text-[0.9em]">
-                        {props.children}
-                    </code>
-                );
-            }
-            return <code className={props.className ? props.className : "font-mono text-sm"}>{props.children}</code>;
-        },
-        pre: (props: any) => (
-            <pre className="my-4 overflow-x-auto rounded-xl border border-white/10 bg-black/80 text-white p-4 text-sm">
-                {props.children}
-            </pre>
-        ),
         table: (props: any) => (
-            <div className="my-4 overflow-x-auto rounded-xl border border-white/10">
-                <table className="w-full border-collapse text-sm">{props.children}</table>
+            <div className="reader-table">
+                <table>{props.children}</table>
             </div>
         ),
-        thead: (props: any) => <thead className="bg-black/5 dark:bg-white/10">{props.children}</thead>,
-        th: (props: any) => (
-            <th className="border-b border-white/10 px-3 py-2 text-left font-bold text-gray-900 dark:text-white">
-                {props.children}
-            </th>
-        ),
-        td: (props: any) => (
-            <td className="border-b border-white/5 px-3 py-2 align-top text-gray-900 dark:text-gray-100">{props.children}</td>
-        ),
-        hr: () => <hr className="my-6 border-white/10" />,
     };
 
     // Si no hay metadata, renderizar markdown con soporte GFM (tablas, task lists, etc.)
     if (!sourceMetadata || !sourceMetadata.chunks || sourceMetadata.chunks.length === 0) {
         return (
-            <div className="max-w-none leading-relaxed">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={baseComponents}>
+            <div className="reader max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={minimalComponents}>
                     {sanitizeForDisplay(text)}
                 </ReactMarkdown>
             </div>
@@ -210,18 +163,18 @@ export function ContentWithSources({ text, sourceMetadata }: ContentWithSourcesP
     };
 
     return (
-        <div className="max-w-none leading-relaxed">
+        <div className="reader max-w-none">
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                    ...baseComponents,
-                    p: ({ children }) => baseComponents.p({ children: inject(children) }),
-                    li: ({ children }) => <li className="leading-relaxed">{inject(children)}</li>,
-                    blockquote: ({ children }) => baseComponents.blockquote({ children: inject(children) }),
-                    td: ({ children }) => baseComponents.td({ children: inject(children) }),
-                    th: ({ children }) => baseComponents.th({ children: inject(children) }),
-                    h2: ({ children }) => baseComponents.h2({ children: inject(children) }),
-                    h3: ({ children }) => baseComponents.h3({ children: inject(children) }),
+                    ...minimalComponents,
+                    p: ({ children }) => <p>{inject(children)}</p>,
+                    li: ({ children }) => <li>{inject(children)}</li>,
+                    blockquote: ({ children }) => <blockquote>{inject(children)}</blockquote>,
+                    td: ({ children }) => <td>{inject(children)}</td>,
+                    th: ({ children }) => <th>{inject(children)}</th>,
+                    h2: ({ children }) => <h2>{inject(children)}</h2>,
+                    h3: ({ children }) => <h3>{inject(children)}</h3>,
                 }}
             >
                 {sanitizeForDisplay(text)}

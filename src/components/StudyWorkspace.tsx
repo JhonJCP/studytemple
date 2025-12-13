@@ -112,7 +112,7 @@ export function StudyWorkspace({
                     </aside>
                 )}
 
-                <section className="min-w-0 rounded-2xl border border-white/10 bg-black/30 overflow-hidden">
+                <section className="min-w-0 rounded-2xl paper-surface overflow-hidden">
                     <TopicContentViewer
                         topic={topic}
                         initialContent={initialContent}

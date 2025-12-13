@@ -19,6 +19,58 @@ export interface InfografiaParams {
     widgetId: string;
 }
 
+type StylePreset = {
+    name: string;
+    guidance: string;
+};
+
+const STYLE_PRESETS: StylePreset[] = [
+    {
+        name: "Paper-cutout (recortes de papel)",
+        guidance:
+            "Estilo manual tipo collage con recortes de cartulina, sombras suaves, flechas dibujadas a mano, iconos simples, mucho espacio en blanco, paleta viva pero elegante.",
+    },
+    {
+        name: "Chalkboard (pizarra)",
+        guidance:
+            "Fondo pizarra oscuro, trazos de tiza (blanco/colores), diagramas simples, etiquetas grandes y legibles, vibe de clase.",
+    },
+    {
+        name: "Blueprint técnico",
+        guidance:
+            "Fondo blueprint azul, líneas blancas, cajas y conectores geométricos, look de ingeniería, tipografía clara y mínima.",
+    },
+    {
+        name: "Acuarela didáctica",
+        guidance:
+            "Ilustración suave tipo acuarela, iconos con bordes sutiles, degradados orgánicos, composición limpia y calmada.",
+    },
+    {
+        name: "Isométrico minimal",
+        guidance:
+            "Elementos isométricos simples (sin exceso de detalle), sombras coherentes, etiquetas cortas, composición en bloques.",
+    },
+    {
+        name: "Doodle / sketchnote",
+        guidance:
+            "Estilo sketchnote con doodles, resaltadores, subrayados y cajas, muy visual, pero con texto grande y poco.",
+    },
+];
+
+function hashString(input: string): number {
+    let hash = 0;
+    for (let i = 0; i < input.length; i++) {
+        hash = (hash * 31 + input.charCodeAt(i)) >>> 0;
+    }
+    return hash;
+}
+
+function pickStylePreset(params: InfografiaParams): StylePreset {
+    const seed = `${params.topicId}|${params.widgetId}|${params.concept}`;
+    const idx = hashString(seed) % STYLE_PRESETS.length;
+    return STYLE_PRESETS[idx] || STYLE_PRESETS[0]!;
+}
+
 export async function generateInfografia(params: InfografiaParams): Promise<string> {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -31,6 +83,8 @@ export async function generateInfografia(params: InfografiaParams): Promise<stri
     const analysisModel = genAI.getGenerativeModel({
         model: 'gemini-3-pro-preview'
     });
+
+    const preset = pickStylePreset(params);
     
     const analysisPrompt = `
 Contexto del tema:
@@ -42,9 +96,13 @@ Genera un prompt detallado para crear una INFOGRAFÍA VISUAL que:
 - Explique visualmente el concepto de forma clara
 - Use iconos modernos y texto mínimo
 - Sea útil para memorización rápida
-- Estilo: Profesional, colores corporativos (azul #2563eb, verde #10b981)
+- Estilo (debe variar y ser imaginativo): ${preset.name}. ${preset.guidance}
+- Paleta recomendada: azul #2563eb, verde #10b981 (puedes añadir 1-2 colores de acento si ayudan)
 - Formato: Vertical u horizontal según convenga
 - Incluya título claro del concepto
+- Texto: muy poco, en español, grande y legible (evita letras pequeñas)
+- Composición: 3–6 bloques máximo, con jerarquía visual clara, flechas/conectores cuando aplique
+- Evitar: marcas, logos, caras humanas realistas, exceso de detalle, párrafos largos
 
 IMPORTANTE: El prompt debe ser específico sobre layout, colores, iconos y texto.
 

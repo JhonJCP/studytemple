@@ -5,6 +5,7 @@ import { Variable, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { DiagramWidget } from "./index";
+import { postWidgetGenerate } from "./widget-generate";
 
 interface DiagramGeneratorWidgetProps {
     content: {
@@ -26,22 +27,15 @@ export function DiagramGeneratorWidget({ content }: DiagramGeneratorWidgetProps)
         setError(null);
 
         try {
-            const res = await fetch("/api/widgets/generate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    widgetType: "diagram",
-                    widgetData: {
-                        frame: content.frame,
-                        concept: content.concept,
-                        widgetId: content.widgetId,
-                    },
-                    topicId: content.topicId,
-                }),
+            const data = await postWidgetGenerate({
+                widgetType: "diagram",
+                widgetData: {
+                    frame: content.frame,
+                    concept: content.concept,
+                    widgetId: content.widgetId,
+                },
+                topicId: content.topicId,
             });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Error generating diagram");
 
             const next = data.result?.structure || data.result;
             setStructure(next);
@@ -56,12 +50,12 @@ export function DiagramGeneratorWidget({ content }: DiagramGeneratorWidgetProps)
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             {!structure ? (
-                <div className="bg-white/5 rounded-2xl p-6 border border-white/10 backdrop-blur-sm">
-                    <h4 className="text-xs font-black uppercase tracking-widest text-white/40 mb-4 flex items-center gap-2">
+                <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 backdrop-blur-sm">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-700 mb-4 flex items-center gap-2">
                         <Variable className="w-4 h-4" /> Diagrama (generable)
                     </h4>
-                    <p className="text-sm text-white/70 mb-2">Genera un diagrama Mermaid para:</p>
-                    <p className="text-base text-white font-bold mb-6">{content.concept}</p>
+                    <p className="text-sm text-slate-600 mb-2">Genera un diagrama Mermaid para:</p>
+                    <p className="text-base text-slate-900 font-bold mb-6">{content.concept}</p>
                     <button
                         onClick={handleGenerate}
                         disabled={isGenerating}
@@ -79,7 +73,7 @@ export function DiagramGeneratorWidget({ content }: DiagramGeneratorWidgetProps)
                             </>
                         )}
                     </button>
-                    {error && <p className="text-xs text-red-400 mt-4 text-center">Error: {error}</p>}
+                    {error && <p className="text-xs text-red-600 mt-4 text-center">Error: {error}</p>}
                 </div>
             ) : (
                 <div className="space-y-3">
@@ -87,7 +81,7 @@ export function DiagramGeneratorWidget({ content }: DiagramGeneratorWidgetProps)
                     <button
                         onClick={handleGenerate}
                         disabled={isGenerating}
-                        className="text-xs text-white/60 hover:text-white underline flex items-center gap-1 mx-auto disabled:opacity-50"
+                        className="text-xs text-slate-600 hover:text-slate-700 underline flex items-center gap-1 mx-auto disabled:opacity-50"
                     >
                         {isGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                         Regenerar diagrama
@@ -97,4 +91,3 @@ export function DiagramGeneratorWidget({ content }: DiagramGeneratorWidgetProps)
         </motion.div>
     );
 }
-

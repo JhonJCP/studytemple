@@ -85,6 +85,145 @@
   animation: float 6s ease-in-out infinite;
 }
 
+@utility paper-surface {
+  @apply bg-white text-slate-900 border border-slate-200 shadow-sm;
+}
+
+@utility paper-muted {
+  @apply bg-slate-50 text-slate-900 border border-slate-200;
+}
+
+/* Reader (doc-like typography) */
+@layer base {
+  .reader {
+    color: hsl(222 47% 11%);
+    font-size: 1rem;
+    line-height: 1.75;
+  }
+
+  .reader h1,
+  .reader h2,
+  .reader h3,
+  .reader h4 {
+    font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+    letter-spacing: -0.02em;
+    color: hsl(222 47% 11%);
+  }
+
+  .reader h1 {
+    font-size: 2.25rem;
+    line-height: 1.15;
+    margin: 1.5rem 0 0.75rem;
+  }
+
+  .reader h2 {
+    font-size: 1.75rem;
+    line-height: 1.2;
+    margin: 1.5rem 0 0.75rem;
+  }
+
+  .reader h3 {
+    font-size: 1.25rem;
+    line-height: 1.25;
+    margin: 1.25rem 0 0.5rem;
+  }
+
+  .reader p {
+    margin: 0.75rem 0;
+  }
+
+  .reader ul,
+  .reader ol {
+    margin: 0.75rem 0;
+    padding-left: 1.5rem;
+  }
+
+  .reader li {
+    margin: 0.25rem 0;
+  }
+
+  .reader hr {
+    margin: 2rem 0;
+    border: 0;
+    border-top: 1px solid hsl(215 25% 90%);
+  }
+
+  .reader blockquote {
+    margin: 1rem 0;
+    padding: 0.9rem 1rem;
+    border-left: 4px solid hsl(221 83% 53%);
+    background: hsl(210 40% 98%);
+    border-radius: 0.75rem;
+    color: hsl(222 47% 15%);
+  }
+
+  .reader a {
+    color: hsl(221 83% 53%);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .reader a:hover {
+    opacity: 0.9;
+  }
+
+  .reader :not(pre) > code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.95em;
+    background: hsl(210 40% 96%);
+    padding: 0.15rem 0.35rem;
+    border-radius: 0.4rem;
+    border: 1px solid hsl(214 20% 88%);
+  }
+
+  .reader pre {
+    margin: 1rem 0;
+    padding: 1rem;
+    border-radius: 0.9rem;
+    background: hsl(222 47% 11%);
+    color: hsl(0 0% 98%);
+    overflow-x: auto;
+  }
+
+  .reader pre code {
+    background: transparent;
+    padding: 0;
+    border: 0;
+    color: inherit;
+    font-size: 0.9rem;
+  }
+
+  .reader-table {
+    margin: 1rem 0;
+    overflow-x: auto;
+    border-radius: 0.9rem;
+    border: 1px solid hsl(214 20% 88%);
+    background: white;
+  }
+
+  .reader table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+  }
+
+  .reader thead {
+    background: hsl(210 40% 98%);
+  }
+
+  .reader th,
+  .reader td {
+    padding: 0.6rem 0.75rem;
+    vertical-align: top;
+    border-bottom: 1px solid hsl(214 20% 90%);
+  }
+
+  .reader th {
+    text-align: left;
+    font-weight: 700;
+  }
+}
+
 @keyframes float {
   0% {
     transform: translateY(0px);

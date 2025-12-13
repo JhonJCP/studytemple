@@ -73,9 +73,9 @@ export function WidgetFactory({ widgets, topicId, widgetIdPrefix }: WidgetFactor
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: index * 0.1 }}
-                            className="p-4 bg-white/5 rounded-xl border border-dashed border-white/20 text-center"
+                            className="p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center"
                         >
-                            <p className="text-xs text-white/40 font-mono">
+                            <p className="text-xs text-slate-500 font-mono">
                                 Widget &quot;{widget.type}&quot; pendiente de implementación
                             </p>
                         </motion.div>

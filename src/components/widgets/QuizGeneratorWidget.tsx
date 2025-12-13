@@ -5,6 +5,7 @@ import { HelpCircle, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { QuizWidget } from "./QuizWidget";
+import { postWidgetGenerate } from "./widget-generate";
 
 interface QuizGeneratorWidgetProps {
     content: {
@@ -30,22 +31,15 @@ export function QuizGeneratorWidget({ content }: QuizGeneratorWidgetProps) {
         setError(null);
 
         try {
-            const res = await fetch("/api/widgets/generate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    widgetType: "quiz",
-                    widgetData: {
-                        frame: content.frame,
-                        focus: content.focus,
-                        widgetId: content.widgetId,
-                    },
-                    topicId: content.topicId,
-                }),
+            const data = await postWidgetGenerate({
+                widgetType: "quiz",
+                widgetData: {
+                    frame: content.frame,
+                    focus: content.focus,
+                    widgetId: content.widgetId,
+                },
+                topicId: content.topicId,
             });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Error generating quiz");
 
             const next = data.result?.questions || data.result;
             setQuestions(next);
@@ -61,11 +55,11 @@ export function QuizGeneratorWidget({ content }: QuizGeneratorWidgetProps) {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             {!questions ? (
                 <div className="bg-gradient-to-br from-purple-500/10 to-transparent rounded-2xl p-6 border border-purple-500/20 backdrop-blur-sm">
-                    <h4 className="text-xs font-black uppercase tracking-widest text-purple-400 mb-4 flex items-center gap-2">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-purple-700 mb-4 flex items-center gap-2">
                         <HelpCircle className="w-4 h-4" /> Test rápido (generable)
                     </h4>
-                    <p className="text-sm text-white/70 mb-2">Genera un mini-test sobre:</p>
-                    <p className="text-base text-white font-bold mb-6">{content.focus}</p>
+                    <p className="text-sm text-slate-600 mb-2">Genera un mini-test sobre:</p>
+                    <p className="text-base text-slate-900 font-bold mb-6">{content.focus}</p>
                     <button
                         onClick={handleGenerate}
                         disabled={isGenerating}
@@ -83,7 +77,7 @@ export function QuizGeneratorWidget({ content }: QuizGeneratorWidgetProps) {
                             </>
                         )}
                     </button>
-                    {error && <p className="text-xs text-red-400 mt-4 text-center">Error: {error}</p>}
+                    {error && <p className="text-xs text-red-600 mt-4 text-center">Error: {error}</p>}
                 </div>
             ) : (
                 <div className="space-y-3">
@@ -91,7 +85,7 @@ export function QuizGeneratorWidget({ content }: QuizGeneratorWidgetProps) {
                     <button
                         onClick={handleGenerate}
                         disabled={isGenerating}
-                        className="text-xs text-purple-300 hover:text-purple-200 underline flex items-center gap-1 mx-auto disabled:opacity-50"
+                        className="text-xs text-purple-700 hover:text-purple-800 underline flex items-center gap-1 mx-auto disabled:opacity-50"
                     >
                         {isGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                         Regenerar test
@@ -101,4 +95,3 @@ export function QuizGeneratorWidget({ content }: QuizGeneratorWidgetProps) {
         </motion.div>
     );
 }
-
