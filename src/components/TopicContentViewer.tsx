@@ -47,6 +47,7 @@ interface GenerationError {
     timestamp: Date;
     telemetry?: Record<string, unknown>;
     retryCount: number;
+    severity?: "error" | "warning";
 }
 
 const contentStorageKey = (topicId: string) => `topic_content_${topicId}`;
@@ -310,17 +311,24 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
 
                     setOrchestrationState(prev => ({
                         ...prev,
-                        status: needsImprovement ? 'error' : 'completed',
+                        // Si hay contenido pero "needs_improvement", tratarlo como aviso (no error)
+                        status: hydratedContent ? 'completed' : 'error',
                         currentStep: null,
                         result: hydratedContent || prev.result
                     }));
 
                     if (needsImprovement) {
+                        const warningMessage =
+                            warnings.join(' | ') ||
+                            (data.qualityStatus === 'needs_improvement'
+                                ? 'Calidad mejorable: el contenido no alcanza el objetivo. Puedes reintentar para enriquecer.'
+                                : 'Contenido mejorable: algunas secciones pueden ser demasiado cortas.');
                         setError({
-                            message: warnings.join(' | ') || 'Contenido insuficiente: secciones con pocas palabras.',
+                            message: warningMessage,
                             timestamp: new Date(),
                             retryCount: retryCountRef.current,
-                            telemetry: { health }
+                            telemetry: { health },
+                            severity: hydratedContent ? 'warning' : 'error',
                         });
                     } else {
                         setError(null);
@@ -449,8 +457,11 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
     // Status badge - SOLO usa isGenerating para mostrar "Generando", NO orchestrationState.status
     const getStatusBadge = () => {
         // Error tiene prioridad (pero solo si no estamos generando activamente)
-        if (!isGenerating && (error || orchestrationState.status === 'error')) {
+        if (!isGenerating && ((error && (error.severity ?? 'error') === 'error') || orchestrationState.status === 'error')) {
             return { icon: XCircle, text: 'Error', color: 'text-red-400 bg-red-500/20', animate: false };
+        }
+        if (!isGenerating && error && (error.severity ?? 'error') === 'warning') {
+            return { icon: AlertTriangle, text: 'Mejorable', color: 'text-amber-400 bg-amber-500/20', animate: false };
         }
         // Solo mostrar "Generando" cuando isGenerating es true (acción del usuario)
         if (isGenerating) {
@@ -607,7 +618,7 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                     </motion.div>
                 )}
 
-                {/* Error Banner */}
+                {/* Aviso/Error Banner */}
                 <AnimatePresence>
                     {error && !isGenerating && (
                         <motion.div
@@ -616,17 +627,29 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                             exit={{ height: 0, opacity: 0 }}
                             className="mt-4"
                         >
-                            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+                            <div
+                                className={cn(
+                                    "rounded-xl p-4 border",
+                                    (error.severity ?? "error") === "warning"
+                                        ? "bg-amber-500/10 border-amber-500/30"
+                                        : "bg-red-500/10 border-red-500/30"
+                                )}
+                            >
                                 <div className="flex items-start gap-3">
-                                    <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                                    <AlertTriangle
+                                        className={cn(
+                                            "w-5 h-5 flex-shrink-0 mt-0.5",
+                                            (error.severity ?? "error") === "warning" ? "text-amber-400" : "text-red-400"
+                                        )}
+                                    />
                                     <div className="flex-1 min-w-0">
-                                        <h4 className="text-sm font-bold text-red-400 mb-1">
-                                            Error en la generación
+                                        <h4 className={cn("text-sm font-bold mb-1", (error.severity ?? "error") === "warning" ? "text-amber-400" : "text-red-400")}>
+                                            {(error.severity ?? "error") === "warning" ? "Aviso de calidad" : "Error en la generación"}
                                         </h4>
-                                        <p className="text-xs text-red-300/80 mb-2">
+                                        <p className={cn("text-xs mb-2", (error.severity ?? "error") === "warning" ? "text-amber-300/80" : "text-red-300/80")}>
                                             {error.message}
                                         </p>
-                                        <div className="flex items-center gap-4 text-[10px] text-red-300/60">
+                                        <div className={cn("flex items-center gap-4 text-[10px]", (error.severity ?? "error") === "warning" ? "text-amber-300/60" : "text-red-300/60")}>
                                             <span>
                                                 {error.timestamp.toLocaleTimeString()}
                                             </span>
@@ -641,7 +664,12 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                                         {canRetry && (
                                             <button
                                                 onClick={handleRetry}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs font-bold rounded-lg transition-colors"
+                                                className={cn(
+                                                    "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors",
+                                                    (error.severity ?? "error") === "warning"
+                                                        ? "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300"
+                                                        : "bg-red-500/20 hover:bg-red-500/30 text-red-300"
+                                                )}
                                             >
                                                 <RefreshCw className="w-3 h-3" />
                                                 Reintentar
@@ -649,9 +677,17 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
                                         )}
                                         <button
                                             onClick={() => setError(null)}
-                                            className="p-1.5 hover:bg-red-500/20 rounded-lg transition-colors"
+                                            className={cn(
+                                                "p-1.5 rounded-lg transition-colors",
+                                                (error.severity ?? "error") === "warning" ? "hover:bg-amber-500/20" : "hover:bg-red-500/20"
+                                            )}
                                         >
-                                            <XCircle className="w-4 h-4 text-red-400" />
+                                            <XCircle
+                                                className={cn(
+                                                    "w-4 h-4",
+                                                    (error.severity ?? "error") === "warning" ? "text-amber-400" : "text-red-400"
+                                                )}
+                                            />
                                         </button>
                                     </div>
                                 </div>

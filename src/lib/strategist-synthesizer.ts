@@ -165,8 +165,13 @@ ${this.formatCriticalConcepts(params.curationReport)}
     }));
 
     const computedWords = normalizedSections.reduce((sum, s) => sum + countWords(s.content.text), 0);
-    const practiceReadiness =
-      typeof json?.synthesis?.practiceReadiness === "number" ? json.synthesis.practiceReadiness : params.curationReport.practiceReadiness;
+    const rawPracticeReadiness =
+      typeof json?.synthesis?.practiceReadiness === "number"
+        ? json.synthesis.practiceReadiness
+        : params.curationReport.practiceReadiness;
+    const practiceReadinessParsed =
+      typeof rawPracticeReadiness === "number" ? rawPracticeReadiness : Number(rawPracticeReadiness);
+    const practiceReadiness = Number.isFinite(practiceReadinessParsed) ? practiceReadinessParsed : 0.75;
 
     console.log("[STRATEGIST] Synthesis complete:", {
       words: computedWords,
@@ -205,7 +210,7 @@ ${this.formatCriticalConcepts(params.curationReport)}
       },
       sections: normalizedSections,
       widgets: Array.isArray(json.widgets) ? (json.widgets as WidgetDefinition[]) : [],
-      qualityStatus: practiceReadiness > 0.9 ? "ok" : "needs_improvement",
+      qualityStatus: practiceReadiness >= 0.9 ? "ok" : "needs_improvement",
       warnings:
         practiceReadiness < 0.9
           ? [`Practice readiness ${(practiceReadiness * 100).toFixed(0)}% por debajo del objetivo 90%`]
@@ -229,4 +234,3 @@ ${this.formatCriticalConcepts(params.curationReport)}
     );
   }
 }
-
