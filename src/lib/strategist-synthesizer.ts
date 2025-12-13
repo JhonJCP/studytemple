@@ -148,14 +148,36 @@ ${this.formatCriticalConcepts(params.curationReport)}
       const refs = (combinedText.match(/\(Art\.\s*\d+/g) || []).length;
       if (refs < 10 && isLegalTopic) issues.push("Pocas citas (Art. N) para tema legal (mínimo 10)");
 
+      if (isLegalTopic) {
+        const t = combinedText.toLowerCase();
+        const hasPlanning =
+          /plan\s+regional|planific|coordinaci[oó]n\s+urban|utilidad\s+p[úu]blica|expropiaci[oó]n|informaci[oó]n\s+p[úu]blica/.test(
+            t
+          );
+        const hasZonas =
+          /dominio\s+p[úu]blico|servidumbre|afecci[oó]n|l[ií]nea\s+l[ií]mite\s+de\s+edificaci[oó]n|\blle\b/.test(
+            t
+          );
+        const hasSanciones = /infracci[oó]n|sanci[oó]n|publicidad/.test(t);
+
+        if (!hasPlanning) issues.push("Falta bloque de planificación/proyectos/urbanismo (o declarar laguna)");
+        if (!hasZonas) issues.push("Falta bloque de zonas de protección (DP/servidumbre/afección/LLE) (o declarar laguna)");
+        if (!hasSanciones) issues.push("Falta bloque de infracciones/sanciones/publicidad (o declarar laguna)");
+      }
+
       return issues;
     };
 
     let json = await attemptOnce(0);
-    const issues = validate(json);
+    let issues = validate(json);
     if (issues.length > 0) {
       console.warn("[STRATEGIST] Quality gate failed, retrying...", issues);
       json = await attemptOnce(1, issues);
+      issues = validate(json);
+      if (issues.length > 0) {
+        console.warn("[STRATEGIST] Quality gate still failing, final retry...", issues);
+        json = await attemptOnce(2, issues);
+      }
     }
 
     const rawSections: any[] = Array.isArray(json.sections) ? json.sections : [];
