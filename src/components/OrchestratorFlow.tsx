@@ -110,6 +110,39 @@ const AGENT_ORDER: AgentRole[] = [
 export function OrchestratorFlow({ state, onClose }: OrchestratorFlowProps) {
     const [selectedAgent, setSelectedAgent] = useState<AgentRole | null>(null);
 
+    const truncate = (text: string, max = 160) => {
+        const t = (text || "").replace(/\s+/g, " ").trim();
+        if (t.length <= max) return t;
+        return t.slice(0, max - 1) + "…";
+    };
+
+    const formatScalarBrief = (val: unknown): string => {
+        if (val === undefined || val === null) return "";
+        if (typeof val === "string") return truncate(val);
+        if (typeof val === "number" || typeof val === "boolean") return String(val);
+        try {
+            return truncate(JSON.stringify(val));
+        } catch {
+            return "";
+        }
+    };
+
+    const formatOutputBrief = (role: AgentRole, output: unknown): string => {
+        if (output === undefined || output === null) return "";
+        if (role === "planner" && typeof output === "object") {
+            const o = output as any;
+            const parts: string[] = [];
+            if (typeof o.timeAllocation === "number") parts.push(`${o.timeAllocation} min`);
+            if (typeof o.strategy === "string") parts.push(String(o.strategy));
+            if (typeof o.targetWords === "number") parts.push(`${o.targetWords} palabras`);
+            if (typeof o.targetSections === "number") parts.push(`${o.targetSections} secciones`);
+            if (typeof o.complexity === "string") parts.push(String(o.complexity));
+            if (typeof o.practiceRelevance === "number") parts.push(`relevancia ${(o.practiceRelevance * 100).toFixed(0)}%`);
+            return truncate(parts.join(" · "), 180);
+        }
+        return formatScalarBrief(output);
+    };
+
     const getStepForAgent = (role: AgentRole): AgentStep | undefined => {
         return state.steps.find(s => s.role === role);
     };
@@ -242,16 +275,8 @@ export function OrchestratorFlow({ state, onClose }: OrchestratorFlowProps) {
                         const isError = status === 'error';
                         const hasInput = step?.input !== undefined && step?.input !== null;
                         const hasOutput = step?.output !== undefined && step?.output !== null;
-                        const safeInput = !hasInput
-                            ? ''
-                            : typeof step.input === 'string'
-                                ? step.input
-                                : (() => { try { return JSON.stringify(step.input); } catch { return ''; } })();
-                        const safeOutput = !hasOutput
-                            ? ''
-                            : typeof step.output === 'string'
-                                ? step.output
-                                : (() => { try { return JSON.stringify(step.output); } catch { return ''; } })();
+                        const safeInput = hasInput ? formatScalarBrief(step?.input) : "";
+                        const safeOutput = hasOutput ? formatOutputBrief(role, step?.output) : "";
                         return (
                             <div
                                 key={`${role}-log`}

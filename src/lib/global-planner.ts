@@ -603,6 +603,10 @@ export class GlobalPlannerWithRealPlanning {
      * Crear plan por defecto si no se encuentra en planning
      */
     private createDefaultPlan(topicId: string): StrategicPlan {
+        const hasPlanningData =
+            (this.topicTimeEstimates && this.topicTimeEstimates.length > 0) ||
+            (this.dailySchedule && this.dailySchedule.length > 0);
+
         return {
             timeAllocation: 60,
             strategy: 'balanced',
@@ -613,7 +617,9 @@ export class GlobalPlannerWithRealPlanning {
             commonCalculations: [],
             criticalLaws: [],
             complexity: 'Medium',
-            reasoning: 'Tema no encontrado en planning, usando valores por defecto'
+            reasoning: hasPlanningData
+                ? 'Tema no encontrado en planning, usando valores por defecto'
+                : 'Sin planning activo/cargado (p.ej. sin login). Usando valores por defecto'
         };
     }
     
