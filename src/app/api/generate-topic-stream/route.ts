@@ -6,7 +6,8 @@ import type { PlanningData } from "@/lib/global-planner";
 
 export const runtime = "nodejs";
 // Vercel: permitir streams largos (capado por plan si aplica)
-export const maxDuration = 600;
+// OJO: en Hobby/Free el máximo puede ser menor; 300s ya es el tope típico permitido.
+export const maxDuration = 300;
 const OVERALL_TIMEOUT_MS = parseInt(process.env.GENERATION_TIMEOUT_MS || "600000", 10); // 10 minutos para generación profunda
 // Siempre loguear para trazabilidad en Vercel
 const ENABLE_LOGGING = true;
