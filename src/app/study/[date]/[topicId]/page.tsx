@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Headphones } from "lucide-react";
 import { getTopicById } from "@/lib/syllabus-hierarchy";
@@ -17,10 +17,16 @@ interface PageProps {
  */
 export default async function StudyPage({ params }: PageProps) {
     const { date, topicId } = await params;
-    const topic = getTopicById(decodeURIComponent(topicId));
+    const requestedId = decodeURIComponent(topicId);
+    const topic = getTopicById(requestedId);
 
     if (!topic) {
         notFound();
+    }
+
+    // Canonicalizar URL: evita ver contenidos distintos por ids/slugs diferentes
+    if (topic.id !== requestedId) {
+        redirect(`/study/${encodeURIComponent(date)}/${encodeURIComponent(topic.id)}`);
     }
 
     // Cargar contenido cacheado (si el usuario está logueado)
