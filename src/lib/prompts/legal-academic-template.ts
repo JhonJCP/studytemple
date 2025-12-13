@@ -1,114 +1,120 @@
 /**
  * LEGAL ACADEMIC FORMAT TEMPLATE
  *
- * Objetivo: forzar un temario "tipo opositor" (académico-legal) con:
- * - citas explícitas a artículos (Art. X) basadas en evidencia
- * - transcripciones literales (entre comillas) cuando el texto esté en evidencia
- * - `sourceMetadata` por sección para tooltips (ContentWithSources + SourceReference)
- *
- * Nota: este archivo debe ser texto limpio (sin caracteres de control).
+ * Objetivo: producir un temario tipo oposición (ITOP) que sea:
+ * - evidence-first (cero invenciones)
+ * - didáctico (explica, no solo lista)
+ * - operativo (sirve para resolver supuestos)
+ * - trazable (sourceMetadata + citas + micro-citas literales)
  */
 
 export const LEGAL_ACADEMIC_FORMAT = `
 REGLAS OBLIGATORIAS (NO NEGOCIABLES)
-1) NO INVENTES: si un artículo o dato numérico no aparece en la evidencia, no lo afirmes como cierto.
-2) CITA SIEMPRE: toda afirmación jurídica relevante debe terminar con una cita del tipo:
-   - (Art. N Ley 9/1991) o (Art. N RCC) o (Norma 6.1-IC) según corresponda.
-3) TRANSCRIPCIÓN LITERAL: cuando cites un artículo, incluye al menos una vez por sección un extracto literal entre comillas,
-   copiándolo de la evidencia proporcionada. Si no hay literal en evidencia, NO inventes; cita sin literal.
-4) FORMATO DE APUNTES: evita prosa larga. Prioriza estructura h2/h3, bullets, tablas y pasos numerados.
-5) MARCADOR ¶: usa el símbolo "¶" al inicio de cada sección temática (en el texto, no en el título):
-   - Ejemplo: "¶ Clasificación por titularidad: ..."
-6) sourceMetadata (CRÍTICO): cada sección debe incluir sourceMetadata con estructura:
-   {
-     "primaryDocument": "NombreDelPDF.pdf",
-     "articles": ["Art. 3", "Art. 5"],
-     "chunks": [
-       { "chunkId": "db-123", "article": "Art. 3", "page": 2, "originalText": "texto literal", "confidence": 0.92 }
-     ]
-   }
-   - originalText debe ser una transcripción literal extraída de la evidencia.
+1) EVIDENCE-FIRST: no inventes artículos, números, plazos, umbrales ni definiciones normativas.
+2) CITA REAL: solo escribas (Art. N ...) si ese artículo/epígrafe aparece explícitamente en la evidencia incluida.
+3) TRANSCRIPCIÓN LITERAL: cuando cites, incluye al menos 1 micro-cita literal por sección (1–3 frases) COPIADA de la evidencia.
+   - Si no hay literal suficiente: declara la laguna (\"No consta en las fuentes recuperadas\") y NO rellenes con imaginación.
+4) DIDÁCTICA: puedes explicar con tus palabras para dar contexto, pero:
+   - Toda afirmación normativa relevante (competencias, procedimientos, plazos, anchos, sanciones, efectos) debe llevar cita real.
+5) FORMATO: usa Markdown claro (h3, listas, tablas), evitando prosa larga. Evita caracteres raros/artefactos (p.ej. \"¶\", \"??\").
+6) CITAS CONSISTENTES: usa siempre uno de estos formatos para facilitar el parseo:
+   - (Art. 1 Ley 9/1991) / (Art. 63.1.l RCC) / (Art. 44 RCC)
+7) sourceMetadata (CRÍTICO): en el JSON final, cada sección debe incluir sourceMetadata:
+{
+  \"primaryDocument\": \"NombreDelPDF.pdf\",
+  \"articles\": [\"Art. 1\", \"Art. 3\"],
+  \"chunks\": [
+    { \"chunkId\": \"db-123\", \"article\": \"Art. 1.2\", \"page\": 2, \"originalText\": \"texto literal\", \"confidence\": 0.92 }
+  ]
+}
 `;
 
 export const EXPERT_TEORICO_TEMPLATE = `
-ROL: Experto Teórico (marco legal CORE). Tu misión es producir un borrador con citas y transcripciones útiles para supuestos.
+ROL: Experto Teórico (marco legal CORE).
+Misión: producir un borrador didáctico + operativo basado en evidencia (citas reales + micro-citas literales).
 
 REQUISITOS:
-- 3 a 6 artículos clave (siempre que aparezcan en evidencia).
-- al menos 3 transcripciones literales (entre comillas) copiadas de la evidencia.
-- foco práctico: qué artículo sirve para qué decisión en un supuesto.
+- Explica el contexto en castellano llano (2–3 frases por bloque) antes de listar.
+- 5–10 artículos/epígrafes clave si aparecen en evidencia (no inventar).
+- 5+ micro-citas literales (entre comillas) copiadas de la evidencia.
+- Enfoca a supuesto: \"qué decisión resuelve\" y \"qué escribir en el informe\".
 
 SALIDA: JSON estricto (sin markdown fuera de strings), con este esquema:
 {
-  "content": "Markdown de apuntes (h2/h3 + bullets) con citas (Art. ...)",
-  "sources": {
-    "primaryDocument": "PDF principal",
-    "articles": ["Art. X", "Art. Y"],
-    "chunks": [
-      { "chunkId": "db-...", "article": "Art. X", "page": null, "originalText": "literal", "confidence": 0.9 }
+  \"content\": \"Markdown (h3 + bullets) con citas reales (Art. ...)\",
+  \"sources\": {
+    \"primaryDocument\": \"PDF principal\",
+    \"articles\": [\"Art. X\", \"Art. Y\"],
+    \"chunks\": [
+      { \"chunkId\": \"db-...\", \"article\": \"Art. X\", \"page\": null, \"originalText\": \"literal\", \"confidence\": 0.9 }
     ]
   },
-  "confidence": 0.0
+  \"confidence\": 0.0
 }
 `;
 
 export const EXPERT_PRACTICAL_TEMPLATE = `
-ROL: Experto Práctico (PRACTICE). Tu misión es convertir patrones de supuestos reales en una guía operativa.
+ROL: Experto Práctico (PRACTICE).
+Misión: convertir patrones de supuestos reales en una guía de resolución entendible (paso a paso + mini-caso guiado).
 
 REQUISITOS:
-- 1 checklist de resolución (5-8 pasos) para un supuesto típico del tema.
-- 1 ejemplo condensado (enunciado -> pasos -> decisión final).
-- menciona supuestos reales (por nombre/archivo si aparece en evidencia) y qué se pedía.
-- cita artículos/normas si aparecen en los supuestos; si no, marca como "revisar en Ley/Reglamento" (sin inventar).
+- 1 checklist de resolución (7–10 pasos), pero EXPLICADA: por cada paso indica:
+  - qué comprobar, por qué importa y qué cita o documento respalda (si existe).
+- 1 mini-caso guiado (enunciado típico → pasos → conclusión tipo).
+- Errores típicos (3–6) con cómo evitarlos.
+- Cita normas/artículos SOLO si aparecen en evidencia; si no, escribe \"(artículo no determinado en fuentes recuperadas)\".
 
 SALIDA: JSON estricto:
 {
-  "content": "Markdown con pasos, errores comunes, mini-ejemplo y citas cuando existan",
-  "confidence": 0.0
+  \"content\": \"Markdown con checklist explicada, mini-caso, errores comunes y citas cuando existan\",
+  \"confidence\": 0.0
 }
 `;
 
 export const STRATEGIST_SYNTHESIZER_TEMPLATE = `
-ROL: Strategist Synthesizer. NO reescribas desde cero; sintetiza y mejora densidad. Tu salida es el temario final.
+ROL: Strategist Synthesizer (el \"Da Vinci\" final).
+No reescribas desde cero: integra lo mejor de los drafts, añade pedagogía y estructura, y asegura trazabilidad.
 
 OBJETIVO:
-- 900-1100 palabras (o el target indicado).
-- 5-6 secciones h2 (TopicSection) enfocadas a resolver supuestos.
-- al menos 3 secciones con sourceMetadata.chunks (para tooltips).
-- mínimo 3 transcripciones literales, copiadas de los drafts/evidencia ya incluida.
+- 1500–2200 palabras (o el target indicado), con explicación didáctica (no solo bullet points).
+- 6–8 secciones h2 (TopicSection) orientadas a supuesto.
+- mínimo 3 secciones con sourceMetadata.chunks (tooltips).
+- mínimo 6 micro-citas literales distribuidas (entre comillas), copiadas de la evidencia/drafts.
+- si hay números/plazos/anchos: incluir una mini-tabla \"Números que caen\" + \"nota para memorizar\" (solo si está en evidencia).
 
-ESTRUCTURA RECOMENDADA PARA LEYES (si el tema es una Ley/Decreto):
-1) ¶ Marco normativo y objeto
-2) ¶ Clasificación / definiciones operativas
-3) ¶ Competencias y planificación / coordinación urbanística
-4) ¶ Zonas, límites y restricciones (si aplica) + ejemplo de autorización
-5) ¶ Uso/defensa/régimen económico-sancionador (si aplica)
-6) ¶ Checklist de supuesto + errores típicos + mnemotecnia
+ESTRUCTURA RECOMENDADA PARA LEYES:
+1) Marco normativo y objeto (qué regula, por qué cae en supuesto)
+2) Definiciones y clasificación (ejemplos de examen + citas)
+3) Competencias y titulares (quién informa/autoriza/sanciona)
+4) Planificación/proyectos y coordinación urbanística (plazos si aparecen)
+5) Zonas/limitaciones (DP/servidumbre/afección/LLE) + cómo medir (si hay evidencia)
+6) Régimen de autorizaciones (cruces/obras/publicidad, si hay evidencia)
+7) Checklist de resolución de supuesto (paso a paso explicado) + errores típicos + mini-caso
 
-SALIDA: JSON exacto con este esquema (sin comentarios):
+SALIDA: JSON exacto (sin comentarios):
 {
-  "sections": [
+  \"sections\": [
     {
-      "id": "string",
-      "title": "string",
-      "level": "h2",
-      "sourceType": "library",
-      "content": { "text": "markdown", "widgets": [] },
-      "sourceMetadata": {
-        "primaryDocument": "PDF.pdf",
-        "articles": ["Art. 3"],
-        "chunks": [
-          { "chunkId": "db-123", "article": "Art. 3", "page": null, "originalText": "literal", "confidence": 0.9 }
+      \"id\": \"string\",
+      \"title\": \"string\",
+      \"level\": \"h2\",
+      \"sourceType\": \"library\",
+      \"content\": { \"text\": \"markdown\", \"widgets\": [] },
+      \"sourceMetadata\": {
+        \"primaryDocument\": \"PDF.pdf\",
+        \"articles\": [\"Art. 3\"],
+        \"chunks\": [
+          { \"chunkId\": \"db-123\", \"article\": \"Art. 3\", \"page\": null, \"originalText\": \"literal\", \"confidence\": 0.9 }
         ]
       }
     }
   ],
-  "widgets": [
-    { "type": "infografia", "generatable": true, "generated": false, "content": { "frame": "texto", "concept": "concepto" } },
-    { "type": "mnemonic_generator", "generatable": true, "generated": false, "content": { "frame": "texto", "termsToMemorize": ["..."] } },
-    { "type": "case_practice", "generatable": true, "generated": false, "content": { "frame": "texto", "concept": "concepto" } },
-    { "type": "formula", "generatable": false, "generated": true, "content": { "latex": "…", "variables": [] } }
+  \"widgets\": [
+    { \"type\": \"infografia\", \"generatable\": true, \"generated\": false, \"content\": { \"frame\": \"texto\", \"concept\": \"concepto\" } },
+    { \"type\": \"mnemonic_generator\", \"generatable\": true, \"generated\": false, \"content\": { \"frame\": \"texto\", \"termsToMemorize\": [\"...\"] } },
+    { \"type\": \"case_practice\", \"generatable\": true, \"generated\": false, \"content\": { \"frame\": \"texto\", \"concept\": \"concepto\" } }
   ],
-  "synthesis": { "finalWords": 0, "practiceReadiness": 0.0 }
+  \"synthesis\": { \"finalWords\": 0, \"practiceReadiness\": 0.0 }
 }
 `;
+

@@ -161,6 +161,8 @@ export class GlobalPlannerWithRealPlanning {
      */
     async plan(params: {
         currentTopic: string;
+        topicTitle?: string;
+        originalFilename?: string;
         currentDate?: string;
         userId?: string;
     }): Promise<StrategicPlan> {
@@ -171,7 +173,9 @@ export class GlobalPlannerWithRealPlanning {
         await this.ensurePlanningLoaded(params.userId);
         
         // PASO 1: Buscar el tema en topic_time_estimates
-        const topicEstimate = this.findTopicEstimate(params.currentTopic);
+        const topicEstimate =
+            this.findTopicEstimate(params.currentTopic) ||
+            (params.topicTitle ? this.findTopicEstimate(params.topicTitle) : null);
         
         if (!topicEstimate) {
             // Fallback: buscar en daily_schedule (muchos topicIds viven aquí)
@@ -202,8 +206,8 @@ export class GlobalPlannerWithRealPlanning {
                 return {
                     timeAllocation,
                     strategy,
-                    targetWords: isLegalTopic ? 900 : 700,
-                    targetSections: isLegalTopic ? 5 : 4,
+                    targetWords: isLegalTopic ? 1600 : 1200,
+                    targetSections: isLegalTopic ? 7 : 6,
                     practiceRelevance: 0,
                     practiceExamples: [],
                     commonCalculations: [],
@@ -214,7 +218,7 @@ export class GlobalPlannerWithRealPlanning {
             }
 
             console.warn(`[PLANNER] Topic ${params.currentTopic} not found in planning, using defaults`);
-            return this.createDefaultPlan(params.currentTopic);
+            return this.createDefaultPlan(params.currentTopic, params.topicTitle, params.originalFilename);
         }
         
         console.log(`[PLANNER] Found topic: ${topicEstimate.topicTitle}, complexity: ${topicEstimate.complexity}, time: ${topicEstimate.baseStudyMinutes}min`);
@@ -240,8 +244,11 @@ export class GlobalPlannerWithRealPlanning {
         );
         
         const targetWordsBase = this.calculateTargetWords(topicEstimate.recommendedContentLength);
-        const isLegalTopic = /ley|decreto|reglamento/i.test(topicEstimate.topicTitle);
-        const targetWords = isLegalTopic ? Math.max(targetWordsBase, 900) : targetWordsBase;
+        const isLegalTopic =
+            /ley|decreto|reglamento/i.test(topicEstimate.topicTitle) ||
+            /ley|decreto|reglamento/i.test(params.topicTitle || "") ||
+            /ley|decreto|reglamento/i.test(params.originalFilename || "");
+        const targetWords = isLegalTopic ? Math.max(targetWordsBase, 1600) : targetWordsBase;
         
         return {
             // USAR TIEMPO DEL PLANNING (no calcularlo)
@@ -253,7 +260,7 @@ export class GlobalPlannerWithRealPlanning {
             // Calcular target words según recommendedContentLength
             targetWords,
             
-            targetSections: Math.max(strategy === 'detailed' ? 5 : 4, isLegalTopic ? 5 : 4),
+            targetSections: Math.max(strategy === 'detailed' ? 8 : 6, isLegalTopic ? 7 : 6),
             
             // DATOS DE SUPUESTOS PRÁCTICOS
             practiceRelevance: topicPattern?.percentage || 0,
@@ -602,16 +609,20 @@ export class GlobalPlannerWithRealPlanning {
     /**
      * Crear plan por defecto si no se encuentra en planning
      */
-    private createDefaultPlan(topicId: string): StrategicPlan {
+    private createDefaultPlan(topicId: string, topicTitle?: string, originalFilename?: string): StrategicPlan {
         const hasPlanningData =
             (this.topicTimeEstimates && this.topicTimeEstimates.length > 0) ||
             (this.dailySchedule && this.dailySchedule.length > 0);
 
+        const isLegalTopic =
+            /ley|decreto|reglamento/i.test(topicTitle || "") ||
+            /ley|decreto|reglamento/i.test(originalFilename || "");
+
         return {
             timeAllocation: 60,
-            strategy: 'balanced',
-            targetWords: 700,
-            targetSections: 4,
+            strategy: isLegalTopic ? 'detailed' : 'balanced',
+            targetWords: isLegalTopic ? 1600 : 1200,
+            targetSections: isLegalTopic ? 7 : 6,
             practiceRelevance: 0,
             practiceExamples: [],
             commonCalculations: [],
@@ -640,9 +651,9 @@ export class GlobalPlannerWithRealPlanning {
      */
     private calculateTargetWords(contentLength: string): number {
         switch (contentLength) {
-            case 'extended': return 1000;
-            case 'standard': return 700;
-            case 'concise': return 500;
+            case 'extended': return 1600;
+            case 'standard': return 1200;
+            case 'concise': return 800;
             default: return 700;
         }
     }

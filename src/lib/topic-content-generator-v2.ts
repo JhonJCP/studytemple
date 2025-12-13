@@ -223,6 +223,8 @@ export class TopicContentGeneratorV2 {
             
             const strategicPlan = await this.globalPlanner.plan({
                 currentTopic: this.state.topicId,
+                topicTitle: topic.title,
+                originalFilename: topic.originalFilename,
                 currentDate: new Date().toISOString().split('T')[0],
                 userId: this.userId
             });

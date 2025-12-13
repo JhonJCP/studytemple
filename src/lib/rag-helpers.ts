@@ -170,6 +170,22 @@ export async function queryByCategory(
   };
 
   try {
+    // Si tenemos filenameHint, intentar primero traer más fragmentos del documento principal para cubrir distintas secciones
+    if (filenameHint && filenameHint.length > 3) {
+      const hint = sanitizeTerm(filenameHint.replace(/\.pdf$/i, ""));
+      const primaryLimit = Math.max(limit, 25);
+      const patterns = uniqTerms([hint, filenameVariants[0] || ""]).slice(0, 2);
+      for (const pat of patterns) {
+        if (!pat) continue;
+        const { data, error } = await base()
+          .ilike("metadata->>filename", `%${pat}%`)
+          .order("id", { ascending: true })
+          .limit(primaryLimit);
+        if (!error) addRows(data || []);
+        if (out.length >= limit) break;
+      }
+    }
+
     for (const p of filenamePatterns) {
       if (out.length >= limit) break;
       await run(`filename:${p}`, () => base().ilike("metadata->>filename", `%${p}%`));
@@ -328,13 +344,23 @@ export function generateFilenameVariants(filename: string): string[] {
 }
 
 export function formatChunksAsEvidence(chunks: DocumentChunk[], maxChunks: number = 10): string {
+  const clean = (s: string) =>
+    (s || "")
+      // Pilcrow y artefactos OCR comunes
+      .replace(/\u00b6/g, "")
+      .replace(/\uFFFD/g, "")
+      // Normalizar whitespace para reducir “ruido” en prompts
+      .replace(/\r/g, "")
+      .replace(/[ \t]+\n/g, "\n")
+      .trim();
+
   return chunks
     .slice(0, maxChunks)
     .map(
       (chunk, idx) =>
         `[${idx + 1}] (id:${chunk.source_id}, file:${chunk.filename}, cat:${chunk.category}, chunk:${chunk.chunk_index}, conf:${chunk.confidence.toFixed(
           2
-        )})\n${chunk.fragment.slice(0, 700)}...`
+        )})\n${clean(chunk.fragment).slice(0, 700)}...`
     )
     .join("\n\n");
 }

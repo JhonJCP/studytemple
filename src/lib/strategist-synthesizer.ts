@@ -24,6 +24,16 @@ export class StrategistSynthesizer {
     this.genAI = new GoogleGenerativeAI(apiKey);
   }
 
+  private sanitizeMarkdown(text: string): string {
+    return (text || "")
+      .replace(/\u00b6/g, "")
+      .replace(/\uFFFD/g, "")
+      .replace(/\r/g, "")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
   async synthesize(params: {
     topic: TopicWithGroup;
     drafts: ExpertOutput[];
@@ -41,8 +51,8 @@ export class StrategistSynthesizer {
       /ley|decreto|reglamento/i.test(params.topic.title) ||
       /ley|decreto|reglamento/i.test(params.topic.originalFilename || "");
 
-    const desiredSections = Math.max(params.strategicPlan.targetSections, isLegalTopic ? 5 : 4);
-    const targetWords = Math.max(params.strategicPlan.targetWords, isLegalTopic ? 900 : 700);
+    const desiredSections = Math.max(params.strategicPlan.targetSections, isLegalTopic ? 7 : 6);
+    const targetWords = Math.max(params.strategicPlan.targetWords, isLegalTopic ? 1600 : 1200);
 
     const sourcePool = params.drafts
       .map((d) => d.metadata?.sources)
@@ -126,7 +136,7 @@ ${this.formatCriticalConcepts(params.curationReport)}
         issues.push(`Texto demasiado corto: ${wordTotal} palabras (objetivo >= ${Math.round(targetWords * 0.85)})`);
       }
 
-      const sectionsWithoutText = sections.filter((s) => !s?.content?.text || countWords(s.content.text) < 80).length;
+      const sectionsWithoutText = sections.filter((s) => !s?.content?.text || countWords(s.content.text) < 120).length;
       if (sectionsWithoutText > 0) issues.push(`Hay ${sectionsWithoutText} secciones con texto vacío/corto`);
 
       const sectionsWithSources = sections.filter((s) => s?.sourceMetadata?.chunks?.length).length;
@@ -136,7 +146,7 @@ ${this.formatCriticalConcepts(params.curationReport)}
 
       const combinedText = sections.map((s) => s?.content?.text || "").join("\n");
       const refs = (combinedText.match(/\(Art\.\s*\d+/g) || []).length;
-      if (refs < 5 && isLegalTopic) issues.push("Pocas citas (Art. N) para tema legal (mínimo 5)");
+      if (refs < 8 && isLegalTopic) issues.push("Pocas citas (Art. N) para tema legal (mínimo 8)");
 
       return issues;
     };
@@ -157,7 +167,7 @@ ${this.formatCriticalConcepts(params.curationReport)}
         ? s.sourceType
         : "mixed",
       content: {
-        text: String(s?.content?.text || ""),
+        text: this.sanitizeMarkdown(String(s?.content?.text || "")),
         widgets: Array.isArray(s?.content?.widgets) ? (s.content.widgets as WidgetDefinition[]) : [],
       },
       children: Array.isArray(s?.children) ? s.children : undefined,

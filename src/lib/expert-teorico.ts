@@ -44,7 +44,7 @@ export class ExpertTeorico {
         
         console.log(`[EXPERT-TEORICO] Found ${coreChunks.length} CORE chunks`);
         
-        const evidenceSummary = formatChunksAsEvidence(coreChunks, 12);
+        const evidenceSummary = formatChunksAsEvidence(coreChunks, 18);
         
         const prompt = `
 ${LEGAL_ACADEMIC_FORMAT}
@@ -101,7 +101,7 @@ RESPONDE usando EXACTAMENTE el JSON definido en EXPERT_TEORICO_TEMPLATE (sin cam
                 model: 'gemini-3-pro-preview',
                 generationConfig: {
                     temperature: 0.5, // Conservador para precisión legal
-                    maxOutputTokens: 4096,
+                    maxOutputTokens: 8192,
                     responseMimeType: "application/json",
                     topP: 0.85,
                     topK: 40
@@ -146,7 +146,7 @@ RESPONDE usando EXACTAMENTE el JSON definido en EXPERT_TEORICO_TEMPLATE (sin cam
     }
     
     private async queryCoreDocuments(topic: TopicWithGroup): Promise<DocumentChunk[]> {
-        const rawChunks = await queryByCategory(topic.title, 'CORE', 20, topic.originalFilename);
+        const rawChunks = await queryByCategory(topic.title, 'CORE', 30, topic.originalFilename);
         
         return rawChunks.map((doc: any) => ({
             source_id: `db-${doc.id}`,

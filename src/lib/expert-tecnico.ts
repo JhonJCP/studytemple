@@ -31,8 +31,8 @@ export class ExpertTecnico {
         console.log(`[EXPERT-TECNICO] Generating for: ${params.topic.title}`);
         
         // Query a CORE y SUPPLEMENTARY
-        const coreChunks = await queryByCategory(params.topic.title, 'CORE', 12, params.topic.originalFilename);
-        const suppChunks = await queryByCategory(params.topic.title, 'SUPPLEMENTARY', 10, params.topic.originalFilename);
+        const coreChunks = await queryByCategory(params.topic.title, 'CORE', 18, params.topic.originalFilename);
+        const suppChunks = await queryByCategory(params.topic.title, 'SUPPLEMENTARY', 14, params.topic.originalFilename);
         
         const allChunks = [...coreChunks, ...suppChunks].map((doc: any) => ({
             source_id: `db-${doc.id}`,
@@ -54,7 +54,7 @@ export class ExpertTecnico {
         
         console.log(`[EXPERT-TECNICO] Found ${coreChunks.length} CORE + ${suppChunks.length} SUPP chunks`);
         
-        const evidenceSummary = formatChunksAsEvidence(allChunks, 12);
+        const evidenceSummary = formatChunksAsEvidence(allChunks, 18);
         
         const prompt = `
 ${LEGAL_ACADEMIC_FORMAT}
@@ -127,7 +127,7 @@ RESPONDE JSON:
                 model: 'gemini-3-pro-preview',
                 generationConfig: {
                     temperature: 0.6,
-                    maxOutputTokens: 4096,
+                    maxOutputTokens: 8192,
                     responseMimeType: "application/json",
                     topP: 0.85,
                     topK: 40
@@ -167,4 +167,3 @@ RESPONDE JSON:
         }
     }
 }
-

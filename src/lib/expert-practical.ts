@@ -67,7 +67,7 @@ export class ExpertPractical {
         console.log(`[EXPERT-PRACTICAL] Found ${practiceChunks.length} practice chunks`);
         
         // Generar contenido con LLM
-        const evidenceSummary = formatChunksAsEvidence(practiceChunks, 15);
+        const evidenceSummary = formatChunksAsEvidence(practiceChunks, 18);
         
         const prompt = `
 ${LEGAL_ACADEMIC_FORMAT}
