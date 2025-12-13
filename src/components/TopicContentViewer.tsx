@@ -256,15 +256,13 @@ export function TopicContentViewer({ topic, initialContent }: TopicContentViewer
 
         const isForce = Boolean(content) || isRetry;
 
-        // Si es regeneración, limpiar estado local y trazas previas
+        // Si es regeneración, limpiar trazas previas (pero mantener el contenido actual hasta que haya nuevo resultado)
         if (isForce && !isRetry) {
             try {
-                localStorage.removeItem(contentStorageKey(topic.id));
                 localStorage.removeItem(traceStorageKey(topic.id));
             } catch {
                 // ignore storage cleanup
             }
-            setContent(null);
             retryCountRef.current = 0;
         }
 
