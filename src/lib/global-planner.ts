@@ -618,7 +618,7 @@ export class GlobalPlannerWithRealPlanning {
             criticalLaws: [],
             complexity: 'Medium',
             reasoning: hasPlanningData
-                ? 'Tema no encontrado en planning, usando valores por defecto'
+                ? 'Sin estimación en planning para este tema. Usando valores por defecto'
                 : 'Sin planning activo/cargado (p.ej. sin login). Usando valores por defecto'
         };
     }

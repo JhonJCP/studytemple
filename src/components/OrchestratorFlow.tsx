@@ -140,6 +140,33 @@ export function OrchestratorFlow({ state, onClose }: OrchestratorFlowProps) {
             if (typeof o.practiceRelevance === "number") parts.push(`relevancia ${(o.practiceRelevance * 100).toFixed(0)}%`);
             return truncate(parts.join(" · "), 180);
         }
+        if (
+            (role === "expert-teorico" || role === "expert-practical" || role === "expert-tecnico") &&
+            typeof output === "object"
+        ) {
+            const o = output as any;
+            const parts: string[] = [];
+            if (typeof o.words === "number") parts.push(`${o.words} palabras`);
+            if (typeof o.confidence === "number") parts.push(`conf ${(o.confidence * 100).toFixed(0)}%`);
+            return truncate(parts.join(" · "), 180) || formatScalarBrief(output);
+        }
+        if (role === "curator" && typeof output === "object") {
+            const o = output as any;
+            const parts: string[] = [];
+            if (typeof o.critical === "number") parts.push(`${o.critical} críticos`);
+            if (typeof o.droppable === "number") parts.push(`${o.droppable} prescindibles`);
+            if (typeof o.practiceReadiness === "number") parts.push(`practice ${(o.practiceReadiness * 100).toFixed(0)}%`);
+            return truncate(parts.join(" · "), 180) || formatScalarBrief(output);
+        }
+        if (role === "strategist" && typeof output === "object") {
+            const o = output as any;
+            const parts: string[] = [];
+            if (typeof o.finalWords === "number") parts.push(`${o.finalWords} palabras`);
+            if (typeof o.sections === "number") parts.push(`${o.sections} secciones`);
+            if (typeof o.widgets === "number") parts.push(`${o.widgets} widgets`);
+            if (typeof o.practiceReadiness === "number") parts.push(`practice ${(o.practiceReadiness * 100).toFixed(0)}%`);
+            return truncate(parts.join(" · "), 180) || formatScalarBrief(output);
+        }
         return formatScalarBrief(output);
     };
 
