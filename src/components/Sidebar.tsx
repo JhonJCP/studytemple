@@ -21,13 +21,15 @@ import {
     Settings
 } from "lucide-react";
 import { useState } from "react";
-import { DEFAULT_SYLLABUS } from "@/lib/default-syllabus";
+import { getTopicsByGroupIndex, getAllGroups } from "@/lib/syllabus-hierarchy";
 
 // Helper to map AI icons to Lucide icons
 const getIconForTitle = (title: string) => {
     const t = title.toLowerCase();
     if (t.includes("bases") || t.includes("oposición")) return Scale;
+    if (t.includes("administración") || t.includes("legislación") || t.includes("gestion") || t.includes("gestión")) return Scale;
     if (t.includes("prácticas") || t.includes("herramientas")) return HardHat;
+    if (t.includes("supuestos") || t.includes("exámenes") || t.includes("examenes")) return HardHat;
     if (t.includes("carreteras")) return Truck;
     if (t.includes("costas") || t.includes("puertos")) return Anchor;
     if (t.includes("aguas")) return Droplets;
@@ -57,16 +59,13 @@ export function Sidebar() {
         setExpandedZone(expandedZone === zoneId ? null : zoneId);
     };
 
-    // Filter out "Material Suplementario" and map structure
-    const smartZones = DEFAULT_SYLLABUS.groups
-        .filter((g: any) => !g.title.toLowerCase().includes("suplementario"))
-        .map((g: any, idx: number) => ({
-            id: `block-${idx}`,
-            title: g.title,
-            icon: getIconForTitle(g.title),
-            color: getColorForTitle(g.title),
-            topics: g.topics
-        }));
+    const smartZones = getAllGroups().map((g, idx: number) => ({
+        id: `block-${idx}`,
+        title: g.title,
+        icon: getIconForTitle(g.title),
+        color: getColorForTitle(g.title),
+        topics: getTopicsByGroupIndex(idx),
+    }));
 
     return (
         <aside className="fixed left-0 top-0 h-screen w-72 bg-black/90 border-r border-white/10 backdrop-blur-xl flex flex-col z-50 overflow-y-auto custom-scrollbar">
@@ -85,7 +84,7 @@ export function Sidebar() {
 
             {/* Main Navigation */}
             <nav className="p-4 space-y-2">
-                <NavItem href="/dashboard" icon={LayoutDashboard} label="Dashboard" active={pathname === "/dashboard"} />
+                <NavItem href="/dashboard" icon={LayoutDashboard} label="El Templo" active={pathname === "/dashboard"} />
                 <NavItem href="/library" icon={BookOpen} label="Gran Biblioteca" active={pathname === "/library"} />
                 <NavItem href="/dojo" icon={Swords} label="El Dojo" active={pathname === "/dojo"} />
                 <NavItem href="/calendar" icon={Calendar} label="Calendario" active={pathname === "/calendar"} />
@@ -122,20 +121,17 @@ export function Sidebar() {
 
                                 {isExpanded && (
                                     <div className="bg-black/40 border-l border-white/5 ml-4 pl-2 py-2 space-y-1">
-                                        {zone.topics.map((topic: any, tIdx: number) => (
-                                            <a
-                                                key={tIdx}
-                                                // Link to library opening logic
-                                                href={`/library`}
-                                                // Note: Linking to /library?open=... would be better if LibraryPage handled it, 
-                                                // but for now just getting them to the library is cleaner than a broken anchor.
+                                        {zone.topics.map((topic) => (
+                                            <Link
+                                                key={topic.id}
+                                                href={`/syllabus/topic/${topic.id}`}
                                                 className={cn(
                                                     "block text-xs py-2 px-3 rounded-lg transition-colors leading-relaxed line-clamp-2 text-white/40 hover:text-white hover:bg-white/5"
                                                 )}
                                                 title={topic.title}
                                             >
                                                 {topic.title}
-                                            </a>
+                                            </Link>
                                         ))}
                                     </div>
                                 )}

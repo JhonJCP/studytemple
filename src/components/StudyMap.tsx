@@ -4,13 +4,15 @@ import { motion } from "framer-motion";
 import { Book, Anchor, Droplets, Scale, HardHat, Calendar, BookOpen, Swords, Truck, Leaf } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { DEFAULT_SYLLABUS } from "@/lib/default-syllabus";
+import { getAllGroups } from "@/lib/syllabus-hierarchy";
 
 // Helper to map AI icons to Lucide icons
 const getIconForTitle = (title: string) => {
     const t = title.toLowerCase();
     if (t.includes("bases") || t.includes("oposición")) return Scale;
+    if (t.includes("administración") || t.includes("legislación") || t.includes("gestion") || t.includes("gestión")) return Scale;
     if (t.includes("prácticas") || t.includes("herramientas")) return HardHat;
+    if (t.includes("supuestos") || t.includes("exámenes") || t.includes("examenes")) return HardHat;
     if (t.includes("carreteras")) return Truck;
     if (t.includes("costas") || t.includes("puertos")) return Anchor;
     if (t.includes("aguas")) return Droplets;
@@ -32,10 +34,9 @@ const getStyleForTitle = (title: string) => {
 
 export function StudyMap() {
     // 1. Get Topic Groups (Syllabus)
-    const topicCards = DEFAULT_SYLLABUS.groups
-        .filter((g: any) => !g.title.toLowerCase().includes("suplementario"))
-        .map((g: any, idx: number) => {
-            const style = getStyleForTitle(g.title);
+    const topicCards = getAllGroups()
+        .map((g, idx: number) => {
+            const style = getStyleForTitle(g.title || "");
             return {
                 id: `TEMA-${idx + 1}`,
                 title: g.title,

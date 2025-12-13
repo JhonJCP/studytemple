@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ArrowLeft, Calendar as CalendarIcon, Play, BrainCircuit, Timer, FileQuestion, BookOpen, Layers, Info, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getTopicById } from "@/lib/syllabus-hierarchy";
 import { motion, AnimatePresence } from "framer-motion";
 import { generateSmartSchedule, StudyPlan, ScheduledSession } from "@/lib/planner-brain";
 import { CalendarGrid } from "@/components/CalendarGrid";
@@ -262,11 +263,13 @@ export default function CalendarPage() {
                         .replace(/[^a-z0-9]+/g, '-')
                         .replace(/^-+|-+$/g, '');
 
+                    const resolvedTopic = getTopicById(slug) || getTopicById(String(task.activity || ""));
+
                     flatSchedule.push({
                         id: `manual-${day.date}-${idx}`,
                         date: dayDate,
-                        topicTitle: (task.activity || "").substring(0, 100),
-                        topicId: slug || `topic-${idx}`,
+                        topicTitle: (resolvedTopic?.title || task.activity || "").substring(0, 100),
+                        topicId: resolvedTopic?.id || slug || `topic-${idx}`,
                         type: day.type?.toLowerCase() === 'practice' ? 'test_practice' :
                             day.type?.toLowerCase() === 'review' ? 'review_flashcards' : 'study',
                         durationMinutes: duration,
@@ -675,10 +678,24 @@ RAW RESPONSE: ${result.diagnostics?.rawResponse}
                                             </button>
 
                                             <Link
+                                                // Normalizar topicId legacy/slugs a ID canónico para evitar rutas y cachés inconsistentes
                                                 href={
-                                                    session.type.includes('test')
-                                                        ? `/practice/simulator?topic=${encodeURIComponent(session.topicId)}`
-                                                        : `/study/${formatDate(session.date)}/${encodeURIComponent(session.topicId)}`
+                                                    (() => {
+                                                        const rawId = String(session.topicId || "");
+                                                        const isCanonical = /^g\\d+-t\\d+$/.test(rawId);
+                                                        const isSpecial =
+                                                            rawId.startsWith("test-") ||
+                                                            rawId.startsWith("repaso-") ||
+                                                            rawId.startsWith("review-");
+                                                        const canonicalId =
+                                                            isCanonical || isSpecial
+                                                                ? rawId
+                                                                : (getTopicById(rawId) || getTopicById(String(session.topicTitle || "")))?.id || rawId;
+
+                                                        return session.type.includes("test")
+                                                            ? `/practice/simulator?topic=${encodeURIComponent(canonicalId)}`
+                                                            : `/study/${formatDate(session.date)}/${encodeURIComponent(canonicalId)}`;
+                                                    })()
                                                 }
                                                 className="flex-1 md:flex-none"
                                             >
