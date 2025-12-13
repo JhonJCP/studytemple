@@ -5,9 +5,12 @@ import { createClient } from "@/utils/supabase/server";
 import type { PlanningData } from "@/lib/global-planner";
 
 export const runtime = "nodejs";
+// Vercel: permitir streams largos (capado por plan si aplica)
+export const maxDuration = 600;
 const OVERALL_TIMEOUT_MS = parseInt(process.env.GENERATION_TIMEOUT_MS || "600000", 10); // 10 minutos para generación profunda
 // Siempre loguear para trazabilidad en Vercel
 const ENABLE_LOGGING = true;
+const HEARTBEAT_MS = parseInt(process.env.SSE_HEARTBEAT_MS || "15000", 10); // mantener viva la conexión (proxies/idle)
 
 function sseEvent(event: string, data: unknown): string {
     return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -47,14 +50,28 @@ export async function GET(req: NextRequest) {
             const encoder = new TextEncoder();
             const startTime = Date.now();
             let isClosed = false;
+            let heartbeat: ReturnType<typeof setInterval> | null = null;
             
             const send = (event: string, data: unknown) => {
                 if (isClosed) return;
                 try {
                     controller.enqueue(encoder.encode(sseEvent(event, data)));
-                    log(`Evento enviado: ${event}`, { elapsed: Date.now() - startTime });
+                    // Evitar ruido en logs por heartbeats
+                    if (event !== "ping") {
+                        log(`Evento enviado: ${event}`, { elapsed: Date.now() - startTime });
+                    }
                 } catch (e) {
                     log(`Error enviando evento: ${event}`, e);
+                }
+            };
+
+            const sendComment = (comment: string) => {
+                if (isClosed) return;
+                try {
+                    // Comentarios SSE mantienen viva la conexión sin generar eventos en el cliente
+                    controller.enqueue(encoder.encode(`: ${comment}\n\n`));
+                } catch {
+                    // ignore
                 }
             };
             
@@ -62,12 +79,21 @@ export async function GET(req: NextRequest) {
                 if (isClosed) return;
                 isClosed = true;
                 activeGenerators.delete(topicId);
+                if (heartbeat) {
+                    clearInterval(heartbeat);
+                    heartbeat = null;
+                }
                 try {
                     controller.close();
                 } catch {
                     // ya cerrado
                 }
             };
+
+            // Heartbeat para evitar timeouts por inactividad mientras el LLM trabaja (especialmente en strategist)
+            heartbeat = setInterval(() => {
+                sendComment(`ping t=${Date.now()}`);
+            }, HEARTBEAT_MS);
             
             const timeout = setTimeout(() => {
                 log(`Timeout global alcanzado (${OVERALL_TIMEOUT_MS}ms)`);
@@ -240,6 +266,8 @@ export async function GET(req: NextRequest) {
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache, no-transform",
             Connection: "keep-alive",
+            // Hint para proxies que pueden bufferizar streams
+            "X-Accel-Buffering": "no",
         }
     });
 }
