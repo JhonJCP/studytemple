@@ -238,6 +238,13 @@ export function TopicContentViewer({
     // Cargar persistencia local (desde Supabase o localStorage) cuando cambia el tema
     // IMPORTANTE: no depender de eventSource/timeoutId para no sobrescribir el contenido generado en vivo.
     useEffect(() => {
+        // En /study usamos variant="embedded" y la fuente de verdad es Supabase.
+        // Evitamos desincronizaciones con localStorage (p.ej. IDs de secciones distintos) que rompen la persistencia de widgets.
+        if (variant === "embedded") {
+            if (initialContent) setContent(hydrateContent(initialContent));
+            return;
+        }
+
         let storedCanonical: GeneratedTopicContent | null = null;
         let storedStable: GeneratedTopicContent | null = null;
         let serverContent: GeneratedTopicContent | null = null;
@@ -274,7 +281,7 @@ export function TopicContentViewer({
         } catch {
             // ignore storage parse errors
         }
-    }, [topic.id, initialContent]);
+    }, [topic.id, initialContent, variant]);
 
     // Cleanup de recursos asíncronos
     useEffect(() => {
@@ -295,13 +302,14 @@ export function TopicContentViewer({
     // Persistir cambios
     useEffect(() => {
         if (!content) return;
+        if (variant === "embedded") return;
         try {
             localStorage.setItem(contentStorageKey(topic.id), JSON.stringify(content));
             localStorage.setItem(stableContentStorageKey(topic), JSON.stringify(content));
         } catch {
             // ignore storage errors
         }
-    }, [content, topic.id, topic.title, topic.originalFilename]);
+    }, [content, topic.id, topic.title, topic.originalFilename, variant]);
 
     useEffect(() => {
         onContentChange?.(content);
@@ -309,12 +317,13 @@ export function TopicContentViewer({
 
     useEffect(() => {
         if (!orchestrationState || (!orchestrationState.steps.length && !orchestrationState.result)) return;
+        if (variant === "embedded") return;
         try {
             localStorage.setItem(traceStorageKey(topic.id), JSON.stringify(orchestrationState));
         } catch {
             // ignore
         }
-    }, [orchestrationState, topic.id]);
+    }, [orchestrationState, topic.id, variant]);
 
     // Cancelar generación en curso
     const handleCancel = useCallback(async () => {
@@ -372,10 +381,12 @@ export function TopicContentViewer({
 
         // Si es regeneración, limpiar trazas previas (pero mantener el contenido actual hasta que haya nuevo resultado)
         if (isForce && !isRetry) {
-            try {
-                localStorage.removeItem(traceStorageKey(topic.id));
-            } catch {
-                // ignore storage cleanup
+            if (variant !== "embedded") {
+                try {
+                    localStorage.removeItem(traceStorageKey(topic.id));
+                } catch {
+                    // ignore storage cleanup
+                }
             }
             retryCountRef.current = 0;
         }
@@ -548,7 +559,7 @@ export function TopicContentViewer({
             });
             setIsGenerating(false);
         }
-    }, [topic.id, topic.title, content]);
+    }, [topic.id, topic.title, content, variant]);
 
     // Reintento automático (solo si no superó MAX_RETRIES)
     const handleRetry = useCallback(() => {

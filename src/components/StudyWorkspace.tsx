@@ -35,6 +35,14 @@ export function StudyWorkspace({
 
     const sections = content?.sections || generateBaseHierarchy(topic);
 
+    const focusPodcast = () => {
+        setRightOpen(true);
+        // Esperar al render del panel derecho en caso de estar cerrado.
+        setTimeout(() => {
+            document.getElementById("podcast-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 50);
+    };
+
     const gridCols = useMemo(() => {
         if (leftOpen && rightOpen) return "xl:grid-cols-[280px_minmax(0,1fr)_360px]";
         if (leftOpen && !rightOpen) return "xl:grid-cols-[280px_minmax(0,1fr)]";
@@ -82,12 +90,17 @@ export function StudyWorkspace({
                         <Columns2 className="w-4 h-4" />
                     </button>
 
-                    <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-2 rounded-xl">
+                    <button
+                        type="button"
+                        onClick={focusPodcast}
+                        className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-2 rounded-xl hover:bg-white/10 transition"
+                        title="Abrir panel de podcast"
+                    >
                         <Headphones className="w-4 h-4 text-primary" />
                         <span className="text-xs font-bold text-white/70">
                             {initialAudioUrl ? "Podcast disponible" : "Podcast pendiente"}
                         </span>
-                    </div>
+                    </button>
                 </div>
             </header>
 
@@ -124,12 +137,14 @@ export function StudyWorkspace({
                 {rightOpen && (
                     <aside className="space-y-4">
                         <AIFlowPanel topicTitle={topic.title} topicId={topic.id} date={date} groupTitle={topic.groupTitle} />
-                        <StudyPodcastPanel
-                            topicId={topic.id}
-                            initialAudioUrl={initialAudioUrl}
-                            initialScript={initialAudioScript}
-                            initialDuration={initialAudioDuration}
-                        />
+                        <div id="podcast-panel" className="scroll-mt-24">
+                            <StudyPodcastPanel
+                                topicId={topic.id}
+                                initialAudioUrl={initialAudioUrl}
+                                initialScript={initialAudioScript}
+                                initialDuration={initialAudioDuration}
+                            />
+                        </div>
                         {content && (
                             <GenerateWidgetsPanel
                                 topicId={topic.id}
