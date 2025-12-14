@@ -13,6 +13,7 @@ interface CasePracticeWidgetProps {
         solution?: string;
         widgetId: string;
         topicId: string;
+        recordId?: string;
     };
 }
 
@@ -37,6 +38,7 @@ export function CasePracticeWidget({ content }: CasePracticeWidgetProps) {
                     widgetId: content.widgetId,
                 },
                 topicId: content.topicId,
+                recordId: content.recordId,
             });
             
             setScenario(data.result.scenario);

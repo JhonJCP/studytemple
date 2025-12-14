@@ -13,7 +13,7 @@ export async function listGeneratedContent() {
             .from("generated_content")
             .select("id,topic_id,updated_at,is_complete,status")
             .eq("user_id", user.id)
-            .order("updated_at", { ascending: false });
+            .order("created_at", { ascending: false });
 
         if (error) return { success: false, error: error.message };
 

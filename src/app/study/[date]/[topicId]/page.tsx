@@ -4,6 +4,9 @@ import { createClient } from "@/utils/supabase/server";
 import type { GeneratedContentRecord } from "@/types/generated";
 import { StudyWorkspace } from "@/components/StudyWorkspace";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 interface PageProps {
     params: Promise<{ date: string; topicId: string }>;
 }
@@ -65,6 +68,7 @@ export default async function StudyPage({ params }: PageProps) {
         <StudyWorkspace
             date={date}
             topic={topic}
+            initialRecordId={cachedContent?.id}
             initialContent={cachedContent?.content_json}
             initialAudioUrl={audioUrl}
             initialAudioScript={audioScript}

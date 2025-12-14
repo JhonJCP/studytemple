@@ -14,6 +14,7 @@ interface DiagramGeneratorWidgetProps {
         structure?: string;
         widgetId: string;
         topicId: string;
+        recordId?: string;
     };
 }
 
@@ -35,6 +36,7 @@ export function DiagramGeneratorWidget({ content }: DiagramGeneratorWidgetProps)
                     widgetId: content.widgetId,
                 },
                 topicId: content.topicId,
+                recordId: content.recordId,
             });
 
             const next = data.result?.structure || data.result;

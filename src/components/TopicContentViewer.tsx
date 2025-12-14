@@ -36,8 +36,10 @@ import { TopicWithGroup } from "@/lib/syllabus-hierarchy";
 interface TopicContentViewerProps {
     topic: TopicWithGroup;
     initialContent?: GeneratedTopicContent;
+    initialRecordId?: string;
     variant?: "page" | "embedded";
     onContentChange?: (content: GeneratedTopicContent | null) => void;
+    onRecordIdChange?: (recordId?: string) => void;
 }
 
 interface GenerationError {
@@ -221,10 +223,13 @@ function hydrateOrchestrationState(topicId: string, raw?: OrchestrationState, ha
 export function TopicContentViewer({
     topic,
     initialContent,
+    initialRecordId,
     variant = "page",
     onContentChange,
+    onRecordIdChange,
 }: TopicContentViewerProps) {
     const [content, setContent] = useState<GeneratedTopicContent | null>(() => hydrateContent(initialContent));
+    const [recordId, setRecordId] = useState<string | undefined>(initialRecordId);
     const [orchestrationState, setOrchestrationState] = useState<OrchestrationState>(() =>
         hydrateOrchestrationState(topic.id)
     );
@@ -234,6 +239,18 @@ export function TopicContentViewer({
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState<GenerationError | null>(null);
     const retryCountRef = useRef(0);
+
+    const commitRecordId = useCallback(
+        (next?: string) => {
+            setRecordId(next);
+            onRecordIdChange?.(next);
+        },
+        [onRecordIdChange]
+    );
+
+    useEffect(() => {
+        if (initialRecordId) commitRecordId(initialRecordId);
+    }, [initialRecordId, commitRecordId]);
 
     // Cargar persistencia local (desde Supabase o localStorage) cuando cambia el tema
     // IMPORTANTE: no depender de eventSource/timeoutId para no sobrescribir el contenido generado en vivo.
@@ -443,6 +460,9 @@ export function TopicContentViewer({
                     const data = JSON.parse((evt as MessageEvent).data);
                     const hydratedContent = hydrateContent(data.result);
                     if (hydratedContent) setContent(hydratedContent);
+                    if (typeof data.recordId === "string" && data.recordId.length) {
+                        commitRecordId(data.recordId);
+                    }
 
                     const health = data.health || hydratedContent?.metadata?.health;
                     const needsImprovement = data.qualityStatus === 'needs_improvement' || health?.wordGoalMet === false;
@@ -462,6 +482,9 @@ export function TopicContentViewer({
                             if (res.ok && saved?.success) {
                                 persistOk = true;
                                 persistError = null;
+                                if (typeof saved?.id === "string" && saved.id.length) {
+                                    commitRecordId(saved.id);
+                                }
                             } else {
                                 persistError = saved?.error || persistError || "No se pudo guardar";
                             }
@@ -782,7 +805,12 @@ export function TopicContentViewer({
 
                                     {section.content.widgets && section.content.widgets.length > 0 && (
                                         <div className="mt-6">
-                                            <WidgetFactory widgets={section.content.widgets} topicId={content.topicId} widgetIdPrefix={section.id} />
+                                            <WidgetFactory
+                                                widgets={section.content.widgets}
+                                                topicId={content.topicId}
+                                                widgetIdPrefix={section.id}
+                                                recordId={recordId}
+                                            />
                                         </div>
                                     )}
                                 </article>
@@ -1084,6 +1112,7 @@ export function TopicContentViewer({
                                                     widgets={section.content.widgets}
                                                     topicId={content.topicId}
                                                     widgetIdPrefix={section.id}
+                                                    recordId={recordId}
                                                 />
                                             </div>
                                         )}
@@ -1170,11 +1199,12 @@ export function TopicContentViewer({
 interface SectionRendererProps {
     section: TopicSection;
     topicId: string;
+    recordId?: string;
     isActive: boolean;
     onActivate: () => void;
 }
 
-function SectionRenderer({ section, topicId, isActive, onActivate }: SectionRendererProps) {
+function SectionRenderer({ section, topicId, recordId, isActive, onActivate }: SectionRendererProps) {
     const [isExpanded, setIsExpanded] = useState(true);
 
     const levelStyles = {
@@ -1243,6 +1273,7 @@ function SectionRenderer({ section, topicId, isActive, onActivate }: SectionRend
                                         widgets={section.content.widgets} 
                                         topicId={topicId}
                                         widgetIdPrefix={section.id}
+                                        recordId={recordId}
                                     />
                                 </div>
                             )}
@@ -1255,6 +1286,7 @@ function SectionRenderer({ section, topicId, isActive, onActivate }: SectionRend
                                             key={child.id}
                                             section={child}
                                             topicId={topicId}
+                                            recordId={recordId}
                                             isActive={false}
                                             onActivate={() => { }}
                                         />

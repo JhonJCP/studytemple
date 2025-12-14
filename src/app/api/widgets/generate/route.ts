@@ -134,6 +134,7 @@ export async function POST(req: NextRequest) {
         const widgetType = body?.widgetType as string | undefined;
         const widgetData = body?.widgetData as any;
         const topicId = body?.topicId as string | undefined;
+        const recordId = body?.recordId as string | undefined;
         const widgetId = widgetData?.widgetId as string | undefined;
 
         if (!topicId || !widgetType || !widgetId) {
@@ -149,14 +150,13 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const { data: record, error: fetchError } = await supabase
+        const baseQuery = supabase
             .from("generated_content")
-            .select("id,content_json,updated_at")
-            .eq("user_id", user.id)
-            .eq("topic_id", topicId)
-            .order("updated_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
+            .select("id,content_json,updated_at,created_at")
+            .eq("user_id", user.id);
+        const { data: record, error: fetchError } = recordId
+            ? await baseQuery.eq("id", recordId).eq("topic_id", topicId).maybeSingle()
+            : await baseQuery.eq("topic_id", topicId).order("created_at", { ascending: false }).limit(1).maybeSingle();
 
         if (fetchError) {
             console.error("[WIDGET-API] Error reading generated_content:", fetchError);
@@ -252,7 +252,10 @@ export async function POST(req: NextRequest) {
         nextWidget.content = nextContent;
         nextWidget.generated = true;
 
-        await supabase.from("generated_content").update({ content_json: contentJson }).eq("id", record.id);
+        await supabase
+            .from("generated_content")
+            .update({ content_json: contentJson, updated_at: new Date().toISOString() })
+            .eq("id", record.id);
 
         return NextResponse.json({
             success: true,

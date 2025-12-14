@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
                             .select("content_json")
                             .eq("user_id", user.id)
                             .eq("topic_id", topicId)
-                            .order("updated_at", { ascending: false })
+                            .order("created_at", { ascending: false })
                             .limit(1)
                             .maybeSingle();
 
@@ -230,22 +230,29 @@ export async function GET(req: NextRequest) {
                     // 3) Guardar en Supabase si hay usuario
                     let persisted = false;
                     let persistError: string | null = null;
+                    let recordId: string | null = null;
                     if (supabaseUser) {
                         try {
                             const supabase = await createClient();
-                            const { error: upsertError } = await supabase.from("generated_content").upsert({
+                            const payload = {
                                 user_id: supabaseUser,
                                 topic_id: topicId,
                                 content_json: result,
                                 is_complete: true,
                                 status: "complete",
-                                updated_at: new Date().toISOString()
-                            });
+                                updated_at: new Date().toISOString(),
+                            };
+                            const { data: upserted, error: upsertError } = await supabase
+                                .from("generated_content")
+                                .upsert(payload, { onConflict: "user_id,topic_id" })
+                                .select("id")
+                                .maybeSingle();
                             if (upsertError) {
                                 persistError = upsertError.message;
                                 log(`Error guardando en Supabase`, upsertError);
                             } else {
                                 persisted = true;
+                                recordId = upserted?.id || null;
                                 log(`Contenido guardado en Supabase`);
                             }
                         } catch (e) {
@@ -263,7 +270,8 @@ export async function GET(req: NextRequest) {
                         qualityStatus: result.qualityStatus,
                         warnings: result.warnings || [],
                         persisted,
-                        persistError
+                        persistError,
+                        recordId,
                     });
                     clearTimeout(timeout);
                     cleanup();

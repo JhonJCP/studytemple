@@ -99,12 +99,13 @@ function updateWidgetInContent(
 
 interface Props {
     topicId: string;
+    recordId?: string;
     content: GeneratedTopicContent;
     onContentChange: (next: GeneratedTopicContent) => void;
     maxWidgets?: number;
 }
 
-export function GenerateWidgetsPanel({ topicId, content, onContentChange, maxWidgets = 10 }: Props) {
+export function GenerateWidgetsPanel({ topicId, recordId, content, onContentChange, maxWidgets = 10 }: Props) {
     const pending = useMemo(() => collectWidgets(content.sections || []).slice(0, maxWidgets), [content, maxWidgets]);
     const [isRunning, setIsRunning] = useState(false);
     const [progress, setProgress] = useState<{ done: number; total: number; current?: string } | null>(null);
@@ -128,6 +129,7 @@ export function GenerateWidgetsPanel({ topicId, content, onContentChange, maxWid
                         widgetType: item.apiType,
                         widgetData: item.widgetData,
                         topicId,
+                        recordId,
                     }),
                 });
                 const data = await res.json();
@@ -216,4 +218,3 @@ export function GenerateWidgetsPanel({ topicId, content, onContentChange, maxWid
         </div>
     );
 }
-

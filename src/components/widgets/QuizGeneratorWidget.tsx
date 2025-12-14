@@ -18,6 +18,7 @@ interface QuizGeneratorWidgetProps {
         }>;
         widgetId: string;
         topicId: string;
+        recordId?: string;
     };
 }
 
@@ -39,6 +40,7 @@ export function QuizGeneratorWidget({ content }: QuizGeneratorWidgetProps) {
                     widgetId: content.widgetId,
                 },
                 topicId: content.topicId,
+                recordId: content.recordId,
             });
 
             const next = data.result?.questions || data.result;

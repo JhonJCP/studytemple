@@ -15,6 +15,7 @@ import { GenerateWidgetsPanel } from "@/components/GenerateWidgetsPanel";
 interface Props {
     date: string;
     topic: TopicWithGroup;
+    initialRecordId?: string;
     initialContent?: GeneratedTopicContent;
     initialAudioUrl?: string;
     initialAudioScript?: string;
@@ -24,6 +25,7 @@ interface Props {
 export function StudyWorkspace({
     date,
     topic,
+    initialRecordId,
     initialContent,
     initialAudioUrl,
     initialAudioScript,
@@ -32,6 +34,7 @@ export function StudyWorkspace({
     const [leftOpen, setLeftOpen] = useState(true);
     const [rightOpen, setRightOpen] = useState(true);
     const [content, setContent] = useState<GeneratedTopicContent | null>(initialContent || null);
+    const [recordId, setRecordId] = useState<string | undefined>(initialRecordId);
 
     const sections = content?.sections || generateBaseHierarchy(topic);
 
@@ -128,9 +131,11 @@ export function StudyWorkspace({
                 <section className="min-w-0 rounded-2xl paper-surface overflow-hidden">
                     <TopicContentViewer
                         topic={topic}
+                        initialRecordId={recordId}
                         initialContent={initialContent}
                         variant="embedded"
                         onContentChange={setContent}
+                        onRecordIdChange={setRecordId}
                     />
                 </section>
 
@@ -148,6 +153,7 @@ export function StudyWorkspace({
                         {content && (
                             <GenerateWidgetsPanel
                                 topicId={topic.id}
+                                recordId={recordId}
                                 content={content}
                                 onContentChange={(next) => setContent(next)}
                             />

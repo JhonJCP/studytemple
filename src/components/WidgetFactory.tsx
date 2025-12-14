@@ -26,6 +26,7 @@ interface WidgetFactoryProps {
     widgets: WidgetDefinition[];
     topicId?: string; // Needed for on-demand generation
     widgetIdPrefix?: string; // Stable prefix (e.g. section id)
+    recordId?: string; // Persist widgets against the correct DB record
 }
 
 // ============================================
@@ -55,7 +56,7 @@ const WIDGET_MAP: Record<string, React.ComponentType<{ content: any }>> = {
 // COMPONENTE PRINCIPAL
 // ============================================
 
-export function WidgetFactory({ widgets, topicId, widgetIdPrefix }: WidgetFactoryProps) {
+export function WidgetFactory({ widgets, topicId, widgetIdPrefix, recordId }: WidgetFactoryProps) {
     if (!widgets || widgets.length === 0) {
         return null;
     }
@@ -90,10 +91,12 @@ export function WidgetFactory({ widgets, topicId, widgetIdPrefix }: WidgetFactor
                               ...(widget.content as any),
                               widgetId: (widget.content as any).widgetId || stableWidgetId,
                               topicId: topicId,
+                              recordId: recordId,
                           }
                         : {
                               widgetId: stableWidgetId,
                               topicId: topicId,
+                              recordId: recordId,
                           };
                 
                 return (

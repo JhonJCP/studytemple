@@ -13,6 +13,7 @@ interface MnemonicGeneratorWidgetProps {
         explanation?: string;
         widgetId: string;
         topicId: string;
+        recordId?: string;
     };
 }
 
@@ -35,6 +36,7 @@ export function MnemonicGeneratorWidget({ content }: MnemonicGeneratorWidgetProp
                     widgetId: content.widgetId,
                 },
                 topicId: content.topicId,
+                recordId: content.recordId,
             });
             
             setRule(data.result.rule);

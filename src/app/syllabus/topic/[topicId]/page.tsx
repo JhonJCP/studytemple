@@ -1,8 +1,11 @@
 import { TopicContentViewer } from "@/components/TopicContentViewer";
-import { getTopicById, parseTopicId } from "@/lib/syllabus-hierarchy";
+import { getTopicById } from "@/lib/syllabus-hierarchy";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import type { GeneratedTopicContent } from "@/lib/widget-types";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 interface PageProps {
     params: Promise<{ topicId: string }>;
@@ -30,23 +33,25 @@ export default async function TopicPage({ params }: PageProps) {
 
     // Intentar cargar contenido persistido (si el usuario está autenticado)
     let initialContent: GeneratedTopicContent | undefined;
+    let initialRecordId: string | undefined;
     try {
         const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
             const { data } = await supabase
                 .from("generated_content")
-                .select("content_json")
+                .select("id,content_json")
                 .eq("user_id", user.id)
                 .eq("topic_id", topic.id)
-                .order("updated_at", { ascending: false })
+                .order("created_at", { ascending: false })
                 .limit(1)
                 .maybeSingle();
-            initialContent = data?.content_json as GeneratedTopicContent | undefined;
+            initialRecordId = (data as any)?.id || undefined;
+            initialContent = (data as any)?.content_json as GeneratedTopicContent | undefined;
         }
     } catch {
         // Ignorar errores de supabase para no bloquear la página
     }
 
-    return <TopicContentViewer topic={topic} initialContent={initialContent} />;
+    return <TopicContentViewer topic={topic} initialContent={initialContent} initialRecordId={initialRecordId} />;
 }

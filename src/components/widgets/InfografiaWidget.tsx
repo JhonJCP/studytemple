@@ -12,6 +12,7 @@ interface InfografiaWidgetProps {
         imageUrl?: string;
         widgetId: string;
         topicId: string;
+        recordId?: string;
     };
 }
 
@@ -33,6 +34,7 @@ export function InfografiaWidget({ content }: InfografiaWidgetProps) {
                     widgetId: content.widgetId,
                 },
                 topicId: content.topicId,
+                recordId: content.recordId,
             });
             
             setImageUrl(data.result);

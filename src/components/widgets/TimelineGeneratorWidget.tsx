@@ -14,6 +14,7 @@ interface TimelineGeneratorWidgetProps {
         steps?: Array<{ time: string; action: string }>;
         widgetId: string;
         topicId: string;
+        recordId?: string;
     };
 }
 
@@ -35,6 +36,7 @@ export function TimelineGeneratorWidget({ content }: TimelineGeneratorWidgetProp
                     widgetId: content.widgetId,
                 },
                 topicId: content.topicId,
+                recordId: content.recordId,
             });
 
             const next = data.result?.steps || data.result;
