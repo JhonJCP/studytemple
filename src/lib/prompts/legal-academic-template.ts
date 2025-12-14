@@ -18,7 +18,7 @@ REGLAS OBLIGATORIAS (NO NEGOCIABLES)
    - Toda afirmaciÃ³n normativa relevante (competencias, procedimientos, plazos, anchos, sanciones, efectos) debe llevar cita real.
 5) FORMATO: usa Markdown claro (h3, listas, TABLAS), evitando prosa larga. Evita caracteres raros/artefactos (p.ej. "Â¶", "??").
 6) CITAS CONSISTENTES: usa siempre uno de estos formatos para facilitar el parseo:
-   - (Art. 1 Ley 9/1991) / (Art. 63.1.l RCC) / (Art. 44 RCC)
+   - (Art. 1 Ley X/AAAA) / (Art. 63.1.l Reglamento) / (Art. 44 Norma)
 7) sourceMetadata (CRÃTICO): en el JSON final, cada secciÃ³n debe incluir sourceMetadata:
 {
   "primaryDocument": "NombreDelPDF.pdf",

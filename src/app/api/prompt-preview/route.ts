@@ -7,6 +7,22 @@ export const runtime = "nodejs";
 
 type AgentId = "planner" | "expert-teorico" | "expert-practical" | "expert-tecnico" | "curator" | "strategist";
 
+function getSystemPromptOverride(req: NextRequest): string {
+    const raw = req.cookies.get("st_system_prompt")?.value || "";
+    if (!raw) return "";
+    try {
+        return decodeURIComponent(raw);
+    } catch {
+        return raw;
+    }
+}
+
+function systemPrefix(req: NextRequest): string {
+    const s = getSystemPromptOverride(req).trim();
+    if (!s) return "";
+    return `INSTRUCCIONES DE SISTEMA (usuario):\n${s}\n\n`;
+}
+
 function asInt(v: string | null, fallback: number) {
     const n = Number(v);
     if (!Number.isFinite(n) || n <= 0) return fallback;
@@ -19,6 +35,7 @@ export async function GET(req: NextRequest) {
         const topicId = searchParams.get("topicId") || "";
         const agent = (searchParams.get("agent") || "") as AgentId;
         const targetWords = asInt(searchParams.get("targetWords"), 2000);
+        const sys = systemPrefix(req);
 
         if (!topicId) return NextResponse.json({ error: "Missing topicId" }, { status: 400 });
         if (!agent) return NextResponse.json({ error: "Missing agent" }, { status: 400 });
@@ -48,7 +65,7 @@ export async function GET(req: NextRequest) {
             const evidenceSummary = formatChunksAsEvidence(coreChunks as any, 18);
 
             const prompt = `
-${LEGAL_ACADEMIC_FORMAT}
+${sys}${LEGAL_ACADEMIC_FORMAT}
 
 ${EXPERT_TEORICO_TEMPLATE}
 
@@ -78,7 +95,7 @@ NOTA: este es el prompt real (preview) que se construye en el backend.`;
             const evidenceSummary = formatChunksAsEvidence(practiceChunks as any, 18);
 
             const prompt = `
-${LEGAL_ACADEMIC_FORMAT}
+${sys}${LEGAL_ACADEMIC_FORMAT}
 
 ${EXPERT_PRACTICAL_TEMPLATE}
 
@@ -110,7 +127,7 @@ NOTA: este es el prompt real (preview) que se construye en el backend.`;
             const evidenceSummary = formatChunksAsEvidence(allChunks as any, 18);
 
             const prompt = `
-${LEGAL_ACADEMIC_FORMAT}
+${sys}${LEGAL_ACADEMIC_FORMAT}
 
 Eres un EXPERTO TÉCNICO en ingeniería de obras públicas.
 
@@ -140,7 +157,7 @@ NOTA: este es el prompt real (preview) que se construye en el backend.`;
 
         if (agent === "curator") {
             const prompt =
-                `Curator (LLM): evalúa los drafts de los 3 expertos + patrones PRACTICE y prioriza lo crítico.\n\n` +
+                `${sys}Curator (LLM): evalúa los drafts de los 3 expertos + patrones PRACTICE y prioriza lo crítico.\n\n` +
                 `Este prompt se construye DESPUÉS de que existan drafts (no hay preview completo sin ejecutar).\n` +
                 `Código: src/lib/expert-curator.ts`;
             return NextResponse.json({ prompt });
@@ -148,9 +165,9 @@ NOTA: este es el prompt real (preview) que se construye en el backend.`;
 
         if (agent === "strategist") {
             const prompt = `
-${LEGAL_ACADEMIC_FORMAT}
+${sys}${LEGAL_ACADEMIC_FORMAT}
 
-${STRATEGIST_SYNTHESIZER_TEMPLATE}
+ ${STRATEGIST_SYNTHESIZER_TEMPLATE}
 
 NOTA: el strategist integra los 3 drafts + el reporte del curator. El prompt completo se construye tras ejecutar esos pasos.`;
             return NextResponse.json({ prompt: prompt.trim() });
@@ -161,4 +178,3 @@ NOTA: el strategist integra los 3 drafts + el reporte del curator. El prompt com
         return NextResponse.json({ error: e instanceof Error ? e.message : "Unknown error" }, { status: 500 });
     }
 }
-

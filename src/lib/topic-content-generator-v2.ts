@@ -103,6 +103,7 @@ export class TopicContentGeneratorV2 {
     private cancelled: boolean = false;
     private userId?: string;
     private planningData?: PlanningData;
+    private systemPrompt?: string;
     
     private globalPlanner: GlobalPlannerWithRealPlanning;
     private expertPractical: ExpertPractical;
@@ -116,7 +117,8 @@ export class TopicContentGeneratorV2 {
         currentDate?: string,
         onStateChange?: (state: OrchestrationState) => void,
         userId?: string,
-        planningData?: PlanningData
+        planningData?: PlanningData,
+        systemPrompt?: string
     ) {
         this.state = {
             topicId,
@@ -128,6 +130,7 @@ export class TopicContentGeneratorV2 {
         this.telemetry = new GeneratorTelemetry();
         this.userId = userId;
         this.planningData = planningData;
+        this.systemPrompt = systemPrompt;
         
         // Inicializar expertos
         const apiKey = getAPIKey();
@@ -280,7 +283,8 @@ export class TopicContentGeneratorV2 {
                 this.expertTeorico.generate({
                     topic,
                     targetWords: Math.round(strategicPlan.targetWords * 0.30),
-                    criticalLaws: strategicPlan.criticalLaws
+                    criticalLaws: strategicPlan.criticalLaws,
+                    systemPrompt: this.systemPrompt,
                 }).then(draft => {
                     this.updateStep('expert-teorico', {
                         status: 'completed',
@@ -295,7 +299,8 @@ export class TopicContentGeneratorV2 {
                     topic,
                     targetWords: Math.round(strategicPlan.targetWords * 0.40),
                     practiceExamples: strategicPlan.practiceExamples,
-                    commonCalculations: strategicPlan.commonCalculations
+                    commonCalculations: strategicPlan.commonCalculations,
+                    systemPrompt: this.systemPrompt,
                 }).then(draft => {
                     this.updateStep('expert-practical', {
                         status: 'completed',
@@ -309,7 +314,8 @@ export class TopicContentGeneratorV2 {
                 this.expertTecnico.generate({
                     topic,
                     targetWords: Math.round(strategicPlan.targetWords * 0.30),
-                    commonCalculations: strategicPlan.commonCalculations
+                    commonCalculations: strategicPlan.commonCalculations,
+                    systemPrompt: this.systemPrompt,
                 }).then(draft => {
                     this.updateStep('expert-tecnico', {
                         status: 'completed',
@@ -349,7 +355,8 @@ export class TopicContentGeneratorV2 {
             const curationReport = await this.curator.analyze({
                 drafts: [draftTeorico, draftPractico, draftTecnico],
                 practicePatterns: await this.globalPlanner.getPracticePatterns(),
-                topicImportance: strategicPlan.complexity === 'High' ? 'HIGH' : 'MEDIUM'
+                topicImportance: strategicPlan.complexity === 'High' ? 'HIGH' : 'MEDIUM',
+                systemPrompt: this.systemPrompt,
             });
             
             this.updateStep('curator', {
@@ -390,7 +397,8 @@ export class TopicContentGeneratorV2 {
                 topic,
                 drafts: [draftTeorico, draftPractico, draftTecnico],
                 curationReport,
-                strategicPlan
+                strategicPlan,
+                systemPrompt: this.systemPrompt,
             });
             
             this.updateStep('strategist', {

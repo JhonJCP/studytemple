@@ -438,7 +438,7 @@ export function TopicContentViewer({
                 }
             });
 
-            es.addEventListener("done", (evt) => {
+            es.addEventListener("done", async (evt) => {
                 try {
                     const data = JSON.parse((evt as MessageEvent).data);
                     const hydratedContent = hydrateContent(data.result);
@@ -447,8 +447,28 @@ export function TopicContentViewer({
                     const health = data.health || hydratedContent?.metadata?.health;
                     const needsImprovement = data.qualityStatus === 'needs_improvement' || health?.wordGoalMet === false;
                     const warnings = (data.warnings as string[]) || [];
-                    const persistOk = Boolean(data.persisted);
-                    const persistError = typeof data.persistError === "string" && data.persistError.length ? data.persistError : null;
+                    let persistOk = Boolean(data.persisted);
+                    let persistError = typeof data.persistError === "string" && data.persistError.length ? data.persistError : null;
+
+                    // En /study (embedded) si el SSE no logra persistir, intentar un guardado "backup" via POST (más fiable que el stream).
+                    if (!persistOk && variant === "embedded" && hydratedContent) {
+                        try {
+                            const res = await fetch("/api/generated-content/save", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ topicId: topic.id, contentJson: data.result }),
+                            });
+                            const saved = await res.json().catch(() => ({}));
+                            if (res.ok && saved?.success) {
+                                persistOk = true;
+                                persistError = null;
+                            } else {
+                                persistError = saved?.error || persistError || "No se pudo guardar";
+                            }
+                        } catch (e) {
+                            persistError = e instanceof Error ? e.message : persistError || "No se pudo guardar";
+                        }
+                    }
 
                     setOrchestrationState(prev => ({
                         ...prev,
@@ -459,7 +479,9 @@ export function TopicContentViewer({
                     }));
 
                     const persistWarning = !persistOk
-                        ? `Persistencia: no se pudo guardar en tu cuenta${persistError ? ` (${persistError})` : ""}. Se mantiene guardado en este dispositivo.`
+                        ? variant === "embedded"
+                            ? `Persistencia: no se pudo guardar en tu cuenta${persistError ? ` (${persistError})` : ""}. Al recargar podrías ver una versión anterior.`
+                            : `Persistencia: no se pudo guardar en tu cuenta${persistError ? ` (${persistError})` : ""}. Se mantiene guardado en este dispositivo.`
                         : null;
 
                     if (needsImprovement || persistWarning) {

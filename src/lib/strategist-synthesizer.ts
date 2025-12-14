@@ -116,6 +116,7 @@ export class StrategistSynthesizer {
     drafts: ExpertOutput[];
     curationReport: CurationReport;
     strategicPlan: StrategicPlan;
+    systemPrompt?: string;
   }): Promise<GeneratedTopicContent> {
     console.log("[STRATEGIST] Synthesizing final content...");
 
@@ -137,7 +138,11 @@ export class StrategistSynthesizer {
       .filter(Boolean)
       .slice(0, 3);
 
+    const sys = params.systemPrompt?.trim();
+    const sysPrefix = sys ? `INSTRUCCIONES DE SISTEMA (usuario):\n${sys}\n\n` : "";
+
     const prompt = `
+${sysPrefix}
 ${LEGAL_ACADEMIC_FORMAT}
 
 ${STRATEGIST_SYNTHESIZER_TEMPLATE}

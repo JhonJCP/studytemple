@@ -19,6 +19,18 @@ function sseEvent(event: string, data: unknown): string {
     return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
+function getSystemPromptOverride(req: NextRequest): string | undefined {
+    const raw = req.cookies.get("st_system_prompt")?.value || "";
+    if (!raw) return undefined;
+    try {
+        const decoded = decodeURIComponent(raw).trim();
+        return decoded.length ? decoded : undefined;
+    } catch {
+        const trimmed = raw.trim();
+        return trimmed.length ? trimmed : undefined;
+    }
+}
+
 function log(message: string, data?: unknown) {
     if (ENABLE_LOGGING) {
         const dataStr = data ? JSON.stringify(data, null, 0).slice(0, 500) : '';
@@ -33,12 +45,13 @@ export async function GET(req: NextRequest) {
     const { searchParams } = req.nextUrl;
     const topicId = searchParams.get("topicId");
     const force = searchParams.get("force") === "true";
+    const systemPrompt = getSystemPromptOverride(req);
 
     if (!topicId) {
         return new Response("topicId requerido", { status: 400 });
     }
 
-    log(`Nueva petición SSE`, { topicId, force });
+    log(`Nueva petición SSE`, { topicId, force, hasSystemPrompt: Boolean(systemPrompt) });
 
     // Cancelar generación previa si existe
     const existingGenerator = activeGenerators.get(topicId);
@@ -178,7 +191,8 @@ export async function GET(req: NextRequest) {
                         });
                     },
                     supabaseUser || undefined, // userId para cargar planning desde DB
-                    planningData
+                    planningData,
+                    systemPrompt
                     );
                 } catch (error) {
                     const errorMsg = error instanceof Error ? error.message : "Error desconocido";

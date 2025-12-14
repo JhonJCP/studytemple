@@ -21,6 +21,29 @@ const brainLabels: Record<BrainId, string> = {
     strategist: "Strategist (síntesis final + widgets)",
 };
 
+const SYSTEM_PROMPT_LS_KEY = "ai_system_prompt_v1";
+const SYSTEM_PROMPT_COOKIE = "st_system_prompt";
+
+function readCookie(name: string): string | null {
+    try {
+        const parts = (document.cookie || "").split(";").map((p) => p.trim());
+        const hit = parts.find((p) => p.startsWith(`${name}=`));
+        if (!hit) return null;
+        return hit.slice(name.length + 1);
+    } catch {
+        return null;
+    }
+}
+
+function writeCookie(name: string, value: string) {
+    const maxAge = 60 * 60 * 24 * 365; // 1 año
+    document.cookie = `${name}=${value}; path=/; max-age=${maxAge}; samesite=lax`;
+}
+
+function deleteCookie(name: string) {
+    document.cookie = `${name}=; path=/; max-age=0; samesite=lax`;
+}
+
 export function AIFlowPanel({ topicTitle, topicId, date, groupTitle }: Props) {
     const [open, setOpen] = useState<BrainId | null>(null);
     const [planMeta, setPlanMeta] = useState<{ minutes?: number; importance?: string; contentLength?: string } | null>(null);
@@ -28,6 +51,31 @@ export function AIFlowPanel({ topicTitle, topicId, date, groupTitle }: Props) {
     const [promptByBrain, setPromptByBrain] = useState<Partial<Record<BrainId, string>>>({});
     const [loadingBrain, setLoadingBrain] = useState<BrainId | null>(null);
     const [errorByBrain, setErrorByBrain] = useState<Partial<Record<BrainId, string>>>({});
+
+    const [systemPrompt, setSystemPrompt] = useState<string>("");
+    const [systemSaved, setSystemSaved] = useState(false);
+
+    // Cargar system prompt editable (localStorage / cookie)
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem(SYSTEM_PROMPT_LS_KEY);
+            if (stored && stored.trim().length) {
+                setSystemPrompt(stored);
+                return;
+            }
+        } catch {
+            // ignore
+        }
+
+        const cookieVal = readCookie(SYSTEM_PROMPT_COOKIE);
+        if (cookieVal) {
+            try {
+                setSystemPrompt(decodeURIComponent(cookieVal));
+            } catch {
+                setSystemPrompt(cookieVal);
+            }
+        }
+    }, []);
 
     // Cargar datos de plan guardado en localStorage (si existe) para mostrar minutos/importance
     useEffect(() => {
@@ -65,6 +113,41 @@ export function AIFlowPanel({ topicTitle, topicId, date, groupTitle }: Props) {
 
     const copyText = (text: string) => {
         navigator.clipboard?.writeText(text);
+    };
+
+    const saveSystemPrompt = () => {
+        const value = (systemPrompt || "").trim();
+        setSystemSaved(false);
+
+        try {
+            if (value) localStorage.setItem(SYSTEM_PROMPT_LS_KEY, value);
+            else localStorage.removeItem(SYSTEM_PROMPT_LS_KEY);
+        } catch {
+            // ignore
+        }
+
+        if (value) writeCookie(SYSTEM_PROMPT_COOKIE, encodeURIComponent(value));
+        else deleteCookie(SYSTEM_PROMPT_COOKIE);
+
+        // Forzar recarga de previews (los prompts dependen del cookie)
+        setPromptByBrain({});
+        setErrorByBrain({});
+
+        setSystemSaved(true);
+        setTimeout(() => setSystemSaved(false), 1500);
+    };
+
+    const resetSystemPrompt = () => {
+        setSystemPrompt("");
+        setSystemSaved(false);
+        try {
+            localStorage.removeItem(SYSTEM_PROMPT_LS_KEY);
+        } catch {
+            // ignore
+        }
+        deleteCookie(SYSTEM_PROMPT_COOKIE);
+        setPromptByBrain({});
+        setErrorByBrain({});
     };
 
     const fetchPrompt = async (brain: BrainId) => {
@@ -117,6 +200,39 @@ export function AIFlowPanel({ topicTitle, topicId, date, groupTitle }: Props) {
                 </div>
             </div>
 
+            <details className="rounded-lg border border-white/5 bg-white/5">
+                <summary className="cursor-pointer select-none px-3 py-2 text-sm text-white/80 hover:bg-white/10 transition">
+                    Prompt de sistema (editable) {systemSaved ? "· Guardado" : ""}
+                </summary>
+                <div className="px-3 pb-3 space-y-2">
+                    <p className="text-[11px] text-white/60">
+                        Se aplica a todos los agentes (preview + generación) vía cookie. Manténlo relativamente corto (≈ &lt; 3000 caracteres).
+                    </p>
+                    <textarea
+                        value={systemPrompt}
+                        onChange={(e) => setSystemPrompt(e.target.value)}
+                        placeholder="Escribe aquí tus instrucciones globales (tono, estructura, reglas, etc.)"
+                        className="w-full min-h-[120px] rounded-lg border border-white/10 bg-black/40 p-3 text-xs text-white/80 outline-none focus:border-white/30"
+                    />
+                    <div className="flex items-center justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={resetSystemPrompt}
+                            className="text-[10px] px-2 py-1 rounded border border-white/10 text-white/60 hover:text-white hover:border-white/30 transition"
+                        >
+                            Reset
+                        </button>
+                        <button
+                            type="button"
+                            onClick={saveSystemPrompt}
+                            className="text-[10px] px-2 py-1 rounded border border-white/10 bg-white text-black hover:bg-gray-200 transition"
+                        >
+                            Guardar
+                        </button>
+                    </div>
+                </div>
+            </details>
+
             <div className="space-y-2">
                 {(Object.keys(brainLabels) as BrainId[]).map((id) => {
                     const isOpen = open === id;
@@ -161,4 +277,3 @@ export function AIFlowPanel({ topicTitle, topicId, date, groupTitle }: Props) {
         </div>
     );
 }
-

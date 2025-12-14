@@ -66,6 +66,7 @@ export class ExpertCurator {
         drafts: ExpertOutput[];
         practicePatterns: PracticePatterns;
         topicImportance: 'HIGH' | 'MEDIUM' | 'LOW';
+        systemPrompt?: string;
     }): Promise<CurationReport> {
         
         console.log('[CURATOR] Analyzing drafts for curation...');
@@ -79,8 +80,12 @@ export class ExpertCurator {
         
         // Preparar evidencia de supuestos
         const practiceEvidence = this.formatPracticePatterns(params.practicePatterns);
+
+        const sys = params.systemPrompt?.trim();
+        const sysPrefix = sys ? `INSTRUCCIONES DE SISTEMA (usuario):\n${sys}\n\n` : "";
         
         const prompt = `
+${sysPrefix}
 Eres un PROFESOR EXPERTO en oposiciones ITOP con 20 años preparando la PARTE PRÁCTICA.
 
 CONTEXTO:
@@ -250,6 +255,5 @@ ${patterns.criticalLaws.map(l =>
         return text.trim().split(/\s+/).filter(w => w.length > 0).length;
     }
 }
-
 
 

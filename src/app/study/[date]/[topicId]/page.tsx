@@ -41,7 +41,8 @@ export default async function StudyPage({ params }: PageProps) {
                 )
                 .eq("user_id", user.id)
                 .eq("topic_id", topic.id)
-                .order("updated_at", { ascending: false })
+                // IMPORTANTE: no ordenar por updated_at porque los widgets/audio pueden actualizarlo y “revivir” una versión vieja.
+                .order("created_at", { ascending: false })
                 .limit(1)
                 .maybeSingle();
 
@@ -71,4 +72,3 @@ export default async function StudyPage({ params }: PageProps) {
         />
     );
 }
-

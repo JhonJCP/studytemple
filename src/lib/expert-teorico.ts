@@ -18,6 +18,7 @@ interface ExpertTeoricoParams {
     topic: TopicWithGroup;
     targetWords: number;
     criticalLaws?: Array<{ law: string; articles: string[] }>;
+    systemPrompt?: string;
 }
 
 export class ExpertTeorico {
@@ -46,7 +47,11 @@ export class ExpertTeorico {
         
         const evidenceSummary = formatChunksAsEvidence(coreChunks, 18);
         
+        const sys = params.systemPrompt?.trim();
+        const sysPrefix = sys ? `INSTRUCCIONES DE SISTEMA (usuario):\n${sys}\n\n` : "";
+
         const prompt = `
+${sysPrefix}
 ${LEGAL_ACADEMIC_FORMAT}
 
 ${EXPERT_TEORICO_TEMPLATE}

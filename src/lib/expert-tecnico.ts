@@ -18,6 +18,7 @@ interface ExpertTecnicoParams {
     topic: TopicWithGroup;
     targetWords: number;
     commonCalculations?: string[];
+    systemPrompt?: string;
 }
 
 export class ExpertTecnico {
@@ -55,9 +56,11 @@ export class ExpertTecnico {
         console.log(`[EXPERT-TECNICO] Found ${coreChunks.length} CORE + ${suppChunks.length} SUPP chunks`);
         
         const evidenceSummary = formatChunksAsEvidence(allChunks, 18);
+        const sys = params.systemPrompt?.trim();
+        const sysPrefix = sys ? `INSTRUCCIONES DE SISTEMA (usuario):\n${sys}\n\n` : "";
         
         const prompt = `
-${LEGAL_ACADEMIC_FORMAT}
+${sysPrefix}${LEGAL_ACADEMIC_FORMAT}
 
 Eres un EXPERTO TÉCNICO en ingeniería de obras públicas.
 
